@@ -1,5 +1,5 @@
 const $ = (s, root=document) => root.querySelector(s);
-const $ = (s, root=document) => [...root.querySelectorAll(s)];
+const $$ = (s, root=document) => [...root.querySelectorAll(s)];
 function trackActivity(event,details={}){if(!window.recontentAuth?.getUser?.())return;fetch("/api/activity",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({event,details})}).catch(()=>{});}
 const KEY = "recontent-library-v1";
 const seeds = [
