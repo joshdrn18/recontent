@@ -31,3 +31,16 @@ Open `index.html` in a browser. This is a static site with no build step or pack
 ## Expanded workspace review tools
 
 The preview now includes a structured content brief (audience, goal, CTA, key points, and extra instructions), browser-local brief autosave, editable generated output cards, per-output review markers, reset-to-original editing, and a source-length quality hint. These are workflow/review improvements only; they do not claim to provide AI generation. The app remains a static browser prototype and does not yet provide authentication, server-side storage, URL extraction, or an AI provider connection.
+
+
+## AI generation
+
+Content Studio uses Cloudflare Workers AI through the Pages Function binding named `AI`. The application uses `@cf/google/gemma-4-26b-a4b-it`, with an account-level daily usage guard and per-account generation limits. AI generation requires a signed-in account. URL extraction is intentionally marked as coming soon; paste source text for now.
+
+## Account and workspace data
+
+- Pages Function API: `functions/api/[[path]].js`
+- Cloudflare KV binding: `DATA`
+- Workers AI binding: `AI`
+- Cloud workspace records are isolated by account ID.
+- Account sessions use HttpOnly secure cookies and salted PBKDF2 password hashes.
