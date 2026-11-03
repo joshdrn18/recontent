@@ -213,7 +213,7 @@ async function handle(request,env) {
     return json({ok:true,updatedAt:saved.updatedAt},200,cors);
   }
   if(route==="activity" && request.method==="POST"){
-    const allowedEvents=new Set(["content.generated","library.saved","library.deleted","calendar.created","calendar.deleted","calendar.completed","brand.updated","workspace.exported","workspace.imported","workspace.cleared","template.used"]);
+    const allowedEvents=new Set(["content.generated","content.copied","content.downloaded","content.edited","library.opened","library.saved","library.deleted","calendar.created","calendar.deleted","calendar.completed","brand.updated","workspace.exported","workspace.imported","workspace.cleared","template.used"]);
     const event=String(body.event||"");
     if(!allowedEvents.has(event))return json({error:"Activity type is not allowed."},400,cors);
     const throttleKey="throttle:activity:"+user.id, count=Number(await env.DATA.get(throttleKey)||0);
