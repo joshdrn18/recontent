@@ -6,7 +6,7 @@
     brand:"recontent-brand-v1",
     brief:"recontent-current-brief-v1"
   };
-  let signedIn=false,hydrating=false,timer=null,lastSync=0;
+  let signedIn=false,hydrating=false,timer=null,syncing=false,pushPending=false;
   const parse=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)??JSON.stringify(fallback))}catch{return fallback}};
   const record=value=>value&&typeof value==="object"&&!Array.isArray(value)?value:{};
   const snapshot=()=>({
@@ -48,6 +48,8 @@
   }
   async function syncNow(showToast=false){
     if(!signedIn||hydrating)return;
+    if(syncing){pushPending=true;return}
+    syncing=true;
     try{
       const result=await api("GET");
       if(result.workspace){
@@ -60,7 +62,6 @@
       }else{
         await api("PUT",snapshot());
       }
-      lastSync=Date.now();
       const badge=document.querySelector("#cloud-sync-status");
       if(badge){badge.textContent="CLOUD SYNCED";badge.dataset.state="ok"}
       if(showToast)toast("Workspace synced to your account.");
@@ -68,18 +69,26 @@
       const badge=document.querySelector("#cloud-sync-status");
       if(badge){badge.textContent="SYNC PAUSED";badge.dataset.state="error"}
       if(showToast)toast(error.message);
+    }finally{
+      syncing=false;
+      if(pushPending){pushPending=false;push()}
     }
   }
   async function push(){
     if(!signedIn||hydrating)return;
+    if(syncing){pushPending=true;return}
+    syncing=true;
     try{
-      await api("PUT",snapshot());lastSync=Date.now();
+      await api("PUT",snapshot());
       const badge=document.querySelector("#cloud-sync-status");
       if(badge){badge.textContent="CLOUD SYNCED";badge.dataset.state="ok"}
     }catch(error){
       const badge=document.querySelector("#cloud-sync-status");
       if(badge){badge.textContent="SYNC ERROR";badge.dataset.state="error"}
       console.error("ReContent cloud sync:",error);
+    }finally{
+      syncing=false;
+      if(pushPending){pushPending=false;push()}
     }
   }
   const original=Storage.prototype.setItem;
