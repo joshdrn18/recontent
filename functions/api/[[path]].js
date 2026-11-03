@@ -35,11 +35,12 @@ async function handle(request,env) {
   const origin=request.headers.get("Origin")||"";
   const allowed=origin==="https://recontent.pages.dev" || /^https:\/\/[a-z0-9-]+\.recontent\.pages\.dev$/.test(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin);
   if(origin && !allowed)return json({error:"Origin not allowed."},403);
+  if(!origin && ["POST","PATCH","PUT","DELETE"].includes(request.method))return json({error:"A same-origin request is required."},403);
   const cors=origin?corsHeaders(origin):{};
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{...cors,"access-control-allow-methods":"GET,POST,PATCH,PUT,OPTIONS","access-control-allow-headers":"Content-Type","access-control-max-age":"86400"}});
   if(route==="health" && request.method==="GET")return json({ok:true,service:"ReContent API",storage:"connected"},200,cors);
   if(request.method!=="POST" && request.method!=="GET" && request.method!=="PATCH" && request.method!=="PUT")return json({error:"Method not allowed."},405,cors);
-  let body={}; if(request.method!=="GET"){try{body=await request.json()}catch{return json({error:"Invalid JSON body."},400,cors)}}
+  let body={}; if(request.method!=="GET"){const declared=Number(request.headers.get("Content-Length")||0);if(declared>500000)return json({error:"Request body is too large."},413,cors);try{const raw=await request.text();if(raw.length>500000)return json({error:"Request body is too large."},413,cors);body=raw?JSON.parse(raw):{}}catch{return json({error:"Invalid JSON body."},400,cors)}}
   const ip=request.headers.get("CF-Connecting-IP")||"unknown";
   if(route==="auth/register" && request.method==="POST"){
     const email=emailNorm(body.email),name=String(body.name||"").trim().slice(0,80),password=String(body.password||"");
@@ -53,7 +54,6 @@ async function handle(request,env) {
       const expected=await env.DATA.get("config:admin_setup_hash");
       if(!expected || !body.adminSetupKey || await digest(String(body.adminSetupKey))!==expected)return json({error:"A valid one-time Super Admin activation key is required for this email."},403,cors);
       role="admin";
-      await env.DATA.delete("config:admin_setup_hash");
     } else if(body.adminSetupKey) return json({error:"That activation key is not valid for this email."},403,cors);
     const id="usr_"+random(12),salt=random(16),hash=await passwordHash(password,salt),now=new Date().toISOString();
     const user={id,email,name,role,status:"active",createdAt:now,updatedAt:now,passwordHash:hash,passwordSalt:salt};
@@ -63,6 +63,7 @@ async function handle(request,env) {
     const token=random(32),sid=await digest(token),expiresAt=Date.now()+30*86400000;
     await write(env.DATA,"session:"+sid,{userId:id,expiresAt},30*86400);
     await logEvent(env,user,"account.registered",{method:"password"});
+    if(role==="admin")await env.DATA.delete("config:admin_setup_hash");
     return json({user:safeUser(user)},201,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
   }
   if(route==="auth/login" && request.method==="POST"){
@@ -71,6 +72,7 @@ async function handle(request,env) {
     await env.DATA.put(throttleKey,String(count+1),{expirationTtl:900});
     const id=await env.DATA.get("email:"+email),user=id?await read(env.DATA,"user:"+id):null;
     if(!user||user.status!=="active"||await passwordHash(String(body.password||""),user.passwordSalt)!==user.passwordHash)return json({error:"Email or password is incorrect."},401,cors);
+    await env.DATA.delete(throttleKey);
     const token=random(32),sid=await digest(token),expiresAt=Date.now()+30*86400000;
     await write(env.DATA,"session:"+sid,{userId:user.id,expiresAt},30*86400);
     await logEvent(env,user,"auth.login");
@@ -94,6 +96,10 @@ async function handle(request,env) {
   if(route==="workspace" && request.method==="PUT"){
     const payload=body.workspace;
     if(!payload || typeof payload!=="object" || Array.isArray(payload))return json({error:"Workspace payload is invalid."},400,cors);
+    if(payload.library!==undefined&&!Array.isArray(payload.library))return json({error:"Library data must be a list."},400,cors);
+    if(payload.schedule!==undefined&&!Array.isArray(payload.schedule))return json({error:"Calendar data must be a list."},400,cors);
+    if(payload.brand!==undefined&&(!payload.brand||typeof payload.brand!=="object"||Array.isArray(payload.brand)))return json({error:"Brand kit data is invalid."},400,cors);
+    if(payload.brief!==undefined&&(!payload.brief||typeof payload.brief!=="object"||Array.isArray(payload.brief)))return json({error:"Content brief data is invalid."},400,cors);
     const allowedKeys=["library","schedule","brand","brief"];
     const clean={};
     for(const key of allowedKeys) if(payload[key]!==undefined) clean[key]=payload[key];
