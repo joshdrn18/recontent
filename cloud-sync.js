@@ -8,11 +8,25 @@
   };
   let signedIn=false,hydrating=false,timer=null,lastSync=0;
   const parse=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)??JSON.stringify(fallback))}catch{return fallback}};
+  const record=value=>value&&typeof value==="object"&&!Array.isArray(value)?value:{};
   const snapshot=()=>({
-    library:parse(KEYS.library,[]),
-    schedule:parse(KEYS.schedule,[]),
-    brand:parse(KEYS.brand,{}),
-    brief:parse(KEYS.brief,{})
+    library:(()=>{const v=parse(KEYS.library,[]);return Array.isArray(v)?v:[]})(),
+    schedule:(()=>{const v=parse(KEYS.schedule,[]);return Array.isArray(v)?v:[]})(),
+    brand:record(parse(KEYS.brand,{})),
+    brief:record(parse(KEYS.brief,{}))
+  });
+  const mergeList=(local,remote)=>{
+    const map=new Map();
+    [...(Array.isArray(local)?local:[]),...(Array.isArray(remote)?remote:[])].forEach(item=>{
+      if(item&&typeof item==="object"&&item.id!==undefined)map.set(String(item.id),item);
+    });
+    return [...map.values()];
+  };
+  const mergeWorkspace=(local,remote)=>({
+    library:mergeList(local.library,remote.library),
+    schedule:mergeList(local.schedule,remote.schedule),
+    brand:Object.keys(record(remote.brand)).length?record(remote.brand):record(local.brand),
+    brief:Object.keys(record(remote.brief)).length?record(remote.brief):record(local.brief)
   });
   const toast=(message)=>{
     const el=document.querySelector("#toast");
@@ -37,9 +51,12 @@
     try{
       const result=await api("GET");
       if(result.workspace){
-        const remote=result.workspace,local=snapshot();
-        const changed=Object.keys(KEYS).some(k=>remote[k]!==undefined&&JSON.stringify(remote[k])!==JSON.stringify(local[k]));
-        if(changed){applyRemote(remote);location.reload();return}
+        const merged=mergeWorkspace(snapshot(),result.workspace);
+        const current=snapshot();
+        const changed=Object.keys(KEYS).some(k=>JSON.stringify(merged[k])!==JSON.stringify(current[k]));
+        const remoteChanged=Object.keys(KEYS).some(k=>JSON.stringify(merged[k])!==JSON.stringify(result.workspace[k]));
+        if(changed){applyRemote(merged);if(remoteChanged)await api("PUT",merged);location.reload();return}
+        if(remoteChanged)await api("PUT",merged);
       }else{
         await api("PUT",snapshot());
       }
