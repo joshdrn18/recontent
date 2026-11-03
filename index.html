@@ -97,8 +97,8 @@
         <div class="insight-grid"><div><span>LIBRARY PROJECTS</span><b id="insight-projects">0</b></div><div><span>OUTPUTS SAVED</span><b id="insight-outputs">0</b></div><div><span>TOP FORMAT</span><b id="insight-top">—</b></div><div><span>PLANNED POSTS</span><b id="insight-planned">0</b></div></div><div class="insight-panel"><h3>Format mix</h3><div id="format-breakdown"></div><p class="muted-note">Insights are calculated from your local library and calendar. No reach or engagement metrics are invented.</p></div>
       </section>
       <section class="page extra-page" id="page-settings">
-        <div class="eyebrow">MAKE IT YOUR WORKSPACE</div><h1>Workspace<br><em>settings.</em></h1><p class="hero-copy">Manage this browser's local ReContent data and export a backup.</p>
-        <div class="settings-panel"><h3>Data & privacy</h3><p>Your prototype library, brand kit, and calendar are stored in this browser only.</p><div class="settings-actions"><button class="outline-btn" id="export-data">Export workspace backup ↓</button><label class="import-label">Import backup<input id="import-data" type="file" accept="application/json"></label><button class="danger-btn" id="clear-data">Clear local workspace</button></div><p class="muted-note">This prototype does not yet have accounts, cloud sync, or team sharing. Clearing data cannot be undone unless you export a backup first.</p></div>
+        <div class="eyebrow">MAKE IT YOUR WORKSPACE</div><h1>Workspace<br><em>settings.</em></h1><p class="hero-copy">Manage your account workspace, sync status, and portable backups.</p>
+        <div class="settings-panel"><h3>Data & privacy</h3><p>When signed in, your library, calendar, brand kit, and active brief sync to your account's cloud workspace. Guest work stays in this browser.</p><div class="settings-actions"><button class="outline-btn" id="export-data">Export workspace backup ↓</button><label class="import-label">Import backup<input id="import-data" type="file" accept="application/json"></label><button class="danger-btn" id="clear-data">Clear local workspace</button></div><p class="muted-note">Cloud sync is tied to your signed-in account. Export a backup before clearing local browser data.</p></div>
       </section>
       <footer class="app-footer"><span>RECONTENT © 2026</span><span>MADE FOR IDEAS THAT GO PLACES <b>✳</b></span></footer>
     </main>
@@ -107,5 +107,6 @@
   <script src="app.js"></script>
   <script src="workspace.js"></script>
   <script src="auth.js"></script>
+  <script src="cloud-sync.js"></script>
 </body>
 </html>
