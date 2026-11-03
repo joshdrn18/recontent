@@ -36,9 +36,9 @@ async function handle(request,env) {
   const allowed=origin==="https://recontent.pages.dev" || /^https:\/\/[a-z0-9-]+\.recontent\.pages\.dev$/.test(origin) || /^http:\/\/localhost(:\d+)?$/.test(origin);
   if(origin && !allowed)return json({error:"Origin not allowed."},403);
   const cors=origin?corsHeaders(origin):{};
-  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{...cors,"access-control-allow-methods":"GET,POST,PATCH,OPTIONS","access-control-allow-headers":"Content-Type","access-control-max-age":"86400"}});
+  if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{...cors,"access-control-allow-methods":"GET,POST,PATCH,PUT,OPTIONS","access-control-allow-headers":"Content-Type","access-control-max-age":"86400"}});
   if(route==="health" && request.method==="GET")return json({ok:true,service:"ReContent API",storage:"connected"},200,cors);
-  if(request.method!=="POST" && request.method!=="GET" && request.method!=="PATCH")return json({error:"Method not allowed."},405,cors);
+  if(request.method!=="POST" && request.method!=="GET" && request.method!=="PATCH" && request.method!=="PUT")return json({error:"Method not allowed."},405,cors);
   let body={}; if(request.method!=="GET"){try{body=await request.json()}catch{return json({error:"Invalid JSON body."},400,cors)}}
   const ip=request.headers.get("CF-Connecting-IP")||"unknown";
   if(route==="auth/register" && request.method==="POST"){
