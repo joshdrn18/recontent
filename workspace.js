@@ -12,7 +12,7 @@
       <label>KEY POINTS TO KEEP<input id="brief-keypoints" placeholder="Separate key points with commas"></label>
       <label class="brief-wide">AVOID / EXTRA INSTRUCTIONS<textarea id="brief-notes" rows="2" placeholder="Claims to avoid, details to preserve, words that should not appear..."></textarea></label>
     </div>
-    <div class="brief-hint">Your brief is saved with the project. In this preview it guides review and organization; AI generation is not connected yet.</div>`;
+    <div class="brief-hint">Your brief is included in each AI generation request and saved with your cloud workspace.</div>`;
   const generateBtn = $("#generate-btn");
   if (generateBtn) generateBtn.before(briefMarkup);
 
