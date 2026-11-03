@@ -86,8 +86,19 @@ async function handle(request,env) {
   if(route==="auth/me" && request.method==="GET")return json({user:user?safeUser(user):null},200,cors);
   if(!user)return json({error:"Please sign in to continue."},401,cors);
   if(route==="profile" && request.method==="PATCH"){
-    const next={...user,name:String(body.name||user.name).trim().slice(0,80),updatedAt:new Date().toISOString()};
+    const name=String(body.name||"").trim().slice(0,80);
+    if(name.length<2)return json({error:"Name must be between 2 and 80 characters."},400,cors);
+    const next={...user,name,updatedAt:new Date().toISOString()};
     await write(env.DATA,"user:"+user.id,next);await logEvent(env,next,"profile.updated");return json({user:safeUser(next)},200,cors);
+  }
+  if(route==="password" && request.method==="PATCH"){
+    const currentPassword=String(body.currentPassword||""),newPassword=String(body.newPassword||"");
+    if(newPassword.length<10||newPassword.length>128)return json({error:"New password must be 10–128 characters."},400,cors);
+    if(!currentPassword||await passwordHash(currentPassword,user.passwordSalt)!==user.passwordHash)return json({error:"Current password is incorrect."},400,cors);
+    const salt=random(16),hash=await passwordHash(newPassword,salt);
+    const next={...user,passwordSalt:salt,passwordHash:hash,updatedAt:new Date().toISOString()};
+    await write(env.DATA,"user:"+user.id,next);await logEvent(env,next,"auth.password_changed");
+    return json({ok:true},200,cors);
   }
   if(route==="workspace" && request.method==="GET"){
     const workspace=await read(env.DATA,"workspace:"+user.id,null);
