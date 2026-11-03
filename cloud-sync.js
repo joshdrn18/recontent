@@ -9,16 +9,22 @@
   let signedIn=false,hydrating=false,timer=null,syncing=false,pushPending=false;
   const parse=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)??JSON.stringify(fallback))}catch{return fallback}};
   const record=value=>value&&typeof value==="object"&&!Array.isArray(value)?value:{};
-  const snapshot=()=>{
-    const library=parse(KEYS.library,[]),schedule=parse(KEYS.schedule,[]);
+  const sanitizeWorkspace=input=>{
+    const data=record(input),library=data.library,schedule=data.schedule;
     const formats=["thread","carousel","linkedin","reel","newsletter","caption"];
     return {
       library:(Array.isArray(library)?library:[]).filter(x=>x&&typeof x==="object"&&!Array.isArray(x)&&typeof x.id==="string"&&typeof x.title==="string"&&Array.isArray(x.formats)).map(x=>({...x,formats:x.formats.filter(f=>formats.includes(f)),outputs:Array.isArray(x.outputs)?x.outputs.filter(o=>o&&formats.includes(o.format)&&typeof o.text==="string"):[]})),
       schedule:(Array.isArray(schedule)?schedule:[]).filter(x=>x&&typeof x==="object"&&!Array.isArray(x)&&typeof x.id==="string"&&typeof x.title==="string"&&/^\\d{4}-\\d{2}-\\d{2}$/.test(x.date)&&formats.includes(x.format)).map(x=>({...x,done:!!x.done})),
-      brand:record(parse(KEYS.brand,{})),
-      brief:record(parse(KEYS.brief,{}))
+      brand:record(data.brand),
+      brief:record(data.brief)
     };
   };
+  const snapshot=()=>sanitizeWorkspace({
+    library:parse(KEYS.library,[]),
+    schedule:parse(KEYS.schedule,[]),
+    brand:parse(KEYS.brand,{}),
+    brief:parse(KEYS.brief,{})
+  });
   const mergeList=(local,remote)=>{
     const map=new Map();
     [...(Array.isArray(local)?local:[]),...(Array.isArray(remote)?remote:[])].forEach(item=>{
@@ -57,10 +63,11 @@
     try{
       const result=await api("GET");
       if(result.workspace){
-        const merged=mergeWorkspace(snapshot(),result.workspace);
+        const remote=sanitizeWorkspace(result.workspace);
+        const merged=mergeWorkspace(snapshot(),remote);
         const current=snapshot();
         const changed=Object.keys(KEYS).some(k=>JSON.stringify(merged[k])!==JSON.stringify(current[k]));
-        const remoteChanged=Object.keys(KEYS).some(k=>JSON.stringify(merged[k])!==JSON.stringify(result.workspace[k]));
+        const remoteChanged=Object.keys(KEYS).some(k=>JSON.stringify(merged[k])!==JSON.stringify(remote[k]));
         if(changed){applyRemote(merged);if(remoteChanged)await api("PUT",merged);location.reload();return}
         if(remoteChanged)await api("PUT",merged);
       }else{
