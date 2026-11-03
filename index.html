@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#f1eee6" />
+  <meta name="description" content="ReContent turns one strong idea into a whole content universe." />
+  <title>ReContent — Make one. Create more.</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#" data-page="home" aria-label="ReContent home"><span class="brand-mark">r<span>✳</span></span><span>recontent<span class="brand-dot">.</span></span></a>
+      <div class="workspace-switch"><div class="workspace-avatar">J</div><div><b>Josh's workspace</b><small>Free workspace</small></div><span class="chevrons">⌄</span></div>
+      <div class="nav-label">WORKSPACE</div>
+      <nav class="main-nav">
+        <button class="nav-item active" data-page="home"><span class="nav-icon">⌂</span> Overview <kbd>⌘1</kbd></button>
+        <button class="nav-item" data-page="studio"><span class="nav-icon">✳</span> Content studio <span class="nav-new">NEW</span></button>
+        <button class="nav-item" data-page="library"><span class="nav-icon">▤</span> My library <span class="nav-count" id="library-count">04</span></button>
+      </nav>
+      <div class="nav-label nav-label-spaced">YOUR SPACE</div>
+      <div class="sidebar-note"><span class="note-spark">✳</span><b>Good ideas deserve<br>more than one format.</b><p>Give your best content a second life.</p><button data-page="studio">Start creating <span>↗</span></button></div>
+      <div class="sidebar-bottom"><div class="avatar">JD</div><div class="user-meta"><b>Josh Drn</b><small>Personal account</small></div><button class="more-btn" aria-label="More options">···</button></div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar"><button class="mobile-menu" id="mobile-menu" aria-label="Open menu">☰</button><div class="crumb"><span>Workspace</span><i>/</i><b id="breadcrumb">Overview</b></div><div class="top-actions"><span class="saved-indicator"><i></i> All changes saved</span><button class="help-btn" title="Help">?</button><button class="upgrade-btn" data-page="studio">✳ Upgrade plan</button></div></header>
+      <section class="page active" id="page-home">
+        <div class="hero-row"><div><div class="eyebrow"><span class="eyebrow-star">✳</span> YOUR CREATIVE WORKSPACE <span class="eyebrow-line"></span></div><h1>Make one.<br><em>Create more.</em></h1><p class="hero-copy">Your ideas have more to say. Turn one piece of content into a whole lot more.</p><button class="primary-btn" data-page="studio">Create something <span>↗</span></button></div><div class="hero-art" aria-label="One idea expands into many formats"><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div><div class="orbit-center">ONE<br><b>IDEA</b><span>✳</span></div><div class="orbit-tag tag-a">↗ THREAD</div><div class="orbit-tag tag-b">▧ CAROUSEL</div><div class="orbit-tag tag-c">◉ REEL</div><div class="orbit-tag tag-d">✉ NEWSLETTER</div><span class="art-spark spark-a">✳</span><span class="art-spark spark-b">✳</span></div></div>
+        <div class="stats-strip"><div><span class="stat-label">CONTENT CREATED</span><b>24 <small>pieces</small></b></div><div><span class="stat-label">FORMATS GENERATED</span><b>86 <small>variations</small></b></div><div><span class="stat-label">TIME SAVED</span><b>6.5 <small>hours</small></b></div><div class="stats-sticker"><span>✳</span> YOUR IDEAS,<br>AMPLIFIED.</div></div>
+        <div class="section-heading"><div><div class="eyebrow">THE WORKBENCH</div><h2>Pick up where<br>you left off<span class="orange-dot">.</span></h2></div><button class="text-link" data-page="library">View all projects <span>↗</span></button></div>
+        <div class="project-grid" id="home-projects">
+          <article class="project-card project-orange" data-open-project="The art of starting"><div class="project-top"><span class="project-type">BLOG POST → 4 FORMATS</span><span class="project-arrow">↗</span></div><div class="project-illustration illustration-sun">✳</div><h3>The art of<br>starting before<br>you're ready.</h3><div class="project-foot"><span>Edited 2 hours ago</span><span class="mini-formats">X&nbsp; IN&nbsp; IG&nbsp; ✉</span></div></article>
+          <article class="project-card project-lime" data-open-project="Build a brand people remember"><div class="project-top"><span class="project-type">PODCAST → 3 FORMATS</span><span class="project-arrow">↗</span></div><div class="project-illustration illustration-lines">〰</div><h3>Build a brand<br>people remember.</h3><div class="project-foot"><span>Edited yesterday</span><span class="mini-formats">◉&nbsp; IN&nbsp; IG</span></div></article>
+          <article class="project-card project-cream" data-open-project="Small habits, big shifts"><div class="project-top"><span class="project-type">NOTES → 2 FORMATS</span><span class="project-arrow">↗</span></div><div class="project-illustration illustration-flower">✿</div><h3>Small habits,<br>big shifts.</h3><div class="project-foot"><span>Edited Oct 29</span><span class="mini-formats">X&nbsp; IG</span></div></article>
+        </div>
+        <div class="bottom-callout"><div><span class="callout-kicker">A LITTLE NUDGE</span><h3>One good idea can go a long way.</h3><p>Paste your latest blog, transcript, or brain dump. We'll help it travel.</p></div><button class="dark-btn" data-page="studio">Repurpose content <span>↗</span></button><span class="callout-doodle">✳</span></div>
+      </section>
+
+      <section class="page" id="page-studio">
+        <div class="studio-heading"><div><div class="eyebrow"><span class="eyebrow-star">✳</span> THE CONTENT WORKSHOP</div><h1>Let's make<br><em>more of it.</em></h1><p class="hero-copy">Drop in your original. Pick the places it should go. We'll handle the remix.</p></div><div class="step-stamp"><span>01</span><small>THE<br>REMAKE</small></div></div>
+        <div class="studio-layout">
+          <div class="studio-left">
+            <div class="form-section"><div class="form-title"><span class="step-number">01</span><div><h3>Start with your source</h3><p>Paste an article, transcript, notes, or a URL.</p></div></div><div class="source-tabs"><button class="source-tab active" data-source="text">▤ Paste text</button><button class="source-tab" data-source="url">↗ Add URL</button></div><textarea id="source-content" placeholder="Paste your content here. A blog post, podcast transcript, rough notes — anything with a good idea inside...">The best time to start something new is rarely when you feel completely ready. We wait for the perfect plan, the perfect skills, and the perfect moment. But confidence doesn't come before action. It comes from keeping small promises to yourself, learning as you go, and getting comfortable with being a beginner. Start messy. Make the first version. Share it before it's perfect. Momentum is built by moving, not by waiting.</textarea><div class="input-footer"><span id="char-count">0 characters</span><button class="clear-btn" id="clear-source">Clear text ×</button></div></div>
+            <div class="form-section"><div class="form-title"><span class="step-number">02</span><div><h3>Choose your destinations</h3><p>Pick the formats you want to create.</p></div><span class="selection-count" id="selection-count">3 SELECTED</span></div><div class="format-grid">
+              <button class="format-option selected" data-format="thread"><span class="format-icon icon-x">𝕏</span><span><b>X / Twitter thread</b><small>Hook + 5–7 posts</small></span><span class="format-check">✓</span></button>
+              <button class="format-option selected" data-format="carousel"><span class="format-icon icon-ig">▧</span><span><b>Instagram carousel</b><small>8 visual slides</small></span><span class="format-check">✓</span></button>
+              <button class="format-option selected" data-format="linkedin"><span class="format-icon icon-in">in</span><span><b>LinkedIn post</b><small>Thought leadership</small></span><span class="format-check">✓</span></button>
+              <button class="format-option" data-format="reel"><span class="format-icon icon-reel">◉</span><span><b>Reels / TikTok script</b><small>30–45 sec video</small></span><span class="format-check">✓</span></button>
+              <button class="format-option" data-format="newsletter"><span class="format-icon icon-mail">✉</span><span><b>Newsletter</b><small>Subject + email body</small></span><span class="format-check">✓</span></button>
+              <button class="format-option" data-format="caption"><span class="format-icon icon-caption">#</span><span><b>Social captions</b><small>3 caption variations</small></span><span class="format-check">✓</span></button>
+            </div></div>
+            <div class="form-section preferences"><div class="form-title"><span class="step-number">03</span><div><h3>Set the vibe</h3><p>A little direction goes a long way.</p></div></div><div class="preference-row"><label for="tone">WRITING TONE</label><select id="tone"><option value="Conversational">Conversational & human</option><option value="Professional">Professional & clear</option><option value="Witty">Witty & playful</option><option value="Bold">Bold & punchy</option><option value="Inspirational">Warm & inspirational</option></select></div><div class="preference-row"><label for="language">OUTPUT LANGUAGE</label><select id="language"><option>English</option><option>Bahasa Indonesia</option><option>Malay</option><option>Spanish</option></select></div></div>
+            <button class="generate-btn" id="generate-btn"><span>✳</span> Remix my content <span class="generate-arrow">↗</span></button><p class="demo-disclaimer">✳ Prototype preview · Sample transformations, AI not connected yet</p>
+          </div>
+          <aside class="studio-aside"><div class="aside-card aside-tip"><span class="aside-icon">✳</span><span class="aside-label">PRO TIP</span><h3>Give us the good stuff.</h3><p>The more context in your source, the more interesting your remixes can be. Don't be afraid to paste the whole thing.</p><div class="tip-decoration">✳</div></div><div class="aside-card"><span class="aside-label">YOUR SESSION</span><div class="session-stat"><b id="session-formats">03</b><span>formats selected</span></div><div class="session-stat"><b id="session-words">62</b><span>source words</span></div><div class="session-stat"><b>~2 min</b><span>estimated review time</span></div></div><div class="aside-quote">“<br>Creativity is just connecting things.<br><small>— A FRIENDLY REMINDER</small></div></aside>
+        </div>
+        <div class="results-section" id="results-section"><div class="results-heading"><div><div class="eyebrow">FRESH OFF THE PRESS</div><h2>Your remixes<span class="orange-dot">.</span></h2></div><div class="result-actions"><button class="outline-btn" id="copy-all">Copy all</button><button class="dark-btn small-dark" id="save-all">Save to library ↗</button></div></div><div id="results-list" class="results-list"></div></div>
+      </section>
+
+      <section class="page" id="page-library"><div class="library-heading"><div><div class="eyebrow">THE IDEA ARCHIVE</div><h1>Good things<br><em>live here.</em></h1><p class="hero-copy">Every thought, every remix. Keep the good stuff close.</p></div><div class="library-total"><b id="total-saved">04</b><span>PROJECTS<br>IN YOUR LIBRARY</span></div></div><div class="library-toolbar"><div class="search-box">⌕ <input id="library-search" placeholder="Find a project..." /></div><select id="library-filter"><option value="all">All projects</option><option value="saved">Saved by you</option></select><button class="primary-btn compact" data-page="studio">＋ New project</button></div><div class="library-grid" id="library-grid"></div></section>
+      <footer class="app-footer"><span>RECONTENT © 2026</span><span>MADE FOR IDEAS THAT GO PLACES <b>✳</b></span></footer>
+    </main>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
