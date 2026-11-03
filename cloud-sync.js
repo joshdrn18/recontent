@@ -35,8 +35,8 @@
   const mergeWorkspace=(local,remote)=>({
     library:mergeList(local.library,remote.library),
     schedule:mergeList(local.schedule,remote.schedule),
-    brand:Object.keys(record(remote.brand)).length?record(remote.brand):record(local.brand),
-    brief:Object.keys(record(remote.brief)).length?record(remote.brief):record(local.brief)
+    brand:{...record(remote.brand),...record(local.brand)},
+    brief:{...record(remote.brief),...record(local.brief)}
   });
   const toast=(message)=>{
     const el=document.querySelector("#toast");
