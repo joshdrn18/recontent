@@ -68,6 +68,7 @@
         content.dataset.originalText = content.innerText;
         content.title = "Click here to edit this draft";
         content.addEventListener("input", () => {
+          if (!content.dataset.editedLogged) { content.dataset.editedLogged = "true"; trackActivity("content.edited", { action: "draft" }); }
           if (typeof generated !== "undefined" && generated[index]) generated[index].text = content.innerText.replace(/\u00a0/g, " ");
           const state = card.querySelector(".review-state");
           if (state) state.textContent = "EDITED · UNSAVED";
