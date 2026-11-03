@@ -22,7 +22,12 @@ async function current(request,env) {
   const sid=await digest(raw), session=await read(env.DATA,"session:"+sid);
   if(!session || session.expiresAt<Date.now())return null;
   const user=await read(env.DATA,"user:"+session.userId);
-  return user && user.status!=="suspended" ? user : null;
+  if(user&&user.status!=="suspended"){
+    const sessions=await read(env.DATA,"sessions:"+user.id,[]);
+    if(!sessions.includes(sid)){sessions.push(sid);await write(env.DATA,"sessions:"+user.id,sessions,30*86400)}
+    return user;
+  }
+  return null;
 }
 async function passwordHash(password,salt) {
   const material=await crypto.subtle.importKey("raw",enc.encode(password),"PBKDF2",false,["deriveBits"]);
@@ -62,6 +67,7 @@ async function handle(request,env) {
     const index=await read(env.DATA,"users:index",[]);index.push(id);await write(env.DATA,"users:index",index);
     const token=random(32),sid=await digest(token),expiresAt=Date.now()+30*86400000;
     await write(env.DATA,"session:"+sid,{userId:id,expiresAt},30*86400);
+    await write(env.DATA,"sessions:"+id,[sid],30*86400);
     await logEvent(env,user,"account.registered",{method:"password"});
     if(role==="admin")await env.DATA.delete("config:admin_setup_hash");
     return json({user:safeUser(user)},201,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
@@ -75,11 +81,12 @@ async function handle(request,env) {
     await env.DATA.delete(throttleKey);
     const token=random(32),sid=await digest(token),expiresAt=Date.now()+30*86400000;
     await write(env.DATA,"session:"+sid,{userId:user.id,expiresAt},30*86400);
+    const sessions=await read(env.DATA,"sessions:"+user.id,[]);sessions.push(sid);await write(env.DATA,"sessions:"+user.id,[...new Set(sessions)].slice(-20),30*86400);
     await logEvent(env,user,"auth.login");
     return json({user:safeUser(user)},200,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
   }
   if(route==="auth/logout" && request.method==="POST"){
-    const raw=cookie(request,"rc_session");if(raw)await env.DATA.delete("session:"+await digest(raw));
+    const raw=cookie(request,"rc_session");if(raw){const sid=await digest(raw);const session=await read(env.DATA,"session:"+sid);await env.DATA.delete("session:"+sid);const userId=session?.userId;if(userId){const sessions=await read(env.DATA,"sessions:"+userId,[]);await write(env.DATA,"sessions:"+userId,sessions.filter(x=>x!==sid),30*86400)}}
     return json({ok:true},200,{...cors,"set-cookie":"rc_session=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"});
   }
   const user=await current(request,env);
@@ -97,8 +104,14 @@ async function handle(request,env) {
     if(!currentPassword||await passwordHash(currentPassword,user.passwordSalt)!==user.passwordHash)return json({error:"Current password is incorrect."},400,cors);
     const salt=random(16),hash=await passwordHash(newPassword,salt);
     const next={...user,passwordSalt:salt,passwordHash:hash,updatedAt:new Date().toISOString()};
-    await write(env.DATA,"user:"+user.id,next);await logEvent(env,next,"auth.password_changed");
-    return json({ok:true},200,cors);
+    await write(env.DATA,"user:"+user.id,next);
+    const sessions=await read(env.DATA,"sessions:"+user.id,[]);
+    await Promise.all(sessions.map(id=>env.DATA.delete("session:"+id)));
+    const token=random(32),sid=await digest(token),expiresAt=Date.now()+30*86400000;
+    await write(env.DATA,"session:"+sid,{userId:user.id,expiresAt},30*86400);
+    await write(env.DATA,"sessions:"+user.id,[sid],30*86400);
+    await logEvent(env,next,"auth.password_changed");
+    return json({ok:true},200,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
   }
   if(route==="workspace" && request.method==="GET"){
     const workspace=await read(env.DATA,"workspace:"+user.id,null);
