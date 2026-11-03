@@ -27,7 +27,7 @@
   });
   const mergeList=(local,remote)=>{
     const map=new Map();
-    [...(Array.isArray(local)?local:[]),...(Array.isArray(remote)?remote:[])].forEach(item=>{
+    [...(Array.isArray(remote)?remote:[]),...(Array.isArray(local)?local:[])].forEach(item=>{
       if(item&&typeof item==="object"&&item.id!==undefined)map.set(String(item.id),item);
     });
     return [...map.values()];
