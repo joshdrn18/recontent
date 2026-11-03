@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "recontent",
+  "pages_build_output_dir": ".",
+  "compatibility_date": "2026-11-03",
+  "vars": {
+    "ADMIN_EMAIL": "adminrecontent@gmail.com"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "DATA",
+      "id": "7f82de91521842f29305cf13a14bc9b9"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  }
+}
