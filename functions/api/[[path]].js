@@ -160,7 +160,7 @@ async function handle(request,env) {
       if(outputs.length!==formats.length||new Set(outputs.map(x=>x.format)).size!==formats.length)return json({error:"The AI response could not be formatted reliably. Please try again."},502,cors);
       await env.DATA.put(userUsageKey,String(userUsage+1),{expirationTtl:48*3600});
       await env.DATA.put(globalUsageKey,String(globalUsage+1),{expirationTtl:48*3600});
-      await logEvent(env,user,"content.generated",{formats,count:formats.length});
+      await logEvent(env,user,"content.generated",{formats,count:formats.length,neurons:Number(result?.usage?.neurons||0),inputTokens:Number(result?.usage?.prompt_tokens||0),outputTokens:Number(result?.usage?.completion_tokens||0)});
       return json({outputs,usage:{remaining:Math.max(0,7-userUsage)}},200,cors);
     }catch(error){
       const message=String(error?.message||"");
