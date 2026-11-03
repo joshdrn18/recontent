@@ -65,9 +65,10 @@
         content.setAttribute("role", "textbox");
         content.setAttribute("aria-label", "Edit generated content");
         content.dataset.editorReady = "true";
+        content.dataset.originalText = content.innerText;
         content.title = "Click here to edit this draft";
         content.addEventListener("input", () => {
-          if (window.generated && window.generated[index]) window.generated[index].text = content.innerText.replace(/\u00a0/g, " ");
+          if (typeof generated !== "undefined" && generated[index]) generated[index].text = content.innerText.replace(/\u00a0/g, " ");
           const state = card.querySelector(".review-state");
           if (state) state.textContent = "EDITED · UNSAVED";
         });
@@ -90,9 +91,9 @@
         reset.type = "button";
         reset.textContent = "Reset edits";
         reset.addEventListener("click", () => {
-          const original = window.generated && window.generated[index];
-          if (!original) return;
-          content.textContent = original.text;
+          if (typeof generated === "undefined" || !generated[index]) return;
+          content.textContent = content.dataset.originalText || generated[index].text;
+          generated[index].text = content.textContent;
           state.textContent = "RESET · DRAFT";
           review.classList.remove("reviewed");
           review.textContent = "✓ Mark reviewed";
