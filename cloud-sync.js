@@ -124,6 +124,16 @@
   function accountChanged(user){
     signedIn=!!user;
     addStatus();
+    if(user){
+      const owner=localStorage.getItem("recontent-cloud-owner");
+      if(owner&&owner!==user.id){
+        Object.values(KEYS).forEach(key=>localStorage.removeItem(key));
+        localStorage.setItem("recontent-cloud-owner",user.id);
+        location.reload();
+        return;
+      }
+      localStorage.setItem("recontent-cloud-owner",user.id);
+    }
     const badge=document.querySelector("#cloud-sync-status");
     if(!signedIn){if(badge){badge.textContent="LOCAL WORKSPACE";badge.dataset.state="idle"}return}
     if(badge){badge.textContent="CONNECTING…";badge.dataset.state="pending"}
