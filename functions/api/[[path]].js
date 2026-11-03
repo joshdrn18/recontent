@@ -45,7 +45,7 @@ async function handle(request,env) {
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers:{...cors,"access-control-allow-methods":"GET,POST,PATCH,PUT,OPTIONS","access-control-allow-headers":"Content-Type","access-control-max-age":"86400"}});
   if(route==="health" && request.method==="GET")return json({ok:true,service:"ReContent API",storage:"connected",ai:Boolean(env["AI"]&&typeof env["AI"].run==="function")},200,cors);
   if(request.method!=="POST" && request.method!=="GET" && request.method!=="PATCH" && request.method!=="PUT")return json({error:"Method not allowed."},405,cors);
-  let body={}; if(request.method!=="GET"){const declared=Number(request.headers.get("Content-Length")||0);if(declared>500000)return json({error:"Request body is too large."},413,cors);try{const raw=await request.text();if(raw.length>500000)return json({error:"Request body is too large."},413,cors);body=raw?JSON.parse(raw):{}}catch{return json({error:"Invalid JSON body."},400,cors)}}
+  let body={}; if(request.method!=="GET"){const declared=Number(request.headers.get("Content-Length")||0);if(declared>2000000)return json({error:"Request body is too large."},413,cors);try{const raw=await request.text();if(raw.length>2000000)return json({error:"Request body is too large."},413,cors);body=raw?JSON.parse(raw):{}}catch{return json({error:"Invalid JSON body."},400,cors)}}
   const ip=request.headers.get("CF-Connecting-IP")||"unknown";
   if(route==="auth/register" && request.method==="POST"){
     const email=emailNorm(body.email),name=String(body.name||"").trim().slice(0,80),password=String(body.password||"");
@@ -206,7 +206,7 @@ async function handle(request,env) {
     const clean={};
     for(const key of allowedKeys) if(payload[key]!==undefined) clean[key]=payload[key];
     const encoded=JSON.stringify(clean);
-    if(encoded.length>450000)return json({error:"Workspace is too large. Remove large items and try again."},413,cors);
+    if(encoded.length>1800000)return json({error:"Workspace is too large. Remove large items and try again."},413,cors);
     const saved={...clean,updatedAt:new Date().toISOString()};
     await write(env.DATA,"workspace:"+user.id,saved);
     await logEvent(env,user,"workspace.synced",{bytes:encoded.length});
