@@ -27,3 +27,7 @@ Open `index.html` in a browser. This is a static site with no build step or pack
 - Responsive desktop and mobile layout
 
 **Not connected yet:** real AI generation, URL fetching/import, user accounts, cloud database sync, and billing. The current transformation is a front-end demo so the product direction and workflow can be reviewed before backend work begins.
+
+## Expanded workspace review tools
+
+The preview now includes a structured content brief (audience, goal, CTA, key points, and extra instructions), browser-local brief autosave, editable generated output cards, per-output review markers, reset-to-original editing, and a source-length quality hint. These are workflow/review improvements only; they do not claim to provide AI generation. The app remains a static browser prototype and does not yet provide authentication, server-side storage, URL extraction, or an AI provider connection.
