@@ -13,7 +13,7 @@ const info={thread:["X / Twitter thread","𝕏","HOOK + THREAD"],carousel:["Inst
 function persist(){localStorage.setItem(KEY,JSON.stringify(library))}
 function notify(t){const el=$("#toast");el.textContent=t;el.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),2300)}
 function countWords(t){return (t.trim().match(/\S+/g)||[]).length}
-function updateCounts(){const t=$("#source-content").value;$("#char-count").textContent=t.length.toLocaleString()+" characters";$("#session-words").textContent=countWords(t);const n=$$(".format-option.selected").length;$("#selection-count").textContent=n+" SELECTED";$("#session-formats").textContent=String(n).padStart(2,"0")}
+function updateCounts(){const t=$("#source-content").value;$("#char-count").textContent=t.length.toLocaleString()+" / 12,000 characters";$("#session-words").textContent=countWords(t);const n=$$(".format-option.selected").length;$("#selection-count").textContent=n+" SELECTED";$("#session-formats").textContent=String(n).padStart(2,"0")}
 function navigate(p){$$(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+p));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.page===p));$("#breadcrumb").textContent=({home:"Overview",studio:"Content studio",library:"My library",calendar:"Content calendar",templates:"Template gallery",brand:"Brand kit",analytics:"Insights",settings:"Settings"})[p]||"Workspace";$("#sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});if(p==="library")renderLibrary()}
 $$("[data-page]").forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
