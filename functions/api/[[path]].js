@@ -10,7 +10,7 @@ const read = async (kv,key,fallback=null) => { const v=await kv.get(key); if(v==
 const write = (kv,key,value,ttl) => kv.put(key,JSON.stringify(value),ttl?{expirationTtl:ttl}:undefined);
 const cookie = (request,name) => (request.headers.get("Cookie")||"").split(";").map(x=>x.trim()).find(x=>x.startsWith(name+"="))?.slice(name.length+1) || "";
 const emailNorm = (v) => String(v||"").trim().toLowerCase();
-const safeUser = ({passwordHash,...u}) => u;
+const safeUser = ({passwordHash,passwordSalt,...u}) => u;
 const corsHeaders = (origin) => ({ "access-control-allow-origin": origin, "access-control-allow-credentials":"true", "vary":"Origin" });
 async function logEvent(env,user,event,details={}) {
   const id = Date.now()+"-"+random(6);
