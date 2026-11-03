@@ -152,7 +152,9 @@ async function handle(request,env) {
         const match=raw.match(/\{[\s\S]*\}/);
         if(match){try{parsed=JSON.parse(match[0])}catch{}}
       }
-      const outputs=Array.isArray(parsed?.outputs)?parsed.outputs.filter(x=>x&&formats.includes(x.format)&&typeof x.text==="string"&&x.text.trim()).map(x=>({format:x.format,title:String(x.title||x.format).slice(0,100),text:x.text.trim().slice(0,18000)})):[];
+      const parsedOutputs=Array.isArray(parsed?.outputs)?parsed.outputs.filter(x=>x&&formats.includes(x.format)&&typeof x.text==="string"&&x.text.trim()).map(x=>({format:x.format,title:String(x.title||x.format).slice(0,100),text:x.text.trim().slice(0,18000)})):[];
+      const byFormat=new Map(parsedOutputs.map(x=>[x.format,x]));
+      const outputs=formats.map(format=>byFormat.get(format)).filter(Boolean);
       if(outputs.length!==formats.length||new Set(outputs.map(x=>x.format)).size!==formats.length)return json({error:"The AI response could not be formatted reliably. Please try again."},502,cors);
       await env.DATA.put(userUsageKey,String(userUsage+1),{expirationTtl:48*3600});
       await env.DATA.put(globalUsageKey,String(globalUsage+1),{expirationTtl:48*3600});
