@@ -21,6 +21,14 @@
         <button class="nav-item active" data-page="home"><span class="nav-icon">⌂</span> Overview <kbd>⌘1</kbd></button>
         <button class="nav-item" data-page="studio"><span class="nav-icon">✳</span> Content studio <span class="nav-new">NEW</span></button>
         <button class="nav-item" data-page="library"><span class="nav-icon">▤</span> My library <span class="nav-count" id="library-count">04</span></button>
+        <button class="nav-item" data-page="calendar"><span class="nav-icon">▦</span> Content calendar</button>
+        <button class="nav-item" data-page="templates"><span class="nav-icon">✧</span> Template gallery</button>
+      </nav>
+      <div class="nav-label nav-label-spaced">PREFERENCES</div>
+      <nav class="main-nav">
+        <button class="nav-item" data-page="brand"><span class="nav-icon">◈</span> Brand kit</button>
+        <button class="nav-item" data-page="analytics"><span class="nav-icon">↗</span> Insights</button>
+        <button class="nav-item" data-page="settings"><span class="nav-icon">⚙</span> Settings</button>
       </nav>
       <div class="nav-label nav-label-spaced">YOUR SPACE</div>
       <div class="sidebar-note"><span class="note-spark">✳</span><b>Good ideas deserve<br>more than one format.</b><p>Give your best content a second life.</p><button data-page="studio">Start creating <span>↗</span></button></div>
@@ -63,6 +71,35 @@
       </section>
 
       <section class="page" id="page-library"><div class="library-heading"><div><div class="eyebrow">THE IDEA ARCHIVE</div><h1>Good things<br><em>live here.</em></h1><p class="hero-copy">Every thought, every remix. Keep the good stuff close.</p></div><div class="library-total"><b id="total-saved">04</b><span>PROJECTS<br>IN YOUR LIBRARY</span></div></div><div class="library-toolbar"><div class="search-box">⌕ <input id="library-search" placeholder="Find a project..." /></div><select id="library-filter"><option value="all">All projects</option><option value="saved">Saved by you</option></select><button class="primary-btn compact" data-page="studio">＋ New project</button></div><div class="library-grid" id="library-grid"></div></section>
+      <section class="page extra-page" id="page-calendar">
+        <div class="eyebrow">PLAN WITH PURPOSE</div><h1>Content<br><em>calendar.</em></h1><p class="hero-copy">Give every good idea a place in your publishing rhythm.</p>
+        <div class="extra-toolbar"><input id="schedule-title" placeholder="What are you planning to publish?"><select id="schedule-format"><option value="thread">X thread</option><option value="carousel">Instagram carousel</option><option value="linkedin">LinkedIn post</option><option value="reel">Reels / TikTok</option><option value="newsletter">Newsletter</option><option value="caption">Social captions</option></select><input id="schedule-date" type="date"><button class="primary-btn compact" id="add-schedule">＋ Add to calendar</button></div>
+        <div class="calendar-summary"><div><b id="planned-count">0</b><span>PLANNED</span></div><div><b id="published-count">0</b><span>MARKED DONE</span></div><div><b id="next-count">0</b><span>UPCOMING</span></div></div>
+        <div class="schedule-list" id="schedule-list"></div>
+      </section>
+      <section class="page extra-page" id="page-templates">
+        <div class="eyebrow">START WITH A SPARK</div><h1>Template<br><em>gallery.</em></h1><p class="hero-copy">Jump into a proven content structure, then make it your own.</p>
+        <div class="template-grid">
+          <article class="template-card"><span>01 / STORYTELLING</span><h3>The personal lesson</h3><p>Turn a moment, mistake, or milestone into a story people can connect with.</p><button data-template="story">Use this template ↗</button></article>
+          <article class="template-card"><span>02 / EDUCATION</span><h3>Teach it simply</h3><p>Break a complex idea into a clear hook, three takeaways, and one action.</p><button data-template="teach">Use this template ↗</button></article>
+          <article class="template-card"><span>03 / OPINION</span><h3>Unpopular opinion</h3><p>Make a thoughtful argument with a strong point of view and supporting reasons.</p><button data-template="opinion">Use this template ↗</button></article>
+          <article class="template-card"><span>04 / PRODUCT</span><h3>Show the transformation</h3><p>Frame the before, the change, the outcome, and a natural next step.</p><button data-template="product">Use this template ↗</button></article>
+          <article class="template-card"><span>05 / QUICK WINS</span><h3>Three things to try</h3><p>A fast, saveable list of practical tips for your audience.</p><button data-template="tips">Use this template ↗</button></article>
+          <article class="template-card"><span>06 / COMMUNITY</span><h3>Ask the room</h3><p>Start a useful conversation with a relatable prompt and follow-up.</p><button data-template="community">Use this template ↗</button></article>
+        </div>
+      </section>
+      <section class="page extra-page" id="page-brand">
+        <div class="eyebrow">SOUND LIKE YOURSELF</div><h1>Your brand<br><em>kit.</em></h1><p class="hero-copy">Save the voice, audience, and words you want every remix to remember.</p>
+        <div class="settings-panel"><label>BRAND / CREATOR NAME<input id="brand-name" placeholder="e.g. Josh Drn"></label><label>WHO YOU CREATE FOR<input id="brand-audience" placeholder="e.g. curious founders and creators"></label><label>YOUR BRAND VOICE<select id="brand-voice"><option>Friendly and direct</option><option>Expert and authoritative</option><option>Playful and energetic</option><option>Calm and thoughtful</option><option>Bold and unconventional</option></select></label><label>WORDS OR PHRASES TO USE<textarea id="brand-words" placeholder="Words, phrases, sign-offs, hashtags..."></textarea></label><label>WORDS OR PHRASES TO AVOID<textarea id="brand-avoid" placeholder="Jargon, clichés, words that don't sound like you..."></textarea></label><button class="primary-btn compact" id="save-brand">Save brand kit ↗</button></div>
+      </section>
+      <section class="page extra-page" id="page-analytics">
+        <div class="eyebrow">YOUR CREATIVE MOMENTUM</div><h1>Small steps.<br><em>Big picture.</em></h1><p class="hero-copy">A live snapshot based on projects saved in this browser.</p>
+        <div class="insight-grid"><div><span>LIBRARY PROJECTS</span><b id="insight-projects">0</b></div><div><span>OUTPUTS SAVED</span><b id="insight-outputs">0</b></div><div><span>TOP FORMAT</span><b id="insight-top">—</b></div><div><span>PLANNED POSTS</span><b id="insight-planned">0</b></div></div><div class="insight-panel"><h3>Format mix</h3><div id="format-breakdown"></div><p class="muted-note">Insights are calculated from your local library and calendar. No reach or engagement metrics are invented.</p></div>
+      </section>
+      <section class="page extra-page" id="page-settings">
+        <div class="eyebrow">MAKE IT YOUR WORKSPACE</div><h1>Workspace<br><em>settings.</em></h1><p class="hero-copy">Manage this browser's local ReContent data and export a backup.</p>
+        <div class="settings-panel"><h3>Data & privacy</h3><p>Your prototype library, brand kit, and calendar are stored in this browser only.</p><div class="settings-actions"><button class="outline-btn" id="export-data">Export workspace backup ↓</button><label class="import-label">Import backup<input id="import-data" type="file" accept="application/json"></label><button class="danger-btn" id="clear-data">Clear local workspace</button></div><p class="muted-note">This prototype does not yet have accounts, cloud sync, or team sharing. Clearing data cannot be undone unless you export a backup first.</p></div>
+      </section>
       <footer class="app-footer"><span>RECONTENT © 2026</span><span>MADE FOR IDEAS THAT GO PLACES <b>✳</b></span></footer>
     </main>
   </div>
