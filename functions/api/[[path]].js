@@ -110,6 +110,22 @@ async function handle(request,env) {
     await logEvent(env,user,"workspace.synced",{bytes:encoded.length});
     return json({ok:true,updatedAt:saved.updatedAt},200,cors);
   }
+  if(route==="activity" && request.method==="POST"){
+    const allowedEvents=new Set(["content.generated","library.saved","library.deleted","calendar.created","calendar.deleted","calendar.completed","brand.updated","workspace.exported","workspace.imported","workspace.cleared","template.used"]);
+    const event=String(body.event||"");
+    if(!allowedEvents.has(event))return json({error:"Activity type is not allowed."},400,cors);
+    const throttleKey="throttle:activity:"+user.id, count=Number(await env.DATA.get(throttleKey)||0);
+    if(count>=120)return json({error:"Activity limit reached. Try again shortly."},429,cors);
+    await env.DATA.put(throttleKey,String(count+1),{expirationTtl:60});
+    const raw=body.details&&typeof body.details==="object"&&!Array.isArray(body.details)?body.details:{};
+    const details={};
+    if(typeof raw.title==="string")details.title=raw.title.slice(0,100);
+    if(Array.isArray(raw.formats))details.formats=raw.formats.filter(x=>typeof x==="string"&&["thread","carousel","linkedin","reel","newsletter","caption"].includes(x)).slice(0,8);
+    if(typeof raw.count==="number"&&Number.isFinite(raw.count))details.count=Math.max(0,Math.min(100,Math.floor(raw.count)));
+    if(typeof raw.action==="string")details.action=raw.action.slice(0,40);
+    await logEvent(env,user,event,details);
+    return json({ok:true},201,cors);
+  }
   if(route==="activity" && request.method==="GET"){
     const listed=await env.DATA.list({prefix:"activity:",limit:1000});
     const events=await Promise.all(listed.keys.slice(-100).reverse().map(k=>read(env.DATA,k.name)));
