@@ -1,5 +1,6 @@
 const $ = (s, root=document) => root.querySelector(s);
-const $$ = (s, root=document) => [...root.querySelectorAll(s)];
+const $ = (s, root=document) => [...root.querySelectorAll(s)];
+function trackActivity(event,details={}){if(!window.recontentAuth?.getUser?.())return;fetch("/api/activity",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({event,details})}).catch(()=>{});}
 const KEY = "recontent-library-v1";
 const seeds = [
 {id:"s1",title:"The art of starting before you're ready.",type:"BLOG POST",formats:["thread","carousel","linkedin"],date:"2 hours ago",source:"The best time to start something new is rarely when you feel completely ready. We wait for the perfect plan, the perfect skills, and the perfect moment. But confidence doesn't come before action. It comes from keeping small promises to yourself, learning as you go, and getting comfortable with being a beginner. Start messy. Make the first version. Share it before it's perfect. Momentum is built by moving, not by waiting.",saved:false},
