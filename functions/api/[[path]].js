@@ -87,6 +87,23 @@ async function handle(request,env) {
     const next={...user,name:String(body.name||user.name).trim().slice(0,80),updatedAt:new Date().toISOString()};
     await write(env.DATA,"user:"+user.id,next);await logEvent(env,next,"profile.updated");return json({user:safeUser(next)},200,cors);
   }
+  if(route==="workspace" && request.method==="GET"){
+    const workspace=await read(env.DATA,"workspace:"+user.id,null);
+    return json({workspace},200,cors);
+  }
+  if(route==="workspace" && request.method==="PUT"){
+    const payload=body.workspace;
+    if(!payload || typeof payload!=="object" || Array.isArray(payload))return json({error:"Workspace payload is invalid."},400,cors);
+    const allowedKeys=["library","schedule","brand","brief"];
+    const clean={};
+    for(const key of allowedKeys) if(payload[key]!==undefined) clean[key]=payload[key];
+    const encoded=JSON.stringify(clean);
+    if(encoded.length>450000)return json({error:"Workspace is too large. Remove large items and try again."},413,cors);
+    const saved={...clean,updatedAt:new Date().toISOString()};
+    await write(env.DATA,"workspace:"+user.id,saved);
+    await logEvent(env,user,"workspace.synced",{bytes:encoded.length});
+    return json({ok:true,updatedAt:saved.updatedAt},200,cors);
+  }
   if(route==="activity" && request.method==="GET"){
     const listed=await env.DATA.list({prefix:"activity:",limit:1000});
     const events=await Promise.all(listed.keys.slice(-100).reverse().map(k=>read(env.DATA,k.name)));
