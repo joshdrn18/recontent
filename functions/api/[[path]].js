@@ -49,7 +49,7 @@ async function handle(request,env) {
   const ip=request.headers.get("CF-Connecting-IP")||"unknown";
   if(route==="auth/register" && request.method==="POST"){
     const email=emailNorm(body.email),name=String(body.name||"").trim().slice(0,80),password=String(body.password||"");
-    if(!/^\S+@\S+\.\S+$/.test(email)||password.length<10||password.length>128||name.length<2)return json({error:"Enter a valid email, name, and password of at least 10 characters."},400,cors);
+    if(email.length>254||!/^\S+@\S+\.\S+$/.test(email)||password.length<10||password.length>128||name.length<2)return json({error:"Enter a valid email, name, and password of 10–128 characters."},400,cors);
     const throttleKey="throttle:register:"+ip, count=Number(await env.DATA.get(throttleKey)||0);
     if(count>=8)return json({error:"Too many registration attempts. Try again later."},429,cors);
     await env.DATA.put(throttleKey,String(count+1),{expirationTtl:3600});
@@ -73,11 +73,13 @@ async function handle(request,env) {
     return json({user:safeUser(user)},201,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
   }
   if(route==="auth/login" && request.method==="POST"){
-    const email=emailNorm(body.email),throttleKey="throttle:login:"+ip+":"+email.replace(/[^a-z0-9]/g,"_"),count=Number(await env.DATA.get(throttleKey)||0);
+    const email=emailNorm(body.email),password=String(body.password||"");
+    if(email.length>254||password.length>128)return json({error:"Email or password is incorrect."},401,cors);
+    const throttleKey="throttle:login:"+ip+":"+email.replace(/[^a-z0-9]/g,"_"),count=Number(await env.DATA.get(throttleKey)||0);
     if(count>=10)return json({error:"Too many login attempts. Try again later."},429,cors);
     await env.DATA.put(throttleKey,String(count+1),{expirationTtl:900});
     const id=await env.DATA.get("email:"+email),user=id?await read(env.DATA,"user:"+id):null;
-    if(!user||user.status!=="active"||await passwordHash(String(body.password||""),user.passwordSalt)!==user.passwordHash)return json({error:"Email or password is incorrect."},401,cors);
+    if(!user||user.status!=="active"||await passwordHash(password,user.passwordSalt)!==user.passwordHash)return json({error:"Email or password is incorrect."},401,cors);
     await env.DATA.delete(throttleKey);
     const token=random(32),sid=await digest(token),expiresAt=Date.now()+30*86400000;
     await write(env.DATA,"session:"+sid,{userId:user.id,expiresAt},30*86400);
@@ -175,6 +177,7 @@ async function handle(request,env) {
   }
   if(route==="password" && request.method==="PATCH"){
     const currentPassword=String(body.currentPassword||""),newPassword=String(body.newPassword||"");
+    if(currentPassword.length>128)return json({error:"Current password is incorrect."},400,cors);
     if(newPassword.length<10||newPassword.length>128)return json({error:"New password must be 10–128 characters."},400,cors);
     if(!currentPassword||await passwordHash(currentPassword,user.passwordSalt)!==user.passwordHash)return json({error:"Current password is incorrect."},400,cors);
     const salt=random(16),hash=await passwordHash(newPassword,salt);
