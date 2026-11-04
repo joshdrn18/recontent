@@ -507,5 +507,10 @@
   window.addEventListener("recontent:workspaces",render);
   window.addEventListener("recontent:auth",render);
   window.addEventListener("recontent:templates",render);
+  window.addEventListener("recontent:library-updated",render);
+  window.addEventListener("recontent:calendar-updated",render);
+  document.addEventListener("input",e=>{if(e.target.matches("#brief-audience,#brief-goal,#brief-cta,#brief-keypoints,#brief-notes"))render()});
+  document.querySelector("#save-brand")?.addEventListener("click",()=>setTimeout(render,0));
+  document.addEventListener("click",e=>{if(e.target.closest('[data-page="analytics"]'))setTimeout(render,0)});
   render();
 })();
