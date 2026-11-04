@@ -161,7 +161,8 @@
     </div>
     <div class="workspace-manage-card workspace-list-card"><div class="workspace-card-title"><div><b>All workspaces</b><small>Duplicate a workspace to copy its library, calendar, Brand Kit and content brief.</small></div><button class="outline-btn" id="wm-create">＋ New workspace</button></div><div class="wm-list" id="wm-list"><div class="admin-empty">Loading workspaces…</div></div></div>`;
   const settingsHeading=root.querySelector("h1");
-  (settingsHeading?.parentElement||root).after(section);
+  const settingsPanel=root.querySelector('.settings-panel');
+  if(settingsPanel)root.insertBefore(section,settingsPanel);else root.append(section);
   const $=s=>section.querySelector(s);
   const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   function render(){
