@@ -233,3 +233,70 @@
   });
   window.addEventListener("recontent:templates",render);window.addEventListener("recontent:workspaces",()=>{reset();render()});window.addEventListener("recontent:auth",render);render();
 })();
+
+/* Portable template packs: JSON export/import scoped to the active workspace. */
+(() => {
+  const page=document.querySelector("#page-templates");
+  if(!page)return;
+  const key="recontent-custom-templates-v1";
+  const read=()=>{try{const x=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(x)?x:[]}catch{return[]}};
+  const write=list=>{localStorage.setItem(key,JSON.stringify(list.slice(0,100)));window.dispatchEvent(new CustomEvent("recontent:templates"))};
+  const makeId=()=>"ct_"+Date.now().toString(36)+Math.random().toString(36).slice(2,9);
+  const toolbar=page.querySelector(".custom-template-toolbar");
+  if(!toolbar||page.querySelector(".ct-pack-tools"))return;
+  const tools=document.createElement("div");
+  tools.className="ct-pack-tools";
+  tools.innerHTML=`
+    <div class="ct-pack-copy"><b>Move templates between workspaces</b><small>Export a portable pack or import one here. Only custom templates are included.</small></div>
+    <div class="ct-pack-actions">
+      <button type="button" class="outline-btn" id="ct-export">↓ Export pack</button>
+      <button type="button" class="primary-btn compact" id="ct-import">↑ Import pack</button>
+      <input id="ct-pack-file" type="file" accept=".json,application/json" hidden>
+    </div>
+    <div class="ct-pack-mode"><label for="ct-import-mode">IMPORT MODE</label><select id="ct-import-mode"><option value="merge">Merge · keep existing templates</option><option value="replace">Replace · overwrite this workspace library</option></select><span id="ct-pack-status">JSON template packs · up to 100 templates</span></div>`;
+  toolbar.after(tools);
+  const $=s=>tools.querySelector(s);
+  const status=m=>{$("#ct-pack-status").textContent=m};
+  $("#ct-export").addEventListener("click",()=>{
+    const templates=read();
+    if(!templates.length){status("Nothing to export yet.");return}
+    const pack={format:"recontent-template-pack",version:1,exportedAt:new Date().toISOString(),templates:templates.map(t=>({title:String(t.title||""),category:String(t.category||"CUSTOM"),content:String(t.content||""),createdAt:String(t.createdAt||"")}))};
+    const blob=new Blob([JSON.stringify(pack,null,2)],{type:"application/json"});
+    const url=URL.createObjectURL(blob),a=document.createElement("a");
+    a.href=url;a.download="recontent-template-pack-"+new Date().toISOString().slice(0,10)+".json";
+    document.body.append(a);a.click();a.remove();URL.revokeObjectURL(url);
+    status(templates.length+" template(s) exported.");
+    window.notify?.("Template pack exported.");
+  });
+  $("#ct-import").addEventListener("click",()=>$("#ct-pack-file").click());
+  $("#ct-pack-file").addEventListener("change",async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      if(file.size>1024*1024)throw new Error("Pack is too large. Maximum file size is 1 MB.");
+      const parsed=JSON.parse(await file.text());
+      const source=Array.isArray(parsed)?parsed:(parsed?.format==="recontent-template-pack"&&parsed?.version===1?parsed.templates:null);
+      if(!Array.isArray(source))throw new Error("This is not a supported ReContent template pack.");
+      if(source.length>500)throw new Error("Pack contains too many entries (maximum 500).");
+      const clean=source.map((t,i)=>{
+        if(!t||typeof t!=="object"||Array.isArray(t))throw new Error("Invalid template at item "+(i+1)+".");
+        const title=typeof t.title==="string"?t.title.trim():"";
+        const content=typeof t.content==="string"?t.content.trim():"";
+        const category=typeof t.category==="string"?t.category.trim().toUpperCase().slice(0,32):"CUSTOM";
+        if(title.length<2||title.length>80||content.length<5||content.length>12000)throw new Error("Template "+(i+1)+" has an invalid name or content length.");
+        return {id:makeId(),title,category:category||"CUSTOM",content,createdAt:new Date().toISOString()};
+      });
+      const existing=read(),replace=$("#ct-import-mode").value==="replace";
+      if(replace&&!confirm("Replace all "+existing.length+" existing templates in this workspace with the imported pack?"))return;
+      const base=replace?[]:existing;
+      const seen=new Set(base.map(t=>(t.title+"|"+t.category+"|"+t.content).toLowerCase()));
+      const unique=clean.filter(t=>{const sig=(t.title+"|"+t.category+"|"+t.content).toLowerCase();if(seen.has(sig))return false;seen.add(sig);return true});
+      const capacity=Math.max(0,100-base.length),accepted=unique.slice(0,capacity);
+      if(!accepted.length&&!(replace&&clean.length===0))throw new Error(replace?"The pack contains no valid templates.":"No new templates to import, or this workspace is already at its 100-template limit.");
+      write([...accepted,...base].slice(0,100));
+      const skipped=clean.length-accepted.length;
+      status(accepted.length+" imported"+(skipped?" · "+skipped+" skipped":"")+".");
+      window.notify?.(accepted.length+" template(s) imported"+(skipped?"; "+skipped+" skipped.":"."));
+    }catch(err){status(err.message||"Import failed.");window.notify?.(err.message||"Template import failed.");}
+    finally{e.target.value=""}
+  });
+})();
