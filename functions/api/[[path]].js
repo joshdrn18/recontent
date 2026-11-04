@@ -191,7 +191,7 @@ async function handle(request,env) {
     await logEvent(env,next,"auth.password_changed");
     return json({ok:true},200,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
   }
-  const emptyWorkspace=()=>({library:[],schedule:[],brand:{},brief:{}});
+  const emptyWorkspace=()=>({library:[],schedule:[],brand:{},brief:{},templates:[]});
   const workspaceIndexKey="workspaces:"+user.id;
   async function ensureWorkspaces(){
     let items=await read(env.DATA,workspaceIndexKey,null);
@@ -274,8 +274,11 @@ async function handle(request,env) {
     if(payload.schedule!==undefined&&!Array.isArray(payload.schedule))return json({error:"Calendar data must be a list."},400,cors);
     if(payload.brand!==undefined&&(!payload.brand||typeof payload.brand!=="object"||Array.isArray(payload.brand)))return json({error:"Brand kit data is invalid."},400,cors);
     if(payload.brief!==undefined&&(!payload.brief||typeof payload.brief!=="object"||Array.isArray(payload.brief)))return json({error:"Content brief data is invalid."},400,cors);
+    if(payload.templates!==undefined&&!Array.isArray(payload.templates))return json({error:"Custom templates must be a list."},400,cors);
     const allowedKeys=["library","schedule","brand","brief"],clean={};
     for(const key of allowedKeys)if(payload[key]!==undefined)clean[key]=payload[key];
+    if(payload.templates!==undefined){clean.templates=payload.templates.slice(0,100).filter(t=>t&&typeof t==="object"&&!Array.isArray(t)&&typeof t.id==="string"&&typeof t.title==="string"&&typeof t.content==="string").map(t=>({id:t.id.slice(0,80),title:t.title.trim().slice(0,80),category:String(t.category||"CUSTOM").trim().slice(0,32),content:t.content.slice(0,12000),createdAt:String(t.createdAt||"").slice(0,40)})).filter(t=>t.title.length>=2&&t.content.trim().length>=5);}
+
     const encoded=JSON.stringify(clean);
     if(encoded.length>3800000)return json({error:"Workspace is too large. Remove large items and try again."},413,cors);
     const saved={...clean,updatedAt:new Date().toISOString()};
