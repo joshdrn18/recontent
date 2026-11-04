@@ -33,6 +33,7 @@ function toggleWorkspaceMenu(){
   workspaceMenu.append(head,list,status,actions);workspaceSwitch.after(workspaceMenu);workspaceSwitch.setAttribute("aria-expanded","true");
 }
 workspaceSwitch?.addEventListener("click",toggleWorkspaceMenu);
+$("#create-workspace-button")?.addEventListener("click",async()=>{const user=window.recontentAuth?.getUser?.();if(!user){window.recontentAuth?.open?.("login");return}const name=prompt("Name your new workspace:","New workspace");if(name===null)return;try{const manager=window.recontentWorkspaces;if(!manager)throw new Error("Workspace service is still loading. Refresh and try again.");await manager.create(name)}catch(err){notify(err.message)}});
 workspaceSwitch?.addEventListener("keydown",e=>{if(e.key==="Escape")closeWorkspaceMenu()});
 document.addEventListener("click",e=>{if(workspaceMenu&&!workspaceMenu.contains(e.target)&&!workspaceSwitch.contains(e.target))closeWorkspaceMenu()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeWorkspaceMenu()});
