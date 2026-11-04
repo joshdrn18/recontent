@@ -15,7 +15,7 @@ function notify(t){const el=$("#toast");el.textContent=t;el.classList.add("show"
 function countWords(t){return (t.trim().match(/\S+/g)||[]).length}
 function updateCounts(){const t=$("#source-content").value;$("#char-count").textContent=t.length.toLocaleString()+" / 12,000 characters";$("#session-words").textContent=countWords(t);const n=$$(".format-option.selected").length;$("#selection-count").textContent=n+" SELECTED";$("#session-formats").textContent=String(n).padStart(2,"0")}
 function navigate(p){$$(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+p));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.page===p));$("#breadcrumb").textContent=({home:"Overview",studio:"Content studio",library:"My library",calendar:"Content calendar",templates:"Template gallery",brand:"Brand kit",analytics:"Insights",settings:"Settings"})[p]||"Workspace";$("#sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});if(p==="library")renderLibrary()}
-$("[data-page]").forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
+$$("[data-page]").forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
 const workspaceSwitch=$("#workspace-switch");
 let workspaceMenu=null;
 function closeWorkspaceMenu(){if(workspaceMenu){workspaceMenu.remove();workspaceMenu=null}workspaceSwitch?.setAttribute("aria-expanded","false")}
@@ -77,6 +77,6 @@ $("#import-data")?.addEventListener("change",async e=>{const file=e.target.files
 $("#clear-data")?.addEventListener("click",()=>{if(!confirm("Clear your ReContent library, calendar, and brand kit from this browser? Export a backup first if you need it."))return;library=[];schedule=[];brand={};persist();saveSchedule();localStorage.setItem(BRAND_KEY,"{}");trackActivity("workspace.cleared");renderLibrary();renderSchedule();renderInsights();loadBrand();notify("Local workspace cleared.")});
 const originalNavigate=navigate;
 navigate=function(p){originalNavigate(p);if(p==="calendar")renderSchedule();if(p==="brand")loadBrand();if(p==="analytics")renderInsights();if(p==="home")renderHome();if(p==="templates")filterTemplates()};
-function filterTemplates(){const q=($("#template-search")?.value||"").trim().toLowerCase(),cat=$("#template-category")?.value||"all";let n=0;$(".template-card").forEach(card=>{const match=(!q||card.dataset.title.includes(q)||card.dataset.category.toLowerCase().includes(q)||card.textContent.toLowerCase().includes(q))&&(cat==="all"||card.dataset.category===cat);card.hidden=!match;if(match)n++});if($("#template-result-count"))$("#template-result-count").textContent=n+" templates";}
+function filterTemplates(){const q=($("#template-search")?.value||"").trim().toLowerCase(),cat=$("#template-category")?.value||"all";let n=0;$$(".template-card").forEach(card=>{const match=(!q||card.dataset.title.includes(q)||card.dataset.category.toLowerCase().includes(q)||card.textContent.toLowerCase().includes(q))&&(cat==="all"||card.dataset.category===cat);card.hidden=!match;if(match)n++});if($("#template-result-count"))$("#template-result-count").textContent=n+" templates";}
 $("#template-search")?.addEventListener("input",filterTemplates);$("#template-category")?.addEventListener("change",filterTemplates);
 renderSchedule();loadBrand();renderInsights();renderHome();filterTemplates();
