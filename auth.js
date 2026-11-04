@@ -69,7 +69,7 @@
   document.body.append(modal);
   const admin=document.createElement("div");admin.className="admin-modal";admin.innerHTML=`
     <div class="admin-box" role="dialog" aria-modal="true">
-      <div class="admin-head"><div><div class="eyebrow">RECONTENT CONTROL ROOM</div><h2>Admin overview<span class="orange-dot">.</span></h2><p class="account-hint">Member accounts and activity across the workspace.</p></div><button class="account-close" aria-label="Close">×</button></div>
+      <div class="admin-head"><div><div class="eyebrow">RECONTENT SUPER ADMIN</div><h2>Admin overview<span class="orange-dot">.</span></h2><p class="account-hint">Member accounts and activity across the workspace.</p></div><button class="account-close" aria-label="Close">×</button></div>
       <div class="admin-stats" id="admin-stats"></div>
       <div class="admin-columns"><section class="admin-section"><h3>Members</h3><div class="admin-list" id="admin-users"></div></section><section class="admin-section"><h3>Recent activity</h3><div class="admin-list" id="admin-activity"></div></section></div>
       <div class="admin-foot"><button class="outline-btn" id="admin-refresh">Refresh data ↻</button></div>
