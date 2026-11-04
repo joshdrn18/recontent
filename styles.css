@@ -79,3 +79,7 @@
 .workspace-menu-icon:hover{background:#f0ede5}.workspace-menu-icon.danger:hover{color:#b64d38;border-color:#d9a79a}
 .workspace-create{width:100%;text-align:left;border:1px dashed #c9c4b9;border-radius:6px;background:#f6f3ec;color:#5f653e;padding:10px;font-size:10px;font-weight:700}
 .workspace-create:disabled{opacity:.45;cursor:not-allowed}
+
+.workspace-create-direct{display:block;width:100%;margin:8px 0 18px;padding:9px 10px;border:1px dashed #c8c1b4;border-radius:7px;background:#f5f2ea;color:#686b45;text-align:left;font:700 10px var(--sans);cursor:pointer;transition:background .16s,border-color .16s}
+.workspace-create-direct:hover{background:#ece9df;border-color:#aaa28f}
+.workspace-create-direct:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
