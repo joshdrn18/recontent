@@ -9,7 +9,6 @@
     library:(Array.isArray(d.library)?d.library:[]).filter(x=>x&&typeof x==="object"&&!Array.isArray(x)&&typeof x.id==="string"&&typeof x.title==="string"&&Array.isArray(x.formats)).map(x=>({...x,formats:x.formats.filter(f=>formats.includes(f)),outputs:Array.isArray(x.outputs)?x.outputs.filter(o=>o&&formats.includes(o.format)&&typeof o.text==="string"):[]})),
     schedule:(Array.isArray(d.schedule)?d.schedule:[]).filter(x=>x&&typeof x==="object"&&!Array.isArray(x)&&typeof x.id==="string"&&typeof x.title==="string"&&/^\\d{4}-\\d{2}-\\d{2}$/.test(x.date)&&formats.includes(x.format)).map(x=>({...x,done:!!x.done})),
     brand:record(d.brand),brief:record(d.brief)}};
-  };
   const snapshot=()=>sanitize({library:parse(KEYS.library,[]),schedule:parse(KEYS.schedule,[]),brand:parse(KEYS.brand,{}),brief:parse(KEYS.brief,{})});
   const merge=(local,remote)=>{const list=(a,b)=>{const m=new Map();[...(Array.isArray(b)?b:[]),...(Array.isArray(a)?a:[])].forEach(x=>{if(x&&x.id!==undefined)m.set(String(x.id),x)});return [...m.values()]};return{library:list(local.library,remote.library),schedule:list(local.schedule,remote.schedule),brand:{...record(remote.brand),...record(local.brand)},brief:{...record(remote.brief),...record(local.brief)}}};
   const toast=m=>{const e=document.querySelector("#toast");if(e){e.textContent=m;e.classList.add("show");setTimeout(()=>e.classList.remove("show"),2400)}};
