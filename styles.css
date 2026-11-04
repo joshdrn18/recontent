@@ -50,3 +50,20 @@
 @media(max-width:700px){.admin-modal{padding:10px;align-items:flex-start}.admin-box{max-height:calc(100vh - 20px);padding:16px}.admin-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-stat:last-child{grid-column:1/-1}.admin-columns{grid-template-columns:1fr}.admin-list{max-height:280px}.account-action{padding:8px 9px;font-size:9px}}
 
 .template-toolbar{display:flex;gap:10px;align-items:center;margin:25px 0 16px;padding:12px;border:1px solid var(--line);border-radius:9px;background:#f8f6f0}.template-toolbar input,.template-toolbar select{min-width:0;border:1px solid var(--line);border-radius:6px;background:#fffdf8;padding:10px 12px;font-size:10px;color:var(--ink)}.template-toolbar input{flex:1}.template-toolbar span{font:9px var(--mono);color:var(--muted);white-space:nowrap}.template-card{transition:transform .2s,border-color .2s,box-shadow .2s}.template-card:hover{transform:translateY(-4px);border-color:#c4b7a4;box-shadow:0 12px 28px #28251c0c}.template-card button{cursor:pointer;transition:background .18s,color .18s,transform .18s}.template-card button:hover{background:var(--ink);color:white;transform:translateX(2px)}.template-card[hidden]{display:none!important}.project-card:focus-visible,.nav-item:focus-visible,button:focus-visible{outline:2px solid var(--orange);outline-offset:3px}.project-card{cursor:pointer}@media(max-width:650px){.template-toolbar{flex-wrap:wrap}.template-toolbar input{flex-basis:100%}.template-toolbar select{flex:1}.template-grid{grid-template-columns:1fr 1fr}}
+
+/* Workspace switcher */
+.workspace-switch{width:100%;font:inherit;text-align:left;color:var(--ink);cursor:pointer;appearance:none;transition:border-color .18s,background .18s,box-shadow .18s}
+.workspace-switch:hover,.workspace-switch[aria-expanded=true]{background:#fffdf8;border-color:#c7c1b5;box-shadow:0 5px 16px #29251b0b}
+.workspace-switch:focus-visible{outline:2px solid var(--orange);outline-offset:3px}
+.workspace-switch-meta{display:block;min-width:0}
+.workspace-switch-meta b,.workspace-switch-meta small{display:block}
+.workspace-menu{position:relative;z-index:30;margin:-20px 0 22px;background:#fffdf8;border:1px solid #d9d5cb;border-radius:10px;padding:12px;box-shadow:0 14px 34px #25221918;animation:fade .16s ease}
+.workspace-menu-head{display:grid;gap:4px;padding:2px 3px 11px;border-bottom:1px solid var(--line)}
+.workspace-menu-head b{font-size:11px}.workspace-menu-head small{font-size:9px;color:var(--muted);overflow-wrap:anywhere}
+.workspace-menu-status{display:flex;align-items:center;gap:7px;padding:10px 3px;font:8px var(--mono);letter-spacing:.5px;color:#73736a}
+.workspace-menu-status i{width:7px;height:7px;flex:none;border-radius:50%;background:#9ab43b}
+.workspace-menu-actions{display:grid;gap:4px}
+.workspace-menu-actions button{display:grid;gap:3px;text-align:left;border:0;border-radius:6px;background:transparent;padding:9px 8px;color:var(--ink)}
+.workspace-menu-actions button:hover,.workspace-menu-actions button:focus-visible{background:#f0ede5;outline:none}
+.workspace-menu-actions b{font-size:10px}.workspace-menu-actions small{font-size:9px;color:var(--muted)}
+@media(max-width:760px){.workspace-menu{margin-top:-20px}}
