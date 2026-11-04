@@ -15,7 +15,7 @@ function notify(t){const el=$("#toast");el.textContent=t;el.classList.add("show"
 function countWords(t){return (t.trim().match(/\S+/g)||[]).length}
 function updateCounts(){const t=$("#source-content").value;$("#char-count").textContent=t.length.toLocaleString()+" / 12,000 characters";$("#session-words").textContent=countWords(t);const n=$$(".format-option.selected").length;$("#selection-count").textContent=n+" SELECTED";$("#session-formats").textContent=String(n).padStart(2,"0")}
 function navigate(p){$$(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+p));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.page===p));$("#breadcrumb").textContent=({home:"Overview",studio:"Content studio",library:"My library",calendar:"Content calendar",templates:"Template gallery",brand:"Brand kit",analytics:"Insights",settings:"Settings"})[p]||"Workspace";$("#sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});if(p==="library")renderLibrary()}
-$("[data-page]").forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
+$( "[data-page]" ).forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
 const workspaceSwitch=$("#workspace-switch");
 let workspaceMenu=null;
 function closeWorkspaceMenu(){if(workspaceMenu){workspaceMenu.remove();workspaceMenu=null}workspaceSwitch?.setAttribute("aria-expanded","false")}
