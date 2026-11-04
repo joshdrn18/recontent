@@ -217,7 +217,7 @@ async function handle(request,env) {
   }
   if(route==="workspaces" && request.method==="POST"){
     const items=await ensureWorkspaces();
-    if(items.length>=10)return json({error:"This account has reached the 10-workspace limit."},403,cors);
+    const workspaceLimit=user.role==="admin"?50:10;if(items.length>=workspaceLimit)return json({error:"This account has reached the "+workspaceLimit+"-workspace limit."},403,cors);
     const name=String(body.name||"").trim().slice(0,60);
     if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);
     const now=new Date().toISOString(),id="ws_"+random(9);
