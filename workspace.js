@@ -300,3 +300,88 @@
     finally{e.target.value=""}
   });
 })();
+
+/* Curated template marketplace: previews, workspace-scoped favourites and quick filters. */
+(() => {
+  const page=document.querySelector("#page-templates"),grid=page?.querySelector("#template-grid");
+  if(!page||!grid||page.querySelector(".marketplace-toolbar"))return;
+  const activeWorkspace=()=>{try{return JSON.parse(localStorage.getItem("recontent-active-workspace-v1")||'{"id":"default"}').id||"default"}catch{return"default"}};
+  const favKey=()=>"recontent-template-favourites-v1:"+activeWorkspace();
+  const getFavs=()=>{try{const a=JSON.parse(localStorage.getItem(favKey())||"[]");return Array.isArray(a)?a:[]}catch{return[]}};
+  const setFavs=a=>localStorage.setItem(favKey(),JSON.stringify(a));
+  const bar=document.createElement("div");
+  bar.className="marketplace-toolbar";
+  bar.innerHTML='<div class="marketplace-heading"><div><span class="eyebrow">CURATED STARTING POINTS</span><h2>Template marketplace<span class="orange-dot">.</span></h2><p>Browse ready-made content frameworks, preview the idea, and save your go-to templates.</p></div><span class="marketplace-total" id="mp-total">21 TEMPLATES</span></div><div class="marketplace-tabs"><button type="button" class="active" data-mp-tab="all">Explore all</button><button type="button" data-mp-tab="favourites">♥ Favourites <span id="mp-fav-count">0</span></button></div>';
+  const toolbar=page.querySelector(".template-toolbar");
+  toolbar?.before(bar);
+  const modal=document.createElement("div");
+  modal.className="mp-modal";
+  modal.hidden=true;
+  modal.innerHTML='<div class="mp-backdrop" data-mp-close></div><section class="mp-dialog" role="dialog" aria-modal="true" aria-labelledby="mp-title"><button type="button" class="mp-close" data-mp-close aria-label="Close preview">×</button><span class="eyebrow" id="mp-category">TEMPLATE PREVIEW</span><h2 id="mp-title">Template</h2><p id="mp-description"></p><div class="mp-preview-note"><b>WHAT YOU GET</b><span>A structured starting point with prompts and placeholders. ReContent will adapt it to your chosen content format.</span></div><div class="mp-dialog-actions"><button type="button" class="outline-btn" id="mp-favourite">♡ Save to favourites</button><button type="button" class="primary-btn compact" id="mp-use">Use this template ↗</button></div></section>';
+  page.append(modal);
+  let activeTab="all",selected=null;
+  const cards=()=>[...grid.querySelectorAll(".template-card")];
+  const update=()=>{
+    const favs=getFavs();
+    cards().forEach(card=>{
+      const id=card.querySelector("[data-template]")?.dataset.template;
+      if(!id)return;
+      const favourite=favs.includes(id);
+      let actions=card.querySelector(".mp-card-actions");
+      if(!actions){actions=document.createElement("div");actions.className="mp-card-actions";card.append(actions)}
+      actions.innerHTML='<button type="button" class="mp-preview-btn" data-mp-preview="'+id+'">Preview ↗</button><button type="button" class="mp-star '+(favourite?"is-favourite":"")+'" data-mp-fav="'+id+'" aria-label="'+(favourite?"Remove from favourites":"Add to favourites")+'" title="'+(favourite?"Remove from favourites":"Add to favourites")+'">'+(favourite?"♥":"♡")+'</button>';
+      const original=card.querySelector("[data-template]");
+      original.classList.add("mp-use-original");
+    });
+    const count=page.querySelector("#mp-fav-count");if(count)count.textContent=favs.length;
+    const total=page.querySelector("#mp-total");if(total)total.textContent=cards().length+" TEMPLATES";
+    applyTab();
+  };
+  const applyTab=()=>{
+    cards().forEach(card=>{
+      const id=card.querySelector("[data-template]")?.dataset.template;
+      card.dataset.favourite=getFavs().includes(id)?"yes":"no";
+      if(activeTab==="favourites"&&card.dataset.favourite!=="yes")card.hidden=true;
+    });
+    const tab=bar.querySelector('[data-mp-tab="favourites"]');tab?.classList.toggle("active",activeTab==="favourites");
+    bar.querySelector('[data-mp-tab="all"]')?.classList.toggle("active",activeTab==="all");
+    const q=(page.querySelector("#template-search")?.value||"").trim().toLowerCase(),cat=page.querySelector("#template-category")?.value||"all";
+    let visible=0;
+    cards().forEach(card=>{
+      const matchTab=activeTab==="all"||card.dataset.favourite==="yes";
+      const matchSearch=!q||card.dataset.title.includes(q)||card.dataset.category.toLowerCase().includes(q)||card.textContent.toLowerCase().includes(q);
+      const matchCat=cat==="all"||card.dataset.category===cat;
+      card.hidden=!(matchTab&&matchSearch&&matchCat);if(!card.hidden)visible++;
+    });
+    const result=page.querySelector("#template-result-count");if(result)result.textContent=visible+" templates";
+  };
+  const openPreview=id=>{
+    const card=cards().find(c=>c.querySelector("[data-template]")?.dataset.template===id);if(!card)return;
+    selected=id;
+    modal.querySelector("#mp-title").textContent=card.querySelector("h3")?.textContent||"Template";
+    modal.querySelector("#mp-category").textContent=card.dataset.category||"TEMPLATE";
+    modal.querySelector("#mp-description").textContent=card.querySelector("p")?.textContent||"A ready-made content framework.";
+    const fav=getFavs().includes(id),btn=modal.querySelector("#mp-favourite");
+    btn.textContent=fav?"♥ Saved to favourites":"♡ Save to favourites";btn.classList.toggle("is-favourite",fav);
+    modal.hidden=false;document.body.classList.add("mp-modal-open");
+  };
+  const close=()=>{modal.hidden=true;document.body.classList.remove("mp-modal-open");selected=null};
+  bar.addEventListener("click",e=>{const tab=e.target.closest("[data-mp-tab]");if(tab){activeTab=tab.dataset.mpTab;applyTab()}});
+  grid.addEventListener("click",e=>{
+    const preview=e.target.closest("[data-mp-preview]"),star=e.target.closest("[data-mp-fav]");
+    if(preview){openPreview(preview.dataset.mpPreview);return}
+    if(star){const id=star.dataset.mpFav,favs=getFavs(),next=favs.includes(id)?favs.filter(x=>x!==id):[...favs,id];setFavs(next);update();return}
+  });
+  modal.addEventListener("click",e=>{if(e.target.closest("[data-mp-close]"))close()});
+  modal.querySelector("#mp-favourite").addEventListener("click",()=>{
+    if(!selected)return;const favs=getFavs(),next=favs.includes(selected)?favs.filter(x=>x!==selected):[...favs,selected];setFavs(next);update();const saved=next.includes(selected);modal.querySelector("#mp-favourite").textContent=saved?"♥ Saved to favourites":"♡ Save to favourites";
+  });
+  modal.querySelector("#mp-use").addEventListener("click",()=>{
+    if(!selected)return;const btn=grid.querySelector('[data-template="'+selected+'"]');close();btn?.click();
+  });
+  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!modal.hidden)close()});
+  page.querySelector("#template-search")?.addEventListener("input",applyTab);
+  page.querySelector("#template-category")?.addEventListener("change",applyTab);
+  window.addEventListener("recontent:workspaces",()=>{activeTab="all";update()});
+  update();
+})();
