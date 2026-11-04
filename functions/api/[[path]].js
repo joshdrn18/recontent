@@ -191,26 +191,102 @@ async function handle(request,env) {
     await logEvent(env,next,"auth.password_changed");
     return json({ok:true},200,{...cors,"set-cookie":"rc_session="+token+"; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=2592000"});
   }
+  const emptyWorkspace=()=>({library:[],schedule:[],brand:{},brief:{}});
+  const workspaceIndexKey="workspaces:"+user.id;
+  async function ensureWorkspaces(){
+    let items=await read(env.DATA,workspaceIndexKey,null);
+    if(!Array.isArray(items)||!items.length){
+      const legacy=await read(env.DATA,"workspace:"+user.id,null);
+      const now=new Date().toISOString();
+      const base={id:"ws_default",name:"My workspace",createdAt:now,updatedAt:now};
+      await write(env.DATA,"workspace-data:"+user.id+":ws_default",legacy||emptyWorkspace());
+      await write(env.DATA,"workspace-meta:"+user.id+":ws_default",base);
+      items=[base];
+      await write(env.DATA,workspaceIndexKey,items);
+    }
+    return items.filter(x=>x&&typeof x.id==="string");
+  }
+  const findWorkspace=async id=>{
+    const items=await ensureWorkspaces();
+    return items.find(x=>x.id===id)||null;
+  };
+  const workspaceId=url.searchParams.get("workspaceId")||"ws_default";
+  if(route==="workspaces" && request.method==="GET"){
+    const items=await ensureWorkspaces();
+    return json({workspaces:items,activeWorkspaceId:items.some(x=>x.id===workspaceId)?workspaceId:items[0].id},200,cors);
+  }
+  if(route==="workspaces" && request.method==="POST"){
+    const items=await ensureWorkspaces();
+    if(items.length>=10)return json({error:"This account has reached the 10-workspace limit."},403,cors);
+    const name=String(body.name||"").trim().slice(0,60);
+    if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);
+    const now=new Date().toISOString(),id="ws_"+random(9);
+    const item={id,name,createdAt:now,updatedAt:now};
+    items.push(item);
+    await write(env.DATA,workspaceIndexKey,items);
+    await write(env.DATA,"workspace-meta:"+user.id+":"+id,item);
+    await write(env.DATA,"workspace-data:"+user.id+":"+id,emptyWorkspace());
+    await logEvent(env,user,"workspace.created",{title:name});
+    return json({workspace:item,workspaces:items},201,cors);
+  }
+  if(route==="workspaces" && request.method==="PATCH"){
+    const items=await ensureWorkspaces(),id=String(body.workspaceId||""),name=String(body.name||"").trim().slice(0,60);
+    if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);
+    const item=items.find(x=>x.id===id);
+    if(!item)return json({error:"Workspace not found."},404,cors);
+    item.name=name;item.updatedAt=new Date().toISOString();
+    await write(env.DATA,workspaceIndexKey,items);
+    await write(env.DATA,"workspace-meta:"+user.id+":"+id,item);
+    await logEvent(env,user,"workspace.renamed",{title:name});
+    return json({workspace:item,workspaces:items},200,cors);
+  }
+  if(route==="workspaces" && request.method==="DELETE"){
+    const items=await ensureWorkspaces(),id=String(body.workspaceId||"");
+    if(items.length<=1)return json({error:"Keep at least one workspace in your account."},400,cors);
+    const item=items.find(x=>x.id===id);
+    if(!item)return json({error:"Workspace not found."},404,cors);
+    const next=items.filter(x=>x.id!==id);
+    await write(env.DATA,workspaceIndexKey,next);
+    await env.DATA.delete("workspace-data:"+user.id+":"+id);
+    await env.DATA.delete("workspace-meta:"+user.id+":"+id);
+    await logEvent(env,user,"workspace.deleted",{title:item.name});
+    return json({ok:true,workspaces:next,activeWorkspaceId:next[0].id},200,cors);
+  }
   if(route==="workspace" && request.method==="GET"){
-    const workspace=await read(env.DATA,"workspace:"+user.id,null);
-    return json({workspace},200,cors);
+    const items=await ensureWorkspaces(),item=items.find(x=>x.id===workspaceId);
+    if(!item)return json({error:"Workspace access denied."},403,cors);
+    const workspace=await read(env.DATA,"workspace-data:"+user.id+":"+workspaceId,emptyWorkspace());
+    return json({workspace,workspaceMeta:item},200,cors);
   }
   if(route==="workspace" && request.method==="PUT"){
+    const items=await ensureWorkspaces(),item=items.find(x=>x.id===workspaceId);
+    if(!item)return json({error:"Workspace access denied."},403,cors);
     const payload=body.workspace;
     if(!payload || typeof payload!=="object" || Array.isArray(payload))return json({error:"Workspace payload is invalid."},400,cors);
     if(payload.library!==undefined&&!Array.isArray(payload.library))return json({error:"Library data must be a list."},400,cors);
     if(payload.schedule!==undefined&&!Array.isArray(payload.schedule))return json({error:"Calendar data must be a list."},400,cors);
     if(payload.brand!==undefined&&(!payload.brand||typeof payload.brand!=="object"||Array.isArray(payload.brand)))return json({error:"Brand kit data is invalid."},400,cors);
     if(payload.brief!==undefined&&(!payload.brief||typeof payload.brief!=="object"||Array.isArray(payload.brief)))return json({error:"Content brief data is invalid."},400,cors);
-    const allowedKeys=["library","schedule","brand","brief"];
-    const clean={};
-    for(const key of allowedKeys) if(payload[key]!==undefined) clean[key]=payload[key];
+    const allowedKeys=["library","schedule","brand","brief"],clean={};
+    for(const key of allowedKeys)if(payload[key]!==undefined)clean[key]=payload[key];
     const encoded=JSON.stringify(clean);
     if(encoded.length>3800000)return json({error:"Workspace is too large. Remove large items and try again."},413,cors);
     const saved={...clean,updatedAt:new Date().toISOString()};
-    await write(env.DATA,"workspace:"+user.id,saved);
-    await logEvent(env,user,"workspace.synced",{bytes:encoded.length});
+    await write(env.DATA,"workspace-data:"+user.id+":"+workspaceId,saved);
+    item.updatedAt=saved.updatedAt;await write(env.DATA,workspaceIndexKey,items);await write(env.DATA,"workspace-meta:"+user.id+":"+workspaceId,item);
+    await logEvent(env,user,"workspace.synced",{title:item.name,bytes:encoded.length});
     return json({ok:true,updatedAt:saved.updatedAt},200,cors);
+  }
+  if(route==="admin/workspaces" && request.method==="GET"){
+    if(user.role!=="admin")return json({error:"Admin access required."},403,cors);
+    const ids=await read(env.DATA,"users:index",[]),all=[];
+    for(const ownerId of ids.slice(-500)){
+      const owner=await read(env.DATA,"user:"+ownerId);
+      if(!owner)continue;
+      const items=await read(env.DATA,"workspaces:"+ownerId,[]);
+      for(const item of (Array.isArray(items)?items:[]))all.push({id:item.id,name:item.name,ownerId,ownerEmail:owner.email,ownerName:owner.name,createdAt:item.createdAt,updatedAt:item.updatedAt});
+    }
+    return json({workspaces:all.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))),total:all.length},200,cors);
   }
   if(route==="activity" && request.method==="POST"){
     const allowedEvents=new Set(["content.generated","content.copied","content.downloaded","content.edited","library.opened","library.saved","library.deleted","calendar.created","calendar.deleted","calendar.completed","brand.updated","workspace.exported","workspace.imported","workspace.cleared","template.used"]);
