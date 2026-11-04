@@ -49,7 +49,21 @@
     .admin-row button{border:1px solid var(--line);background:white;border-radius:4px;padding:5px 7px;font-size:8px}
     .admin-empty{font-size:10px;color:#858279;padding:14px 4px}
     .admin-foot{display:flex;justify-content:flex-end;margin-top:13px}
-    @media(max-width:600px){.account-box{padding:18px}.admin-stats{grid-template-columns:1fr 1fr}.admin-columns{grid-template-columns:1fr}.admin-box{padding:15px}.top-actions{gap:6px}.account-action{padding:8px}}
+    .admin-modal{padding:18px;background:#11130fe8;backdrop-filter:blur(12px)}
+    .admin-box{width:min(1440px,calc(100vw - 36px));height:min(900px,calc(100vh - 36px));max-height:none;padding:0;border-radius:15px;background:#f5f3ed;overflow:hidden;display:flex;flex-direction:column}
+    .admin-head{padding:22px 26px 14px;margin:0;background:#fffefa;border-bottom:1px solid #e5e1d7}
+    .admin-head h2{font-size:30px}.admin-head p{margin-top:4px}
+    .admin-stats{grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 24px}
+    .admin-stat{background:#fffefa;border:1px solid #e5e1d7;padding:16px}.admin-stat b{font-size:28px}
+    .admin-columns{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;padding:0 24px 22px;overflow:auto}
+    .admin-section{background:#fffefa;border:1px solid #e5e1d7;padding:16px}.admin-section h3{font-size:15px}
+    .admin-list{max-height:calc(100vh - 330px);gap:8px}
+    .admin-row{padding:11px;border:1px solid #efede6;background:#f7f5ef}
+    .admin-row-main b{font-size:11px}.admin-row-main small{font-size:9px}
+    .admin-row button{font-size:9px;padding:7px 9px}
+    .admin-foot{padding:0 24px 20px;margin-top:auto}
+    @media(max-width:800px){.admin-box{width:calc(100vw - 20px);height:calc(100vh - 20px)}.admin-columns{grid-template-columns:1fr}.admin-stats{grid-template-columns:repeat(2,1fr)}}
+    @media(max-width:600px){.account-box{padding:18px}.admin-modal{padding:0}.admin-box{width:100vw;height:100dvh;border-radius:0}.admin-head{padding:18px}.admin-columns{padding:0 14px 14px}.admin-stats{margin:14px;gap:7px}.admin-stat{padding:11px}.admin-stat b{font-size:23px}.admin-foot{padding:0 14px 14px}.top-actions{gap:6px}.account-action{padding:8px}}
   `;
   document.head.append(style);
   const modal=document.createElement("div");modal.className="account-modal";modal.innerHTML=`
