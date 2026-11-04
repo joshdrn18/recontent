@@ -20,28 +20,29 @@ const workspaceSwitch=$("#workspace-switch");
 let workspaceMenu=null;
 function closeWorkspaceMenu(){if(workspaceMenu){workspaceMenu.remove();workspaceMenu=null}workspaceSwitch?.setAttribute("aria-expanded","false")}
 function toggleWorkspaceMenu(){
-  if(!workspaceSwitch)return;
-  if(workspaceMenu){closeWorkspaceMenu();return}
-  const user=window.recontentAuth?.getUser?.();
+  if(!workspaceSwitch)return;if(workspaceMenu){closeWorkspaceMenu();return}
+  const user=window.recontentAuth?.getUser?.(),manager=window.recontentWorkspaces;
   workspaceMenu=document.createElement("div");workspaceMenu.className="workspace-menu";workspaceMenu.setAttribute("role","menu");
-  const head=document.createElement("div");head.className="workspace-menu-head";
-  const heading=document.createElement("b");heading.textContent="Current workspace";
-  const detail=document.createElement("small");detail.textContent=user?(user.email||"Signed-in account"):"Your work is saved in this browser";
-  head.append(heading,detail);
-  const status=document.createElement("div");status.className="workspace-menu-status";
-  const dot=document.createElement("i");const label=document.createElement("span");const sync=$("#cloud-sync-status");
-  label.textContent=sync?.textContent|| (user?"CLOUD SYNC CONNECTING":"LOCAL WORKSPACE");status.append(dot,label);
-  const actions=document.createElement("div");actions.className="workspace-menu-actions";
-  const entries=[["settings","Workspace settings","Manage your preferences"],["brand","Brand kit","Your voice and brand details"],["account","Account & profile",user?"View your account":"Sign in to sync your work"]];
-  entries.forEach(([action,title,description])=>{const b=document.createElement("button");b.type="button";b.dataset.workspaceAction=action;b.setAttribute("role","menuitem");const strong=document.createElement("b");strong.textContent=title;const small=document.createElement("small");small.textContent=description;b.append(strong,small);actions.append(b)});
-  workspaceMenu.append(head,status,actions);workspaceSwitch.after(workspaceMenu);workspaceSwitch.setAttribute("aria-expanded","true");
+  const head=document.createElement("div");head.className="workspace-menu-head";const heading=document.createElement("b");heading.textContent="Your workspaces";const detail=document.createElement("small");detail.textContent=user?(user.email||"Signed-in account"):"Sign in to sync workspaces across devices";head.append(heading,detail);
+  const list=document.createElement("div");list.className="workspace-menu-list";
+  const workspaces=manager?.getList?.()||[];
+  workspaces.forEach(item=>{const row=document.createElement("div");row.className="workspace-menu-row";const select=document.createElement("button");select.type="button";select.className="workspace-menu-select";select.dataset.workspaceSelect=item.id;const dot=document.createElement("i");dot.textContent=item.id===manager?.getActive?.()?.id?"✓":" ";const name=document.createElement("b");name.textContent=item.name;const meta=document.createElement("small");meta.textContent=item.id===manager?.getActive?.()?.id?"CURRENT WORKSPACE":"Switch workspace";select.append(dot,name,meta);row.append(select);if(user){const rename=document.createElement("button");rename.type="button";rename.className="workspace-menu-icon";rename.title="Rename workspace";rename.textContent="✎";rename.dataset.workspaceRename=item.id;const del=document.createElement("button");del.type="button";del.className="workspace-menu-icon danger";del.title="Delete workspace";del.textContent="×";del.dataset.workspaceDelete=item.id;row.append(rename,del)}list.append(row)});
+  const create=document.createElement("button");create.type="button";create.className="workspace-create";create.textContent="+ Create a workspace";create.disabled=!user||workspaces.length>=10;create.dataset.workspaceCreate="true";list.append(create);
+  const status=document.createElement("div");status.className="workspace-menu-status";const dot=document.createElement("i");const label=document.createElement("span");const sync=$("#cloud-sync-status");label.textContent=sync?.textContent||(user?"CLOUD SYNC CONNECTING":"LOCAL WORKSPACE");status.append(dot,label);
+  const actions=document.createElement("div");actions.className="workspace-menu-actions";[["settings","Workspace settings","Manage your preferences"],["brand","Brand kit","Your voice and brand details"],["account","Account & profile",user?"View your account":"Sign in to sync your work"]].forEach(([action,title,description])=>{const b=document.createElement("button");b.type="button";b.dataset.workspaceAction=action;b.setAttribute("role","menuitem");const strong=document.createElement("b");strong.textContent=title;const small=document.createElement("small");small.textContent=description;b.append(strong,small);actions.append(b)});
+  workspaceMenu.append(head,list,status,actions);workspaceSwitch.after(workspaceMenu);workspaceSwitch.setAttribute("aria-expanded","true");
 }
 workspaceSwitch?.addEventListener("click",toggleWorkspaceMenu);
 workspaceSwitch?.addEventListener("keydown",e=>{if(e.key==="Escape")closeWorkspaceMenu()});
 document.addEventListener("click",e=>{if(workspaceMenu&&!workspaceMenu.contains(e.target)&&!workspaceSwitch.contains(e.target))closeWorkspaceMenu()});
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeWorkspaceMenu()});
-document.addEventListener("click",e=>{const action=e.target.closest("[data-workspace-action]");if(!action)return;const value=action.dataset.workspaceAction;closeWorkspaceMenu();if(value==="account"){const trigger=$("#account-trigger");if(trigger)trigger.click();else window.recontentAuth?.open?.("login");return}navigate(value)});
-
+document.addEventListener("click",async e=>{
+ const select=e.target.closest("[data-workspace-select]");if(select){const id=select.dataset.workspaceSelect;closeWorkspaceMenu();try{await window.recontentWorkspaces?.switchTo(id)}catch(err){notify(err.message)}return}
+ const create=e.target.closest("[data-workspace-create]");if(create){const name=prompt("Name your new workspace:","New workspace");if(name===null)return;try{await window.recontentWorkspaces?.create(name)}catch(err){notify(err.message)}return}
+ const rename=e.target.closest("[data-workspace-rename]");if(rename){const item=window.recontentWorkspaces?.getList?.().find(x=>x.id===rename.dataset.workspaceRename);const name=prompt("Rename workspace:",item?.name||"");if(name===null)return;try{await window.recontentWorkspaces?.rename(rename.dataset.workspaceRename,name);closeWorkspaceMenu()}catch(err){notify(err.message)}return}
+ const del=e.target.closest("[data-workspace-delete]");if(del){try{await window.recontentWorkspaces?.remove(del.dataset.workspaceDelete);closeWorkspaceMenu()}catch(err){notify(err.message)}return}
+ const action=e.target.closest("[data-workspace-action]");if(!action)return;const value=action.dataset.workspaceAction;closeWorkspaceMenu();if(value==="account"){const trigger=$("#account-trigger");if(trigger)trigger.click();else window.recontentAuth?.open?.("login");return}navigate(value)
+});
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#source-content").addEventListener("input",updateCounts);
 $("#clear-source").addEventListener("click",()=>{$("#source-content").value="";updateCounts();$("#source-content").focus()});
