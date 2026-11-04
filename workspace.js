@@ -182,3 +182,54 @@
   window.addEventListener("recontent:auth",render);
   render();
 })();
+
+/* Workspace-scoped custom template library. Stored with the active cloud workspace. */
+(() => {
+  const key="recontent-custom-templates-v1";
+  const page=document.querySelector("#page-templates");
+  if(!page)return;
+  const $=s=>page.querySelector(s);
+  const read=()=>{try{const v=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(v)?v:[]}catch{return[]}};
+  const write=list=>{localStorage.setItem(key,JSON.stringify(list.slice(0,100)));window.dispatchEvent(new CustomEvent("recontent:templates"))};
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const panel=document.createElement("section");
+  panel.className="custom-template-studio";
+  panel.innerHTML=`
+    <div class="custom-template-head"><div><span class="eyebrow">YOUR WORKSPACE LIBRARY</span><h2>Custom templates<span class="orange-dot">.</span></h2><p>Save reusable content structures for this brand. They stay separate from your other workspaces.</p></div><span class="custom-template-count" id="ct-count">0 / 100 SAVED</span></div>
+    <div class="custom-template-builder">
+      <div class="ct-field"><label for="ct-title">TEMPLATE NAME</label><input id="ct-title" maxlength="80" placeholder="e.g. Product launch sequence"></div>
+      <div class="ct-field"><label for="ct-category">CATEGORY</label><input id="ct-category" maxlength="32" placeholder="e.g. PRODUCT"></div>
+      <div class="ct-field ct-wide"><label for="ct-content">CONTENT STRUCTURE</label><textarea id="ct-content" rows="7" maxlength="12000" placeholder="Write your reusable structure here. Use [brackets] for details to fill in later."></textarea><small>Up to 12,000 characters. Keep placeholders clear so your team knows what to replace.</small></div>
+      <div class="ct-builder-foot"><span id="ct-editing">NEW TEMPLATE</span><div><button type="button" class="outline-btn" id="ct-cancel" hidden>Cancel edit</button><button type="button" class="primary-btn compact" id="ct-save">Save template ↗</button></div></div>
+    </div>
+    <div class="custom-template-toolbar"><b>Saved in this workspace</b><input id="ct-search" type="search" placeholder="Search your templates…"></div>
+    <div class="custom-template-grid" id="ct-grid"></div>`;
+  const toolbar=page.querySelector(".template-toolbar"),grid=page.querySelector("#template-grid");
+  (grid||toolbar||page).after(panel);
+  let editing="";
+  function render(){
+    const list=read(),q=($("#ct-search").value||"").trim().toLowerCase();
+    $("#ct-count").textContent=list.length+" / 100 SAVED";
+    const filtered=list.filter(t=>(t.title+" "+t.category+" "+t.content).toLowerCase().includes(q));
+    $("#ct-grid").innerHTML=filtered.map(t=>`<article class="custom-template-card"><div class="ct-card-top"><span>${esc(t.category||"CUSTOM")}</span><small>YOUR TEMPLATE</small></div><h3>${esc(t.title)}</h3><p>${esc(t.content.slice(0,190))}${t.content.length>190?"…":""}</p><div class="ct-card-actions"><button type="button" data-ct-use="${esc(t.id)}">Use template ↗</button><button type="button" data-ct-edit="${esc(t.id)}">Edit</button><button type="button" data-ct-delete="${esc(t.id)}">Delete</button></div></article>`).join("")||'<div class="ct-empty">No custom templates yet. Save your first reusable structure above.</div>';
+  }
+  function reset(){editing="";$("#ct-title").value="";$("#ct-category").value="";$("#ct-content").value="";$("#ct-editing").textContent="NEW TEMPLATE";$("#ct-save").textContent="Save template ↗";$("#ct-cancel").hidden=true}
+  $("#ct-save").addEventListener("click",()=>{
+    const title=$("#ct-title").value.trim(),content=$("#ct-content").value.trim(),category=$("#ct-category").value.trim().toUpperCase()||"CUSTOM";
+    if(title.length<2){window.notify?.("Template name must be at least 2 characters.");return}
+    if(content.length<5){window.notify?.("Add a little more content to your template.");return}
+    const list=read(),id=editing||("ct_"+Date.now().toString(36)+Math.random().toString(36).slice(2,7));
+    if(!editing&&list.length>=100){window.notify?.("This workspace has reached the 100-template limit.");return}
+    const item={id,title,category,content,createdAt:list.find(x=>x.id===id)?.createdAt||new Date().toISOString()};
+    write(editing?list.map(x=>x.id===id?item:x):[item,...list]);reset();render();window.notify?.(editing?"Template updated.":"Template saved to this workspace.");
+  });
+  $("#ct-cancel").addEventListener("click",reset);$("#ct-search").addEventListener("input",render);
+  $("#ct-grid").addEventListener("click",e=>{
+    const use=e.target.closest("[data-ct-use]"),edit=e.target.closest("[data-ct-edit]"),del=e.target.closest("[data-ct-delete]");
+    const id=use?.dataset.ctUse||edit?.dataset.ctEdit||del?.dataset.ctDelete,item=read().find(x=>x.id===id);if(!item)return;
+    if(use){const source=document.querySelector("#source-content");if(!source){window.notify?.("Content Studio is unavailable.");return}source.value=item.content;source.dispatchEvent(new Event("input",{bubbles:true}));document.querySelectorAll(".source-tab").forEach(x=>x.classList.toggle("active",x.dataset.source==="text"));document.querySelector('[data-page="studio"]')?.click();window.notify?.("Custom template loaded into Content Studio.");}
+    if(edit){editing=item.id;$("#ct-title").value=item.title;$("#ct-category").value=item.category||"";$("#ct-content").value=item.content;$("#ct-editing").textContent="EDITING TEMPLATE";$("#ct-save").textContent="Update template ↗";$("#ct-cancel").hidden=false;$("#ct-title").focus();}
+    if(del&&confirm('Delete "'+item.title+'"? This cannot be undone.')){write(read().filter(x=>x.id!==item.id));if(editing===item.id)reset();render();window.notify?.("Template deleted.");}
+  });
+  window.addEventListener("recontent:templates",render);window.addEventListener("recontent:workspaces",()=>{reset();render()});window.addEventListener("recontent:auth",render);render();
+})();
