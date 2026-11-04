@@ -277,16 +277,35 @@ async function handle(request,env) {
     await logEvent(env,user,"workspace.synced",{title:item.name,bytes:encoded.length});
     return json({ok:true,updatedAt:saved.updatedAt},200,cors);
   }
-  if(route==="admin/workspaces" && request.method==="GET"){
+  if(route==="admin/workspaces" && ["GET","PATCH","DELETE"].includes(request.method)){
     if(user.role!=="admin")return json({error:"Admin access required."},403,cors);
-    const ids=await read(env.DATA,"users:index",[]),all=[];
-    for(const ownerId of ids.slice(-500)){
-      const owner=await read(env.DATA,"user:"+ownerId);
-      if(!owner)continue;
-      const items=await read(env.DATA,"workspaces:"+ownerId,[]);
-      for(const item of (Array.isArray(items)?items:[]))all.push({id:item.id,name:item.name,ownerId,ownerEmail:owner.email,ownerName:owner.name,createdAt:item.createdAt,updatedAt:item.updatedAt});
+    if(request.method==="GET"){
+      const ids=await read(env.DATA,"users:index",[]),all=[];
+      for(const ownerId of ids.slice(-500)){
+        const owner=await read(env.DATA,"user:"+ownerId);if(!owner)continue;
+        const items=await read(env.DATA,"workspaces:"+ownerId,[]);
+        for(const item of (Array.isArray(items)?items:[]))all.push({id:item.id,name:item.name,ownerId,ownerEmail:owner.email,ownerName:owner.name,createdAt:item.createdAt,updatedAt:item.updatedAt});
+      }
+      return json({workspaces:all.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))),total:all.length},200,cors);
     }
-    return json({workspaces:all.sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt))),total:all.length},200,cors);
+    const ownerId=String(body.ownerId||""),id=String(body.workspaceId||"");
+    const items=await read(env.DATA,"workspaces:"+ownerId,[]);
+    if(!Array.isArray(items)||!items.length)return json({error:"Workspace owner not found."},404,cors);
+    const item=items.find(x=>x.id===id);
+    if(!item)return json({error:"Workspace not found."},404,cors);
+    if(request.method==="PATCH"){
+      const name=String(body.name||"").trim().slice(0,60);
+      if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);
+      item.name=name;item.updatedAt=new Date().toISOString();
+      await write(env.DATA,"workspaces:"+ownerId,items);await write(env.DATA,"workspace-meta:"+ownerId+":"+id,item);
+      await logEvent(env,user,"admin.workspace_renamed",{title:name,ownerId});
+      return json({ok:true,workspace:item},200,cors);
+    }
+    if(items.length<=1)return json({error:"An account must keep at least one workspace."},400,cors);
+    await write(env.DATA,"workspaces:"+ownerId,items.filter(x=>x.id!==id));
+    await env.DATA.delete("workspace-data:"+ownerId+":"+id);await env.DATA.delete("workspace-meta:"+ownerId+":"+id);
+    await logEvent(env,user,"admin.workspace_deleted",{title:item.name,ownerId});
+    return json({ok:true},200,cors);
   }
   if(route==="activity" && request.method==="POST"){
     const allowedEvents=new Set(["content.generated","content.copied","content.downloaded","content.edited","library.opened","library.saved","library.deleted","calendar.created","calendar.deleted","calendar.completed","brand.updated","workspace.exported","workspace.imported","workspace.cleared","template.used"]);
