@@ -15,7 +15,33 @@ function notify(t){const el=$("#toast");el.textContent=t;el.classList.add("show"
 function countWords(t){return (t.trim().match(/\S+/g)||[]).length}
 function updateCounts(){const t=$("#source-content").value;$("#char-count").textContent=t.length.toLocaleString()+" / 12,000 characters";$("#session-words").textContent=countWords(t);const n=$$(".format-option.selected").length;$("#selection-count").textContent=n+" SELECTED";$("#session-formats").textContent=String(n).padStart(2,"0")}
 function navigate(p){$$(".page").forEach(x=>x.classList.toggle("active",x.id==="page-"+p));$$(".nav-item").forEach(x=>x.classList.toggle("active",x.dataset.page===p));$("#breadcrumb").textContent=({home:"Overview",studio:"Content studio",library:"My library",calendar:"Content calendar",templates:"Template gallery",brand:"Brand kit",analytics:"Insights",settings:"Settings"})[p]||"Workspace";$("#sidebar").classList.remove("open");window.scrollTo({top:0,behavior:"smooth"});if(p==="library")renderLibrary()}
-$$("[data-page]").forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
+$("[data-page]").forEach(x=>x.addEventListener("click",()=>navigate(x.dataset.page)));
+const workspaceSwitch=$("#workspace-switch");
+let workspaceMenu=null;
+function closeWorkspaceMenu(){if(workspaceMenu){workspaceMenu.remove();workspaceMenu=null}workspaceSwitch?.setAttribute("aria-expanded","false")}
+function toggleWorkspaceMenu(){
+  if(!workspaceSwitch)return;
+  if(workspaceMenu){closeWorkspaceMenu();return}
+  const user=window.recontentAuth?.getUser?.();
+  workspaceMenu=document.createElement("div");workspaceMenu.className="workspace-menu";workspaceMenu.setAttribute("role","menu");
+  const head=document.createElement("div");head.className="workspace-menu-head";
+  const heading=document.createElement("b");heading.textContent="Current workspace";
+  const detail=document.createElement("small");detail.textContent=user?(user.email||"Signed-in account"):"Your work is saved in this browser";
+  head.append(heading,detail);
+  const status=document.createElement("div");status.className="workspace-menu-status";
+  const dot=document.createElement("i");const label=document.createElement("span");const sync=$("#cloud-sync-status");
+  label.textContent=sync?.textContent|| (user?"CLOUD SYNC CONNECTING":"LOCAL WORKSPACE");status.append(dot,label);
+  const actions=document.createElement("div");actions.className="workspace-menu-actions";
+  const entries=[["settings","Workspace settings","Manage your preferences"],["brand","Brand kit","Your voice and brand details"],["account","Account & profile",user?"View your account":"Sign in to sync your work"]];
+  entries.forEach(([action,title,description])=>{const b=document.createElement("button");b.type="button";b.dataset.workspaceAction=action;b.setAttribute("role","menuitem");const strong=document.createElement("b");strong.textContent=title;const small=document.createElement("small");small.textContent=description;b.append(strong,small);actions.append(b)});
+  workspaceMenu.append(head,status,actions);workspaceSwitch.after(workspaceMenu);workspaceSwitch.setAttribute("aria-expanded","true");
+}
+workspaceSwitch?.addEventListener("click",toggleWorkspaceMenu);
+workspaceSwitch?.addEventListener("keydown",e=>{if(e.key==="Escape")closeWorkspaceMenu()});
+document.addEventListener("click",e=>{if(workspaceMenu&&!workspaceMenu.contains(e.target)&&!workspaceSwitch.contains(e.target))closeWorkspaceMenu()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeWorkspaceMenu()});
+document.addEventListener("click",e=>{const action=e.target.closest("[data-workspace-action]");if(!action)return;const value=action.dataset.workspaceAction;closeWorkspaceMenu();if(value==="account"){const trigger=$("#account-trigger");if(trigger)trigger.click();else window.recontentAuth?.open?.("login");return}navigate(value)});
+
 $("#mobile-menu").addEventListener("click",()=>$("#sidebar").classList.toggle("open"));
 $("#source-content").addEventListener("input",updateCounts);
 $("#clear-source").addEventListener("click",()=>{$("#source-content").value="";updateCounts();$("#source-content").focus()});
