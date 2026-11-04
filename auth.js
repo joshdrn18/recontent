@@ -81,7 +81,7 @@
         <nav class="admin-nav">
           <a class="active" href="#admin-overview"><span>◫</span> Overview</a>
           <a href="#admin-members"><span>♙</span> Members <em>LIVE</em></a>
-          <a href="#admin-activity"><span>◷</span> Activity log</a>
+          <a href="#admin-activity-section"><span>◷</span> Activity log</a>
           <a href="#admin-ai"><span>✳</span> AI & usage</a>
         </nav>
         <div class="admin-rail-bottom"><div class="admin-online-dot"></div><div><b>System operational</b><small>Admin environment</small></div></div>
