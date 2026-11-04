@@ -33,6 +33,21 @@
     .account-user .avatar{flex-shrink:0}
     .account-user .user-meta{min-width:0}
     .account-user .user-meta b{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .admin-modal{padding:0;background:#090b0deF;backdrop-filter:blur(14px);align-items:stretch;justify-content:stretch}
+    .admin-box{width:100vw;height:100dvh;max-height:none;max-width:none;padding:0;border:0;border-radius:0;background:#0c0e11;color:#eceeea;overflow:hidden;display:grid;grid-template-columns:248px minmax(0,1fr);box-shadow:none}
+    .admin-rail{background:#101216;border-right:1px solid #24272c;padding:27px 17px 18px;display:flex;flex-direction:column;gap:22px;min-height:0}
+    .admin-logo{font:700 23px var(--display);letter-spacing:-1.3px;color:#f4f4f0;padding:0 10px}.admin-logo span{font-weight:400;color:#b8bcb6}.admin-logo i{color:#f28b5d;font-style:normal}
+    .admin-rail-caption{font:8px var(--mono);letter-spacing:1.4px;color:#6f747d;padding:0 11px;margin-bottom:-14px}
+    .admin-workspace{display:flex;align-items:center;gap:10px;padding:11px;background:#191c21;border:1px solid #292d33;border-radius:9px}.admin-workspace-icon{width:32px;height:32px;display:grid;place-items:center;background:#f18a5d;color:#171310;border-radius:8px;font:700 15px var(--display)}.admin-workspace b,.admin-workspace small{display:block}.admin-workspace b{font-size:10px}.admin-workspace small{font-size:8px;color:#858b94;margin-top:3px}
+    .admin-nav{display:grid;gap:5px}.admin-nav a{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:7px;color:#9298a1;text-decoration:none;font:500 11px var(--sans);transition:.18s}.admin-nav a span{width:17px;font-size:15px;text-align:center}.admin-nav a:hover,.admin-nav a.active{background:#22262c;color:#f6f6f2}.admin-nav a.active{box-shadow:inset 2px 0 #f18a5d}.admin-nav em{font:7px var(--mono);font-style:normal;color:#9ac59e;background:#1d3024;border-radius:4px;padding:3px 5px;margin-left:auto}
+    .admin-rail-bottom{margin-top:auto;border-top:1px solid #292c31;padding:17px 8px 3px;display:flex;align-items:center;gap:9px}.admin-online-dot,.admin-live i{width:7px;height:7px;border-radius:50%;background:#76c68b;box-shadow:0 0 12px #76c68b66}.admin-rail-bottom b,.admin-rail-bottom small{display:block}.admin-rail-bottom b{font-size:9px;color:#d8ddd7}.admin-rail-bottom small{font-size:8px;color:#747b84;margin-top:3px}
+    .admin-main{min-width:0;display:flex;flex-direction:column;min-height:0;background:#0c0e11}.admin-topbar{height:64px;flex:none;border-bottom:1px solid #24272c;display:flex;align-items:center;justify-content:space-between;padding:0 34px;background:#101216}.admin-breadcrumb{font-size:10px;color:#7e858f}.admin-breadcrumb span{padding:0 8px;color:#454b54}.admin-breadcrumb b{font-weight:600;color:#e2e5df}.admin-top-actions{display:flex;align-items:center;gap:14px}.admin-live{display:flex;align-items:center;gap:7px;font:8px var(--mono);letter-spacing:.8px;color:#9ba39a}.admin-live i{display:inline-block}.admin-refresh,.admin-close{border:1px solid #30353d;background:#191d22;color:#e5e8e2;border-radius:7px;padding:8px 11px;font-size:10px}.admin-close{font-size:18px;line-height:14px;padding:7px 10px}
+    .admin-scroll{overflow:auto;padding:34px clamp(20px,4vw,54px) 22px;min-height:0;scroll-behavior:smooth}.admin-welcome{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin:4px 0 27px}.admin-eyebrow,.admin-panel-kicker{font:8px var(--mono);letter-spacing:1.6px;color:#e58a60}.admin-welcome h1{font:600 clamp(28px,3vw,39px) var(--display);letter-spacing:-1.7px;margin:9px 0 7px;color:#f1f1ed}.admin-welcome h1 span{color:#f18a5d}.admin-welcome p{font-size:11px;color:#858c95;margin:0}.admin-date-chip{border:1px solid #2a2e34;border-radius:7px;padding:9px 12px;color:#a0a6ad;font-size:9px;white-space:nowrap}
+    .admin-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:17px}.admin-stat{background:#14171b;border:1px solid #292d33;border-radius:10px;padding:17px 18px;min-width:0;position:relative;overflow:hidden}.admin-stat:after{content:"";position:absolute;right:-25px;top:-35px;width:90px;height:90px;border-radius:50%;background:#f18a5d0b}.admin-stat span{display:block;font:8px var(--mono);letter-spacing:1px;color:#858c95}.admin-stat b{display:block;font:600 29px var(--display);letter-spacing:-1px;color:#f0f1ec;margin-top:10px}.admin-stat small{display:block;font-size:8px;color:#707781;margin-top:5px}
+    .admin-content-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:13px}.admin-panel{background:#14171b;border:1px solid #292d33;border-radius:10px;padding:18px;min-width:0}.admin-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:14px}.admin-panel-head h2{font:600 16px var(--display);letter-spacing:-.3px;color:#eff0eb;margin:5px 0 0}.admin-panel-head p{font-size:9px;color:#7f8790;margin:6px 0 0}.admin-panel-count{font:7px var(--mono);letter-spacing:.8px;color:#747c86;border:1px solid #30353c;border-radius:5px;padding:5px 7px;white-space:nowrap}
+    .admin-list{display:grid;gap:7px;max-height:340px;overflow:auto}.admin-row{display:flex;align-items:center;gap:10px;padding:10px;background:#191d22;border:1px solid #282d34;border-radius:7px;min-width:0;color:#e8eae5}.admin-row-main{min-width:0;flex:1}.admin-row-main b,.admin-row-main small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.admin-row-main b{font-size:10px;font-weight:600;color:#e3e6df}.admin-row-main small{font-size:8px;color:#838b95;margin-top:4px}.admin-row button{border:1px solid #45403b;background:#28231f;color:#f0a17d;border-radius:5px;padding:7px 9px;font-size:8px}.admin-empty{font-size:10px;color:#7e8791;padding:18px 5px}.admin-ai-panel{margin-bottom:18px}.admin-ai-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.admin-ai-metrics .admin-stat{background:#191d22;padding:12px}.admin-ai-metrics .admin-stat b{font-size:21px}.admin-ai-events{margin-top:12px;max-height:170px}.admin-footer{display:flex;justify-content:space-between;gap:10px;padding:13px 2px 4px;border-top:1px solid #24272c;color:#69717b;font:7px var(--mono);letter-spacing:.8px}
+    @media(max-width:900px){.admin-box{grid-template-columns:190px minmax(0,1fr)}.admin-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.admin-content-grid{grid-template-columns:1fr}.admin-scroll{padding:25px 22px}.admin-topbar{padding:0 22px}}
+    @media(max-width:600px){.admin-box{grid-template-columns:58px minmax(0,1fr)}.admin-rail{padding:18px 6px;gap:20px}.admin-logo{font-size:0;text-align:center;padding:0}.admin-logo:first-letter{font-size:22px}.admin-rail-caption,.admin-workspace,.admin-rail-bottom{display:none}.admin-nav a{justify-content:center;padding:12px 3px;font-size:0}.admin-nav a span{font-size:17px}.admin-nav em{display:none}.admin-topbar{height:56px;padding:0 12px}.admin-breadcrumb{font-size:8px}.admin-top-actions{gap:6px}.admin-live{display:none}.admin-refresh{padding:7px 8px}.admin-refresh span{display:none}.admin-scroll{padding:21px 12px}.admin-welcome{align-items:flex-start;flex-direction:column;margin-bottom:18px}.admin-date-chip{font-size:8px}.admin-metrics{gap:7px}.admin-stat{padding:12px}.admin-stat b{font-size:23px}.admin-ai-metrics{grid-template-columns:1fr 1fr}.admin-panel{padding:13px}.admin-footer{font-size:6px;flex-direction:column}.admin-list{max-height:280px}}
     .admin-box{width:min(100%,900px);padding:22px}
     .admin-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin:18px 0}
     .admin-stat{background:#e8e4da;border-radius:7px;padding:13px}
@@ -82,12 +97,33 @@
     </div>`;
   document.body.append(modal);
   const admin=document.createElement("div");admin.className="admin-modal";admin.innerHTML=`
-    <div class="admin-box" role="dialog" aria-modal="true">
-      <div class="admin-head"><div><div class="eyebrow">RECONTENT SUPER ADMIN</div><h2>Admin overview<span class="orange-dot">.</span></h2><p class="account-hint">Member accounts and activity across the workspace.</p></div><button class="account-close" aria-label="Close">×</button></div>
-      <div class="admin-stats" id="admin-stats"></div>
-      <div class="admin-columns"><section class="admin-section"><h3>Members</h3><div class="admin-list" id="admin-users"></div></section><section class="admin-section"><h3>Recent activity</h3><div class="admin-list" id="admin-activity"></div></section></div>
-      <section class="admin-section" style="margin:0 24px 18px"><h3>AI usage & generation telemetry</h3><div class="admin-stats" id="admin-ai-stats" style="margin:12px 0 0"></div><div class="admin-list" id="admin-ai-events" style="max-height:180px;margin-top:12px"></div></section>
-      <div class="admin-foot"><button class="outline-btn" id="admin-refresh">Refresh platform data ↻</button></div>
+    <div class="admin-box" role="dialog" aria-modal="true" aria-label="ReContent Super Admin">
+      <aside class="admin-rail">
+        <div class="admin-logo">re<span>content</span><i>.</i></div>
+        <div class="admin-rail-caption">WORKSPACE</div>
+        <div class="admin-workspace"><div class="admin-workspace-icon">R</div><div><b>ReContent</b><small>Platform administration</small></div></div>
+        <div class="admin-rail-caption">MANAGE</div>
+        <nav class="admin-nav">
+          <a class="active" href="#admin-overview"><span>◫</span> Overview</a>
+          <a href="#admin-members"><span>♙</span> Members <em>LIVE</em></a>
+          <a href="#admin-activity"><span>◷</span> Activity log</a>
+          <a href="#admin-ai"><span>✳</span> AI & usage</a>
+        </nav>
+        <div class="admin-rail-bottom"><div class="admin-online-dot"></div><div><b>System operational</b><small>Admin environment</small></div></div>
+      </aside>
+      <main class="admin-main">
+        <header class="admin-topbar"><div class="admin-breadcrumb">ReContent <span>/</span> <b>Admin console</b></div><div class="admin-top-actions"><span class="admin-live"><i></i> LIVE DATA</span><button id="admin-refresh" class="admin-refresh">↻ <span>Refresh</span></button><button class="account-close admin-close" aria-label="Close">×</button></div></header>
+        <div class="admin-scroll">
+          <section class="admin-welcome" id="admin-overview"><div><div class="admin-eyebrow">SUPER ADMIN / OVERVIEW</div><h1>Platform overview<span>.</span></h1><p>Your command center for members, product activity and AI consumption.</p></div><div class="admin-date-chip">◷ &nbsp; Live platform snapshot</div></section>
+          <div class="admin-metrics" id="admin-stats"></div>
+          <div class="admin-content-grid">
+            <section class="admin-panel admin-members-panel" id="admin-members"><div class="admin-panel-head"><div><div class="admin-panel-kicker">ACCOUNT DIRECTORY</div><h2>Members</h2></div><span class="admin-panel-count">USER ACCOUNTS</span></div><div class="admin-list" id="admin-users"></div></section>
+            <section class="admin-panel admin-activity-panel" id="admin-activity"><div class="admin-panel-head"><div><div class="admin-panel-kicker">AUDIT TRAIL</div><h2>Recent activity</h2></div><span class="admin-panel-count">LATEST EVENTS</span></div><div class="admin-list" id="admin-activity"></div></section>
+          </div>
+          <section class="admin-panel admin-ai-panel" id="admin-ai"><div class="admin-panel-head"><div><div class="admin-panel-kicker">WORKERS AI TELEMETRY</div><h2>AI usage & generation</h2><p>Consumption metrics recorded from successful generation requests.</p></div><span class="admin-panel-count">USAGE</span></div><div class="admin-ai-metrics" id="admin-ai-stats"></div><div class="admin-list admin-ai-events" id="admin-ai-events"></div></section>
+          <footer class="admin-footer"><span>RECONTENT ADMIN CONSOLE</span><span>Private platform access · Keep your credentials secure</span></footer>
+        </div>
+      </main>
     </div>`;
   document.body.append(admin);
   const profile=document.createElement("div");profile.className="account-modal";profile.innerHTML=`
