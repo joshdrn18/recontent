@@ -411,3 +411,101 @@
   window.addEventListener("storage",e=>{if(["recontent-brand-v1","recontent-current-brief-v1"].includes(e.key))renderRecommendations()});
   update();
 })();
+/* Content intelligence: library analysis, strategic gaps and AI-assisted planning. */
+(() => {
+  const page=document.querySelector("#page-analytics");
+  if(!page||page.querySelector(".content-intelligence"))return;
+  const read=(key,fallback)=>{try{const x=JSON.parse(localStorage.getItem(key)||"null");return x??fallback}catch{return fallback}};
+  const formats={thread:"X / Twitter thread",carousel:"Instagram carousel",linkedin:"LinkedIn post",reel:"Reels / TikTok",newsletter:"Newsletter",caption:"Social captions"};
+  const section=document.createElement("section");
+  section.className="content-intelligence";
+  section.innerHTML=`
+    <div class="ci-heading"><div><span class="eyebrow">BEYOND THE NUMBERS</span><h2>Content intelligence<span class="orange-dot">.</span></h2><p>Find patterns in your saved work, spot missing formats, and turn the next gap into a plan.</p></div><span class="ci-live">● BASED ON YOUR WORKSPACE</span></div>
+    <div class="ci-overview" id="ci-overview"></div>
+    <div class="ci-columns">
+      <article class="ci-panel"><div class="ci-panel-head"><div><span class="eyebrow">WHAT YOU TALK ABOUT</span><h3>Recurring themes</h3></div><span class="ci-panel-index">01</span></div><div id="ci-themes" class="ci-theme-list"></div></article>
+      <article class="ci-panel"><div class="ci-panel-head"><div><span class="eyebrow">WHAT'S UNDERUSED</span><h3>Format opportunities</h3></div><span class="ci-panel-index">02</span></div><div id="ci-gaps" class="ci-gap-list"></div></article>
+    </div>
+    <article class="ci-panel ci-strategy"><div class="ci-panel-head"><div><span class="eyebrow">YOUR NEXT MOVE</span><h3>Strategy recommendations</h3></div><span class="ci-panel-index">03</span></div><div id="ci-recommendations" class="ci-recommendations"></div></article>
+    <article class="ci-ai-panel"><div class="ci-ai-copy"><span class="eyebrow">POWERED BY RECONTENT AI</span><h3>Build your next content strategy<span class="orange-dot">.</span></h3><p>Use your Brand Kit, current brief, saved topics, and format gaps to generate a tailored content plan.</p><small>Uses one AI generation from your available daily allowance.</small></div><div class="ci-ai-controls"><select id="ci-ai-format" aria-label="Strategy output format"><option value="thread">X / Twitter thread</option><option value="linkedin">LinkedIn post</option><option value="carousel">Instagram carousel</option><option value="newsletter">Newsletter</option></select><button type="button" class="primary-btn compact" id="ci-generate">Generate strategy ↗</button></div><div class="ci-ai-result" id="ci-ai-result" hidden></div></article>
+    <p class="ci-disclaimer">Insights use your saved projects and publishing calendar. ReContent does not have access to social-platform reach, clicks, or engagement unless you connect those data sources in a future release.</p>
+  `;
+  const existing=page.querySelector(".insight-panel");
+  if(existing)existing.after(section);else page.append(section);
+  const $=s=>section.querySelector(s);
+  const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const tokenize=text=>(String(text||"").toLowerCase().match(/[a-z][a-z0-9'-]{3,}/g)||[]);
+  const stop=new Set("about after again also been being between content create could every from have into just like more most other over should some than that their there these they this through time what when where which while with your yours ideas post posts brand audience".split(" "));
+  function analyze(){
+    const library=read("recontent-library-v1",[]).filter(x=>x&&typeof x==="object");
+    const schedule=read("recontent-calendar-v1",[]).filter(x=>x&&typeof x==="object");
+    const brand=read("recontent-brand-v1",{}),brief=read("recontent-current-brief-v1",{});
+    const counts={};const words={};let outputCount=0;
+    library.forEach(project=>{
+      (Array.isArray(project.formats)?project.formats:[]).forEach(f=>counts[f]=(counts[f]||0)+1);
+      const outputs=Array.isArray(project.outputs)?project.outputs:[];
+      outputCount+=outputs.length;
+      const corpus=[project.title,project.source,...outputs.map(o=>o?.text)].filter(Boolean).join(" ");
+      tokenize(corpus).forEach(word=>{if(!stop.has(word))words[word]=(words[word]||0)+1});
+    });
+    const topWords=Object.entries(words).filter(([,n])=>n>1).sort((a,b)=>b[1]-a[1]).slice(0,6);
+    const used=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    const missing=Object.keys(formats).map(f=>({format:f,count:counts[f]||0})).sort((a,b)=>a.count-b.count);
+    const done=schedule.filter(x=>x.done).length,upcoming=schedule.filter(x=>!x.done&&String(x.date)>=new Date().toISOString().slice(0,10)).length;
+    const planned=schedule.filter(x=>!x.done);
+    const dateCounts={};planned.forEach(x=>dateCounts[x.date]=(dateCounts[x.date]||0)+1);
+    const busyDays=Object.values(dateCounts).filter(n=>n>1).length;
+    return {library,schedule,brand,brief,counts,outputCount,topWords,used,missing,done,upcoming,planned,busyDays};
+  }
+  function render(){
+    const d=analyze(),totalFormats=Object.values(d.counts).reduce((a,b)=>a+b,0);
+    $("#ci-overview").innerHTML=[
+      ["SAVED PROJECTS",d.library.length,"Across your current library"],
+      ["GENERATED OUTPUTS",d.outputCount,"Saved content variations"],
+      ["PUBLISHED / DONE",d.done,"Marked complete in calendar"],
+      ["UPCOMING POSTS",d.upcoming,"Still on your schedule"]
+    ].map(x=>'<div class="ci-stat"><span>'+x[0]+'</span><b>'+x[1]+'</b><small>'+x[2]+'</small></div>').join("");
+    $("#ci-themes").innerHTML=d.topWords.length?d.topWords.map(([word,n],i)=>'<div class="ci-theme"><span class="ci-theme-rank">0'+(i+1)+'</span><b>'+esc(word)+'</b><span>'+n+' mentions</span></div>').join(""):'<div class="ci-empty">Save a few projects with source text or generated outputs. ReContent will surface recurring themes here.</div>';
+    $("#ci-gaps").innerHTML=d.missing.map(x=>'<div class="ci-gap"><div><b>'+esc(formats[x.format])+'</b><span>'+(x.count?"Used "+x.count+" time(s)":"Not used yet")+'</span></div><span class="ci-gap-state '+(x.count?"":"opportunity")+'">'+(x.count?"IN ROTATION":"OPPORTUNITY")+'</span></div>').join("");
+    const rec=[];
+    if(!d.library.length)rec.push(["Start with one source","Save your first remix to establish a baseline for topic and format analysis."]);
+    else if(d.library.length<5)rec.push(["Build a stronger baseline","Save a few more projects. A larger library makes recurring themes more useful."]);
+    if(d.missing[0]?.count===0)rec.push(["Experiment with "+formats[d.missing[0].format],"This format has no saved projects yet. Repurpose one of your strongest sources into it."]);
+    if(d.upcoming===0)rec.push(["Give your ideas a publishing date","Your calendar has no upcoming unfinished posts. Schedule one idea to create a consistent rhythm."]);
+    if(d.busyDays>0)rec.push(["Spread out your publishing","You have multiple unfinished posts on the same date. Distribute them to avoid a crowded schedule."]);
+    if(d.topWords.length)rec.push(["Build a mini-series around "+d.topWords[0][0],"This is your most repeated theme in saved content. Explore a deeper angle, case study, and practical checklist."]);
+    if(!rec.length)rec.push(["Keep testing formats","Your library has a useful spread. Compare how different formats support the same topic."]);
+    $("#ci-recommendations").innerHTML=rec.slice(0,4).map((x,i)=>'<div class="ci-rec"><span>0'+(i+1)+'</span><div><b>'+esc(x[0])+'</b><p>'+esc(x[1])+'</p></div></div>').join("");
+  }
+  $("#ci-generate").addEventListener("click",async()=>{
+    const d=analyze(),format=$("#ci-ai-format").value,button=$("#ci-generate"),result=$("#ci-ai-result");
+    if(!d.library.length&&!d.brand.name&&!d.brief.audience){window.notify?.("Save a project or complete your Brand Kit / Content Brief first.");return}
+    const top=d.topWords.slice(0,6).map(x=>x[0]).join(", ")||"not enough recurring themes yet";
+    const underused=d.missing.slice(0,3).map(x=>formats[x.format]).join(", ");
+    const source="Create a practical next-step content strategy for this creator or brand.\n\nBrand: "+(d.brand.name||"Not specified")+"\nAudience: "+(d.brand.audience||d.brief.audience||"Not specified")+"\nBrand voice: "+(d.brand.voice||"Not specified")+"\nBusiness goal: "+(d.brief.goal||"Grow a useful audience")+"\nRecurring themes from saved content: "+top+"\nUnderused formats: "+underused+"\nSaved projects: "+d.library.length+"; saved outputs: "+d.outputCount+"; upcoming posts: "+d.upcoming+".\n\nProvide a concise but actionable 7-day content strategy with distinct ideas, recommended angles, hooks, and calls to action. Do not invent performance metrics or claim that a post will go viral. Avoid repeating the same idea.";
+    button.disabled=true;button.textContent="Building your strategy…";
+    result.hidden=false;result.textContent="ReContent AI is analysing your workspace context…";
+    try{
+      const response=await fetch("/api/content/generate",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({source,formats:[format],tone:d.brand.voice||"Conversational",language:"English",brief:d.brief,brand:d.brand})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||"Strategy generation failed.");
+      const output=Array.isArray(data.outputs)?data.outputs[0]:null;
+      if(!output||typeof output.text!=="string")throw new Error("The AI response did not include a strategy.");
+      result.innerHTML="";
+      const heading=document.createElement("div");heading.className="ci-result-head";heading.innerHTML="<b>Your 7-day strategy</b><span>"+esc(formats[format])+"</span>";
+      const body=document.createElement("pre");body.textContent=output.text;
+      const actions=document.createElement("div");actions.className="ci-result-actions";
+      const copy=document.createElement("button");copy.type="button";copy.className="outline-btn";copy.textContent="Copy strategy";
+      copy.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(output.text);window.notify?.("Strategy copied.")}catch{window.notify?.("Clipboard unavailable in this browser.")}});
+      const studio=document.createElement("button");studio.type="button";studio.className="primary-btn compact";studio.textContent="Open in Content Studio ↗";
+      studio.addEventListener("click",()=>{const sourceBox=document.querySelector("#source-content");if(sourceBox){sourceBox.value=output.text;sourceBox.dispatchEvent(new Event("input",{bubbles:true}));document.querySelector('[data-page="studio"]')?.click()}});
+      actions.append(copy,studio);result.append(heading,body,actions);
+      window.notify?.("Your content strategy is ready.");
+    }catch(error){result.textContent=error.message||"Could not generate a strategy."}
+    finally{button.disabled=false;button.textContent="Generate strategy ↗"}
+  });
+  window.addEventListener("recontent:workspaces",render);
+  window.addEventListener("recontent:auth",render);
+  window.addEventListener("recontent:templates",render);
+  render();
+})();
