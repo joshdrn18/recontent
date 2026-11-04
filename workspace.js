@@ -137,3 +137,47 @@
   source?.addEventListener("input", updateQuality);
   updateQuality();
 })();
+
+/* Workspace management: metadata, duplication and per-workspace summaries. */
+(() => {
+  const root=document.querySelector("#page-settings");
+  const manager=()=>window.recontentWorkspaces;
+  if(!root)return;
+  const section=document.createElement("section");
+  section.className="workspace-management";
+  section.innerHTML=`
+    <div class="workspace-management-head"><div><span class="eyebrow">MULTI-BRAND CONTROL</span><h2>Manage your spaces<span class="orange-dot">.</span></h2><p>Give every brand its own identity, keep projects separate, or duplicate a workspace to start a new direction.</p></div><span class="workspace-count" id="workspace-count">— WORKSPACES</span></div>
+    <div class="workspace-management-grid">
+      <div class="workspace-manage-card"><div class="workspace-card-title"><b>Workspace identity</b><small>Applies to the selected workspace</small></div>
+        <label>WORKSPACE NAME<input id="wm-name" maxlength="60" placeholder="My workspace"></label>
+        <label>DESCRIPTION<input id="wm-description" maxlength="160" placeholder="What is this workspace for?"></label>
+        <div class="wm-two"><label>ICON<input id="wm-icon" maxlength="8" placeholder="✳"></label><label>ACCENT COLOR<input id="wm-color" type="color" value="#ef7048"></label></div>
+        <button class="primary-btn compact" id="wm-save">Save workspace identity ↗</button>
+      </div>
+      <div class="workspace-manage-card"><div class="workspace-card-title"><b>Workspace snapshot</b><small>Counts from the active workspace</small></div>
+        <div class="wm-stats"><div><b id="wm-projects">0</b><span>PROJECTS</span></div><div><b id="wm-outputs">0</b><span>OUTPUTS</span></div><div><b id="wm-scheduled">0</b><span>SCHEDULED</span></div><div><b id="wm-completed">0</b><span>COMPLETED</span></div></div>
+        <p class="muted-note">Counts update from the current workspace data stored in this browser and cloud sync.</p>
+      </div>
+    </div>
+    <div class="workspace-manage-card workspace-list-card"><div class="workspace-card-title"><div><b>All workspaces</b><small>Duplicate a workspace to copy its library, calendar, Brand Kit and content brief.</small></div><button class="outline-btn" id="wm-create">＋ New workspace</button></div><div class="wm-list" id="wm-list"><div class="admin-empty">Loading workspaces…</div></div></div>`;
+  const settingsHeading=root.querySelector("h1");
+  (settingsHeading?.parentElement||root).after(section);
+  const $=s=>section.querySelector(s);
+  const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  function render(){
+    const m=manager();if(!m)return;
+    const list=m.getList(),active=m.getActive(),stats=m.getStats?.()||{};
+    $("#workspace-count").textContent=list.length+" / "+(window.recontentAuth?.getUser?.()?.role==="admin"?50:10)+" WORKSPACES";
+    $("#wm-name").value=active?.name||"";$("#wm-description").value=active?.description||"";
+    $("#wm-icon").value=active?.icon||"✳";$("#wm-color").value=active?.color||"#ef7048";
+    $("#wm-projects").textContent=stats.projects||0;$("#wm-outputs").textContent=stats.outputs||0;
+    $("#wm-scheduled").textContent=stats.scheduled||0;$("#wm-completed").textContent=stats.completed||0;
+    $("#wm-list").innerHTML=list.map(w=>{const current=w.id===active?.id;return `<article class="wm-row"><span class="wm-row-icon" style="--wm-color:${esc(w.color||"#ef7048")}">${esc(w.icon||w.name?.slice(0,1)||"✳")}</span><div class="wm-row-main"><b>${esc(w.name)}</b><small>${esc(w.description||"No description")}${current?" · CURRENT":""}</small></div><div class="wm-row-actions">${current?'<span class="wm-current">ACTIVE</span>':`<button type="button" data-wm-switch="${esc(w.id)}">Open</button>`}<button type="button" data-wm-duplicate="${esc(w.id)}">Duplicate</button></div></article>`}).join("")||'<div class="admin-empty">No workspaces yet.</div>';
+  }
+  $("#wm-save").addEventListener("click",async()=>{try{const m=manager(),active=m?.getActive();if(!active)throw new Error("Workspace is still loading.");await m.updateMeta(active.id,{name:$("#wm-name").value,description:$("#wm-description").value,icon:$("#wm-icon").value,color:$("#wm-color").value});render()}catch(e){window.notify?.(e.message)}});
+  $("#wm-create").addEventListener("click",async()=>{const name=prompt("Name your new workspace:","New workspace");if(name===null)return;try{await manager().create(name)}catch(e){window.notify?.(e.message)}});
+  $("#wm-list").addEventListener("click",async e=>{const sw=e.target.closest("[data-wm-switch]"),du=e.target.closest("[data-wm-duplicate]");try{if(sw)await manager().switchTo(sw.dataset.wmSwitch);if(du){const source=manager().getList().find(x=>x.id===du.dataset.wmDuplicate);const name=prompt("Name the duplicated workspace:",(source?.name||"Workspace")+" copy");if(name!==null)await manager().duplicate(du.dataset.wmDuplicate,name)}}catch(err){window.notify?.(err.message)}});
+  window.addEventListener("recontent:workspaces",render);
+  window.addEventListener("recontent:auth",render);
+  render();
+})();
