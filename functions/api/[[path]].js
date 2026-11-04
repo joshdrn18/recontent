@@ -221,23 +221,30 @@ async function handle(request,env) {
     const name=String(body.name||"").trim().slice(0,60);
     if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);
     const now=new Date().toISOString(),id="ws_"+random(9);
-    const item={id,name,createdAt:now,updatedAt:now};
+    const sourceId=String(body.copyFrom||"");
+    const source=sourceId?items.find(x=>x.id===sourceId):null;
+    if(sourceId&&!source)return json({error:"Source workspace not found."},404,cors);
+    const item={id,name,description:"",icon:"✳",color:"#ef7048",createdAt:now,updatedAt:now};
+    const copied=source?await read(env.DATA,"workspace-data:"+user.id+":"+sourceId,emptyWorkspace()):emptyWorkspace();
     items.push(item);
     await write(env.DATA,workspaceIndexKey,items);
     await write(env.DATA,"workspace-meta:"+user.id+":"+id,item);
-    await write(env.DATA,"workspace-data:"+user.id+":"+id,emptyWorkspace());
-    await logEvent(env,user,"workspace.created",{title:name});
+    await write(env.DATA,"workspace-data:"+user.id+":"+id,copied);
+    await logEvent(env,user,source?"workspace.duplicated":"workspace.created",{title:name,sourceId});
     return json({workspace:item,workspaces:items},201,cors);
   }
   if(route==="workspaces" && request.method==="PATCH"){
-    const items=await ensureWorkspaces(),id=String(body.workspaceId||""),name=String(body.name||"").trim().slice(0,60);
-    if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);
+    const items=await ensureWorkspaces(),id=String(body.workspaceId||"");
     const item=items.find(x=>x.id===id);
     if(!item)return json({error:"Workspace not found."},404,cors);
-    item.name=name;item.updatedAt=new Date().toISOString();
+    if(body.name!==undefined){const name=String(body.name||"").trim().slice(0,60);if(name.length<2)return json({error:"Workspace name must be at least 2 characters."},400,cors);item.name=name;}
+    if(body.description!==undefined)item.description=String(body.description||"").trim().slice(0,160);
+    if(body.icon!==undefined){const icon=String(body.icon||"✳").trim().slice(0,8);if(!icon)return json({error:"Workspace icon is invalid."},400,cors);item.icon=icon;}
+    if(body.color!==undefined){const color=String(body.color||"").toLowerCase();if(!/^#[0-9a-f]{6}$/.test(color))return json({error:"Workspace color must be a valid hex color."},400,cors);item.color=color;}
+    item.updatedAt=new Date().toISOString();
     await write(env.DATA,workspaceIndexKey,items);
     await write(env.DATA,"workspace-meta:"+user.id+":"+id,item);
-    await logEvent(env,user,"workspace.renamed",{title:name});
+    await logEvent(env,user,"workspace.updated",{title:item.name});
     return json({workspace:item,workspaces:items},200,cors);
   }
   if(route==="workspaces" && request.method==="DELETE"){
