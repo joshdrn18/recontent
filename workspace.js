@@ -307,6 +307,16 @@
   if(!page||!grid||page.querySelector(".marketplace-toolbar"))return;
   const activeWorkspace=()=>{try{return JSON.parse(localStorage.getItem("recontent-active-workspace-v1")||'{"id":"default"}').id||"default"}catch{return"default"}};
   const favKey=()=>"recontent-template-favourites-v1:"+activeWorkspace();
+  const usageKey=()=>"recontent-template-usage-v1:"+activeWorkspace();
+  const getUsage=()=>{try{const x=JSON.parse(localStorage.getItem(usageKey())||"{}");return x&&typeof x==="object"&&!Array.isArray(x)?x:{}}catch{return{}}};
+  const recordUse=id=>{const u=getUsage();u[id]={count:Math.min(9999,(Number(u[id]?.count)||0)+1),lastUsed:new Date().toISOString()};localStorage.setItem(usageKey(),JSON.stringify(u))};
+  const readContext=()=>{const read=k=>{try{return JSON.parse(localStorage.getItem(k)||"{}")}catch{return{}}};const b=read("recontent-brand-v1"),brief=read("recontent-current-brief-v1");return [b.name,b.audience,b.voice,b.words,b.avoid,brief.audience,brief.goal,brief.topic,brief.purpose,brief.notes,brief.description].filter(x=>typeof x==="string").join(" ").toLowerCase()};
+  const renderRecommendations=()=>{
+    const root=bar.querySelector("#mp-recommend-list");if(!root)return;root.innerHTML="";
+    const context=readContext(),tokens=context.match(/[a-z0-9]{3,}/g)||[],stop=new Set(["the","and","for","with","from","that","this","your","you","are","our","will","can","how","what","who","into","about","use","more","best","brand","content"]);
+    const words=tokens.filter(x=>!stop.has(x)),ranked=cards().map(card=>{const id=card.querySelector("[data-template]")?.dataset.template;const txt=(card.textContent+" "+templateContent(id)).toLowerCase();let score=0;words.forEach(word=>{if(txt.includes(word))score+=word.length>6?3:1});if(/launch|product|business|sales|customer/.test(context)&&["product","launch","case","faq","comparison"].includes(id))score+=2;if(/creator|video|social|audience|community/.test(context)&&["story","tips","behind","community","challenge"].includes(id))score+=2;if(/personal|founder|thought leadership|expert/.test(context)&&["opinion","story","newsletter","quote"].includes(id))score+=2;return{card,id,score}}).sort((a,b)=>b.score-a.score);
+    ranked.slice(0,3).forEach(({card,id,score},i)=>{const item=document.createElement("article");item.className="mp-recommend-card";const tag=document.createElement("span");tag.textContent=i===0?"BEST MATCH":"GOOD FIT";const title=document.createElement("b");title.textContent=card.querySelector("h3")?.textContent||id;const desc=document.createElement("small");desc.textContent=score?"Matches keywords in your saved brand and content brief":"A useful starting point for your next post";const btn=document.createElement("button");btn.type="button";btn.textContent="Preview ↗";btn.addEventListener("click",()=>openPreview(id));item.append(tag,title,desc,btn);root.append(item)});
+  };
   const getFavs=()=>{try{const a=JSON.parse(localStorage.getItem(favKey())||"[]");return Array.isArray(a)?a:[]}catch{return[]}};
   const setFavs=a=>localStorage.setItem(favKey(),JSON.stringify(a));
   const collections={
@@ -318,7 +328,7 @@
   };
   const bar=document.createElement("div");
   bar.className="marketplace-toolbar";
-  bar.innerHTML='<div class="marketplace-heading"><div><span class="eyebrow">CURATED STARTING POINTS</span><h2>Template marketplace<span class="orange-dot">.</span></h2><p>Explore by goal, inspect the complete framework, and save your own copy.</p></div><span class="marketplace-total" id="mp-total">21 TEMPLATES</span></div><div class="mp-collections" role="group" aria-label="Template collections"></div><div class="marketplace-tabs"><button type="button" class="active" data-mp-tab="all">Explore all</button><button type="button" data-mp-tab="favourites">♥ Favourites <span id="mp-fav-count">0</span></button></div>';
+  bar.innerHTML='<div class="marketplace-heading"><div><span class="eyebrow">CURATED STARTING POINTS</span><h2>Template marketplace<span class="orange-dot">.</span></h2><p>Explore by goal, inspect the complete framework, and save your own copy.</p></div><span class="marketplace-total" id="mp-total">21 TEMPLATES</span></div><section class="mp-recommendations"><div class="mp-recommend-head"><div><span class="eyebrow">BASED ON YOUR BRAND + BRIEF</span><h3>Smart picks<span class="orange-dot">.</span></h3></div><span class="mp-recommend-note">Personalised on this device</span></div><div class="mp-recommend-list" id="mp-recommend-list"></div></section><div class="mp-collections" role="group" aria-label="Template collections"></div><div class="marketplace-tabs"><button type="button" class="active" data-mp-tab="all">Explore all</button><button type="button" data-mp-tab="trending">↗ Trending <span id="mp-trending-count">0</span></button><button type="button" data-mp-tab="favourites">♥ Favourites <span id="mp-fav-count">0</span></button></div>';
   const toolbar=page.querySelector(".template-toolbar");toolbar?.before(bar);
   const collectionRoot=bar.querySelector(".mp-collections");
   Object.keys(collections).forEach((name,i)=>{const b=document.createElement("button");b.type="button";b.className="mp-collection"+(i===0?" active":"");b.dataset.mpCollection=name;b.textContent=name;collectionRoot.append(b)});
@@ -337,8 +347,9 @@
       actions.innerHTML='<button type="button" class="mp-preview-btn" data-mp-preview="'+id+'">Full preview ↗</button><button type="button" class="mp-star '+(favourite?"is-favourite":"")+'" data-mp-fav="'+id+'" aria-label="'+(favourite?"Remove from favourites":"Add to favourites")+'" title="'+(favourite?"Remove from favourites":"Add to favourites")+'">'+(favourite?"♥":"♡")+'</button>';
       card.querySelector("[data-template]")?.classList.add("mp-use-original");
     });
-    const count=bar.querySelector("#mp-fav-count");if(count)count.textContent=favs.length;
+    const count=bar.querySelector("#mp-fav-count");if(count)count.textContent=favs.length;const trending=bar.querySelector("#mp-trending-count");if(trending)trending.textContent=Object.values(getUsage()).filter(x=>(Number(x?.count)||0)>0).length;
     const total=bar.querySelector("#mp-total");if(total)total.textContent=cards().length+" TEMPLATES";
+    renderRecommendations();
     applyFilters();
   };
   const applyFilters=()=>{
@@ -346,7 +357,7 @@
     const allowed=collections[activeCollection];let visible=0;
     cards().forEach(card=>{
       const id=card.querySelector("[data-template]")?.dataset.template;
-      const matchTab=activeTab==="all"||getFavs().includes(id);
+      const usage=getUsage();const matchTab=activeTab==="all"||(activeTab==="favourites"&&getFavs().includes(id))||(activeTab==="trending"&&(Number(usage[id]?.count)||0)>0);
       const matchSearch=!q||card.dataset.title?.includes(q)||card.dataset.category?.toLowerCase().includes(q)||card.textContent.toLowerCase().includes(q);
       const matchCat=cat==="all"||card.dataset.category===cat;
       const matchCollection=!allowed||allowed.has(id);
@@ -392,10 +403,11 @@
     localStorage.setItem(key,JSON.stringify(list));window.dispatchEvent(new CustomEvent("recontent:templates"));
     modal.querySelector("#mp-duplicate").textContent="✓ Added to My Templates";window.notify?.("Template copied to My Templates.");
   });
-  modal.querySelector("#mp-use").addEventListener("click",()=>{if(!selected)return;const btn=grid.querySelector('[data-template="'+selected+'"]');close();btn?.click()});
+  modal.querySelector("#mp-use").addEventListener("click",()=>{if(!selected)return;const id=selected;recordUse(id);const btn=grid.querySelector('[data-template="'+id+'"]');close();update();btn?.click()});
   document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!modal.hidden)close()});
   page.querySelector("#template-search")?.addEventListener("input",applyFilters);
   page.querySelector("#template-category")?.addEventListener("change",applyFilters);
   window.addEventListener("recontent:workspaces",()=>{activeTab="all";activeCollection="All templates";update()});
+  window.addEventListener("storage",e=>{if(["recontent-brand-v1","recontent-current-brief-v1"].includes(e.key))renderRecommendations()});
   update();
 })();
