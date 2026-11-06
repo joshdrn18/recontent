@@ -543,6 +543,9 @@ async function generateCampaignDraft(campaignId,itemId,button){
     "CHANNEL: "+(item.platform||"Not specified"),
     "OUTPUT FORMAT: "+formatLabel,
     "PLANNED DATE: "+(item.date||"Not scheduled"),
+    "STRATEGY ANGLE: "+(item.strategyAngle||"Use the campaign goal as direction."),
+    "SUGGESTED HOOK: "+(item.hook||"Create an original opening hook."),
+    "SUGGESTED CTA: "+(item.cta||"Choose a relevant, low-friction call to action."),
     "Write specifically for the named channel and format. Keep it focused on this item, use the campaign goal as direction, and do not invent product facts, statistics, testimonials, or offers. Use clear placeholders such as [insert detail] when essential information is missing."
   ].join("\n\n");
   try{
