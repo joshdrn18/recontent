@@ -94,6 +94,45 @@ async function handle(request,env) {
   const user=await current(request,env);
   if(route==="auth/me" && request.method==="GET")return json({user:user?safeUser(user):null},200,cors);
   if(!user)return json({error:"Please sign in to continue."},401,cors);
+  if(route==="social/youtube/connect" && request.method==="GET"){
+    if(!env.YOUTUBE_CLIENT_ID||!env.YOUTUBE_CLIENT_SECRET||!env.YOUTUBE_TOKEN_ENCRYPTION_KEY)return json({error:"YouTube OAuth is not configured. Add YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, and YOUTUBE_TOKEN_ENCRYPTION_KEY in Cloudflare Pages environment variables."},503,cors);
+    const items=await read(env.DATA,"workspaces:"+user.id,[]),workspaceId=String(url.searchParams.get("workspaceId")||"ws_default");
+    if(!Array.isArray(items)||!items.some(x=>x.id===workspaceId))return json({error:"Workspace access denied."},403,cors);
+    const state=random(32),stateHash=await digest(state);
+    await write(env.DATA,"oauth:youtube:state:"+stateHash,{userId:user.id,workspaceId,createdAt:Date.now()},600);
+    const redirectUri=new URL("/api/social/youtube/callback",url.origin).toString();
+    const params=new URLSearchParams({client_id:env.YOUTUBE_CLIENT_ID,redirect_uri:redirectUri,response_type:"code",scope:"https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly",access_type:"offline",prompt:"consent",include_granted_scopes:"true",state});
+    return Response.redirect("https://accounts.google.com/o/oauth2/v2/auth?"+params.toString(),302);
+  }
+  if(route==="social/youtube/callback" && request.method==="GET"){
+    const state=String(url.searchParams.get("state")||""),code=String(url.searchParams.get("code")||""),stateHash=state?await digest(state):"";
+    const stateKey="oauth:youtube:state:"+stateHash,pending=state?await read(env.DATA,stateKey,null):null;
+    if(state)await env.DATA.delete(stateKey);
+    if(!pending||pending.userId!==user.id||Date.now()-Number(pending.createdAt||0)>600000)return Response.redirect(new URL("/?youtube=state_error",url.origin),302);
+    if(url.searchParams.get("error"))return Response.redirect(new URL("/?youtube=cancelled",url.origin),302);
+    if(!code||!env.YOUTUBE_CLIENT_ID||!env.YOUTUBE_CLIENT_SECRET||!env.YOUTUBE_TOKEN_ENCRYPTION_KEY)return Response.redirect(new URL("/?youtube=setup_error",url.origin),302);
+    const redirectUri=new URL("/api/social/youtube/callback",url.origin).toString();
+    const tokenResponse=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({code,client_id:env.YOUTUBE_CLIENT_ID,client_secret:env.YOUTUBE_CLIENT_SECRET,redirect_uri:redirectUri,grant_type:"authorization_code"})});
+    const tokenData=await tokenResponse.json().catch(()=>({}));
+    if(!tokenResponse.ok||!tokenData.access_token)return Response.redirect(new URL("/?youtube=token_error",url.origin),302);
+    const channelResponse=await fetch("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true",{headers:{authorization:"Bearer "+tokenData.access_token}});
+    const channelData=await channelResponse.json().catch(()=>({})),channel=channelData.items?.[0];
+    if(!channel)return Response.redirect(new URL("/?youtube=channel_error",url.origin),302);
+    const refreshToken=tokenData.refresh_token,keyMaterial=await crypto.subtle.digest("SHA-256",enc.encode(String(env.YOUTUBE_TOKEN_ENCRYPTION_KEY)));
+    const aesKey=await crypto.subtle.importKey("raw",keyMaterial,{name:"AES-GCM"},false,["encrypt"]),iv=new Uint8Array(12);crypto.getRandomValues(iv);
+    const encrypted=refreshToken?b64url(new Uint8Array(await crypto.subtle.encrypt({name:"AES-GCM",iv},aesKey,enc.encode(refreshToken)))):null;
+    const connection={platform:"youtube",channelId:channel.id,title:String(channel.snippet?.title||"YouTube channel").slice(0,120),thumbnail:String(channel.snippet?.thumbnails?.default?.url||"").slice(0,500),connectedAt:new Date().toISOString(),refreshToken:encrypted,iv:refreshToken?b64url(iv):null,needsReauth:!refreshToken};
+    await write(env.DATA,"social-youtube:"+user.id+":"+pending.workspaceId,connection);
+    await logEvent(env,user,"social.youtube_connected",{workspaceId:pending.workspaceId,channelId:channel.id});
+    return Response.redirect(new URL("/?youtube=connected",url.origin),302);
+  }
+  if(route==="social/youtube" && request.method==="DELETE"){
+    const workspaceId=String(body.workspaceId||"ws_default"),items=await read(env.DATA,"workspaces:"+user.id,[]);
+    if(!Array.isArray(items)||!items.some(x=>x.id===workspaceId))return json({error:"Workspace access denied."},403,cors);
+    await env.DATA.delete("social-youtube:"+user.id+":"+workspaceId);
+    await logEvent(env,user,"social.youtube_disconnected",{workspaceId});
+    return json({ok:true},200,cors);
+  }
   if(route==="content/generate" && request.method==="POST"){
     if(!env.AI||typeof env.AI.run!=="function")return json({error:"AI service is not connected yet. Please try again after setup."},503,cors);
     const source=String(body.source||"").trim();
@@ -296,7 +335,7 @@ async function handle(request,env) {
     const allowedPlatforms=["instagram","tiktok","youtube","x","linkedin","facebook","pinterest"];
     if(request.method==="GET"){
       const accounts=await read(env.DATA,key,[]);
-      return json({accounts:Array.isArray(accounts)?accounts:[],oauth:{enabled:false,message:"OAuth authorization is not configured yet. Saved profiles are for planning only."}},200,cors);
+      const youtube=await read(env.DATA,"social-youtube:"+user.id+":"+id,null);\n      return json({accounts:Array.isArray(accounts)?accounts:[],youtubeConnection:youtube?{platform:"youtube",channelId:youtube.channelId,title:youtube.title,thumbnail:youtube.thumbnail,connectedAt:youtube.connectedAt,needsReauth:!!youtube.needsReauth}:null,oauth:{youtubeEnabled:Boolean(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_TOKEN_ENCRYPTION_KEY),message:"Only YouTube OAuth is supported in this integration phase. Other saved profiles remain planning-only."}},200,cors);
     }
     const accounts=await read(env.DATA,key,[]);
     if(!Array.isArray(accounts))return json({error:"Account storage is invalid."},500,cors);
