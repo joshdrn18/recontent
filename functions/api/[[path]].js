@@ -335,7 +335,8 @@ async function handle(request,env) {
     const allowedPlatforms=["instagram","tiktok","youtube","x","linkedin","facebook","pinterest"];
     if(request.method==="GET"){
       const accounts=await read(env.DATA,key,[]);
-      const youtube=await read(env.DATA,"social-youtube:"+user.id+":"+id,null);\n      return json({accounts:Array.isArray(accounts)?accounts:[],youtubeConnection:youtube?{platform:"youtube",channelId:youtube.channelId,title:youtube.title,thumbnail:youtube.thumbnail,connectedAt:youtube.connectedAt,needsReauth:!!youtube.needsReauth}:null,oauth:{youtubeEnabled:Boolean(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_TOKEN_ENCRYPTION_KEY),message:"Only YouTube OAuth is supported in this integration phase. Other saved profiles remain planning-only."}},200,cors);
+      const youtube=await read(env.DATA,"social-youtube:"+user.id+":"+id,null);
+      return json({accounts:Array.isArray(accounts)?accounts:[],youtubeConnection:youtube?{platform:"youtube",channelId:youtube.channelId,title:youtube.title,thumbnail:youtube.thumbnail,connectedAt:youtube.connectedAt,needsReauth:!!youtube.needsReauth}:null,oauth:{youtubeEnabled:Boolean(env.YOUTUBE_CLIENT_ID&&env.YOUTUBE_CLIENT_SECRET&&env.YOUTUBE_TOKEN_ENCRYPTION_KEY),message:"Only YouTube OAuth is supported in this integration phase. Other saved profiles remain planning-only."}},200,cors);
     }
     const accounts=await read(env.DATA,key,[]);
     if(!Array.isArray(accounts))return json({error:"Account storage is invalid."},500,cors);
