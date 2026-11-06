@@ -289,6 +289,32 @@ async function handle(request,env) {
     await logEvent(env,user,"workspace.synced",{title:item.name,bytes:encoded.length});
     return json({ok:true,updatedAt:saved.updatedAt},200,cors);
   }
+  if(route==="social/accounts" && ["GET","POST","DELETE"].includes(request.method)){
+    const items=await ensureWorkspaces(),id=request.method==="GET"?(url.searchParams.get("workspaceId")||"ws_default"):String(body.workspaceId||"");
+    if(!items.some(x=>x.id===id))return json({error:"Workspace access denied."},403,cors);
+    const key="social-accounts:"+user.id+":"+id;
+    const allowedPlatforms=["instagram","tiktok","youtube","x","linkedin","facebook","pinterest"];
+    if(request.method==="GET"){
+      const accounts=await read(env.DATA,key,[]);
+      return json({accounts:Array.isArray(accounts)?accounts:[],oauth:{enabled:false,message:"OAuth authorization is not configured yet. Saved profiles are for planning only."}},200,cors);
+    }
+    const accounts=await read(env.DATA,key,[]);
+    if(!Array.isArray(accounts))return json({error:"Account storage is invalid."},500,cors);
+    if(request.method==="POST"){
+      const platform=String(body.platform||"").toLowerCase(),handle=String(body.handle||"").trim().slice(0,100),label=String(body.label||"").trim().slice(0,80);
+      if(!allowedPlatforms.includes(platform))return json({error:"Choose a supported social platform."},400,cors);
+      if(handle.length<2||!/[a-z0-9]/i.test(handle))return json({error:"Enter a valid account handle or profile name."},400,cors);
+      if(accounts.length>=20)return json({error:"Maximum 20 social profiles per workspace."},403,cors);
+      if(accounts.some(x=>x.platform===platform&&x.handle.toLowerCase()===handle.toLowerCase()))return json({error:"That profile is already saved in this workspace."},409,cors);
+      const account={id:"soc_"+random(9),platform,handle,label,status:"profile_only",createdAt:new Date().toISOString()};
+      accounts.unshift(account);await write(env.DATA,key,accounts);
+      return json({account,accounts},201,cors);
+    }
+    const accountId=String(body.accountId||"");
+    const next=accounts.filter(x=>x.id!==accountId);
+    if(next.length===accounts.length)return json({error:"Social profile not found."},404,cors);
+    await write(env.DATA,key,next);return json({ok:true,accounts:next},200,cors);
+  }
   if(route==="admin/workspaces" && ["GET","PATCH","DELETE"].includes(request.method)){
     if(user.role!=="admin")return json({error:"Admin access required."},403,cors);
     if(request.method==="GET"){
