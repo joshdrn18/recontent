@@ -179,3 +179,6 @@
 
 /* Campaign-to-content draft actions */
 .cm-item{flex-wrap:wrap}.cm-item-actions{display:flex;align-items:center;gap:6px;margin-left:auto}.cm-item-actions button{border:1px solid var(--line);background:var(--white);border-radius:5px;padding:6px 9px;font:600 9px var(--sans);color:var(--ink)}.cm-item-actions button:first-child{background:var(--ink);border-color:var(--ink);color:var(--white)}.cm-item-actions button:disabled{opacity:.55;cursor:wait}.cm-item-actions button:hover:not(:disabled){transform:translateY(-1px)}@media(max-width:620px){.cm-item-actions{width:100%;margin-left:0}.cm-item-actions button{flex:1}.cm-item>select{max-width:100%}}
+
+/* Campaign calendar link */
+.cm-item>button[data-cm-calendar]{border:1px solid var(--line);background:var(--white);border-radius:5px;padding:6px 9px;font:600 9px var(--sans);color:var(--ink)}.cm-item>button[data-cm-calendar]:disabled{color:var(--muted);background:var(--surface);cursor:default}
