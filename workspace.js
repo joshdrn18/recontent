@@ -30,6 +30,10 @@
     .review-tools button{border:1px solid var(--line);background:#fffdf8;border-radius:4px;padding:6px 9px;font-size:9px;color:#666}
     .review-tools .reviewed{background:#e7efcf;border-color:#c8d99a;color:#43551d}
     .review-state{font:8px var(--mono);color:#8b887e;margin-left:auto}
+    .quality-panel{margin:0 14px 14px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#fbfaf6}
+    .quality-panel p{font-size:10px;line-height:1.55;color:#666;margin:8px 0}
+    .quality-panel button{border:0;border-radius:5px;background:var(--ink);color:white;padding:9px 12px;font-size:9px;cursor:pointer}
+    @media(max-width:560px){.quality-panel{margin:0 8px 10px}}
     @media(max-width:560px){.brief-grid{grid-template-columns:1fr}.brief-wide{grid-column:auto}}
   `;
   document.head.append(style);
@@ -99,7 +103,67 @@
           review.classList.remove("reviewed");
           review.textContent = "✓ Mark reviewed";
         });
-        tools.append(review, reset, state);
+        const qualityButton = document.createElement("button");
+        qualityButton.type = "button";
+        qualityButton.textContent = "✳ AI quality check";
+        qualityButton.addEventListener("click", async () => {
+          const sourceText = document.querySelector("#source-content")?.value.trim() || "";
+          const draftText = content.innerText.trim();
+          if (sourceText.length < 20) { window.notify?.("Original source is missing. Reopen the saved project first."); return; }
+          qualityButton.disabled = true;
+          qualityButton.textContent = "Reviewing…";
+          try {
+            const readLocal = key => { try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; } };
+            const response = await fetch("/api/content/quality-check", {
+              method: "POST", credentials: "same-origin",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                source: sourceText, text: draftText,
+                format: generated?.[index]?.format || "caption",
+                tone: document.querySelector("#tone")?.value || "Conversational",
+                language: document.querySelector("#language")?.value || "English",
+                brief: readLocal("recontent-current-brief-v1"),
+                brand: readLocal("recontent-brand-v1")
+              })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok || !data.quality) throw new Error(data.error || "Quality review failed.");
+            const q = data.quality;
+            let panel = card.querySelector(".quality-panel");
+            if (!panel) { panel = document.createElement("section"); panel.className = "quality-panel"; card.append(panel); }
+            panel.replaceChildren();
+            const heading = document.createElement("b");
+            heading.textContent = "EDITORIAL SCORE · " + q.overall + "/100";
+            panel.append(heading);
+            const verdict = document.createElement("p"); verdict.textContent = q.verdict || "Review complete"; panel.append(verdict);
+            (q.dimensions || []).forEach(metric => {
+              const line = document.createElement("p");
+              line.textContent = metric.label + " · " + metric.score + "/100 — " + metric.feedback;
+              panel.append(line);
+            });
+            [["WHAT WORKS", q.strengths], ["WHAT TO IMPROVE", q.issues]].forEach(([label, items]) => {
+              const line = document.createElement("p");
+              line.textContent = label + ": " + (items || []).join(" · ");
+              panel.append(line);
+            });
+            const apply = document.createElement("button");
+            apply.type = "button"; apply.textContent = "Apply improved draft to this output";
+            apply.addEventListener("click", () => {
+              content.textContent = q.improvedText;
+              if (generated?.[index]) generated[index].text = q.improvedText;
+              state.textContent = "AI IMPROVED · UNSAVED";
+              review.classList.remove("reviewed"); review.textContent = "✓ Mark reviewed";
+              apply.disabled = true; apply.textContent = "Improved draft applied";
+            });
+            panel.append(apply);
+            qualityButton.textContent = "↻ Run quality check again";
+            state.textContent = "QUALITY REVIEWED · " + q.overall + "/100";
+          } catch (error) {
+            window.notify?.(error.message || "Could not review this draft.");
+            qualityButton.textContent = "✳ Try quality check again";
+          } finally { qualityButton.disabled = false; }
+        });
+        tools.append(review, reset, qualityButton, state);
         card.append(tools);
       }
     });
