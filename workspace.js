@@ -46,8 +46,9 @@
     .repurpose-hook{padding:10px 12px;background:#e9e5dc;border-radius:6px;font-size:11px;line-height:1.6;margin:10px 0}
     .repurpose-piece{border:1px solid var(--line);border-radius:7px;background:#fffdf8;margin-top:8px;overflow:hidden}
     .repurpose-piece summary{cursor:pointer;padding:10px 12px;font-size:10px;font-weight:700}
-    .repurpose-piece pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:0 12px 12px;margin:0;font:10px/1.7 var(--sans);color:#555}
-    .repurpose-piece button{margin:0 12px 12px}
+    .repurpose-editor{display:block;width:calc(100% - 24px);margin:0 12px 10px;min-height:110px;resize:vertical;border:1px solid var(--line);border-radius:5px;background:#fff;padding:10px;font:11px/1.7 var(--sans);color:#444;box-sizing:border-box}
+    .repurpose-piece .repurpose-actions{padding:0 12px 12px}
+    .repurpose-piece .repurpose-actions button{margin:0}
     @media(max-width:560px){.repurpose-panel{padding:11px}.repurpose-head{align-items:flex-start}}
 
     @media(max-width:560px){.quality-panel{margin:0 8px 10px}}
@@ -216,14 +217,21 @@
         angle.pieces.forEach(piece=>{
           const details=document.createElement("details");details.className="repurpose-piece";
           const summary=document.createElement("summary");summary.textContent=piece.title+" · "+piece.format.toUpperCase();details.append(summary);
-          const pre=document.createElement("pre");pre.textContent=piece.text;details.append(pre);
-          const copy=document.createElement("button");copy.type="button";copy.textContent="Copy this asset";copy.addEventListener("click",()=>navigator.clipboard?.writeText(piece.text).then(()=>window.notify?.("Asset copied." )).catch(()=>window.notify?.("Could not copy automatically.")));details.append(copy);
+          const editor=document.createElement("textarea");editor.className="repurpose-editor";editor.setAttribute("aria-label","Edit "+piece.title);editor.value=piece.text;editor.rows=Math.max(5,Math.min(14,Math.ceil(piece.text.length/85)));editor.addEventListener("input",()=>{piece.text=editor.value;});
+          details.append(editor);
+          const pieceActions=document.createElement("div");pieceActions.className="repurpose-actions";
+          const copy=document.createElement("button");copy.type="button";copy.textContent="Copy asset";copy.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(piece.text);window.notify?.("Asset copied.")}catch{window.notify?.("Clipboard access is unavailable.")}});
+          const reset=document.createElement("button");reset.type="button";reset.textContent="Reset edits";reset.addEventListener("click",()=>{editor.value=piece.originalText||piece.text;piece.text=editor.value;});
+          pieceActions.append(copy,reset);details.append(pieceActions);
           section.append(details);
         });
         repurposePanel.append(section);
       });
+      data.angles.forEach(a=>a.pieces.forEach(p=>p.originalText=p.text));
       const actions=document.createElement("div");actions.className="repurpose-actions";
-      const copyAll=document.createElement("button");copyAll.type="button";copyAll.textContent="Copy full package";copyAll.addEventListener("click",()=>{const all=data.angles.map(a=>a.name+"\n"+a.hook+"\n"+a.pieces.map(p=>p.title+"\n"+p.text).join("\n\n")).join("\n\n----------------\n\n");navigator.clipboard?.writeText(all).then(()=>window.notify?.("Full package copied.")).catch(()=>window.notify?.("Could not copy automatically."))});
+      const packageText=()=>data.angles.map((a,i)=>"# "+(i+1)+". "+a.name+"\n\n"+a.approach+"\n\n**Audience value:** "+a.audienceValue+"\n\n**Hook:** "+a.hook+"\n\n**Core message:** "+a.coreMessage+"\n\n"+a.pieces.map(p=>"## "+p.title+" ("+p.format+")\n\n"+p.text).join("\n\n")).join("\n\n---\n\n");
+      const copyAll=document.createElement("button");copyAll.type="button";copyAll.textContent="Copy full package";copyAll.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(packageText());window.notify?.("Full package copied.")}catch{window.notify?.("Clipboard access is unavailable.")}});
+      const download=document.createElement("button");download.type="button";download.textContent="Download .md ↓";download.addEventListener("click",()=>{const url=URL.createObjectURL(new Blob([packageText()],{type:"text/markdown;charset=utf-8"})),a=document.createElement("a");a.href=url;a.download="recontent-content-package.md";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);window.notify?.("Markdown package downloaded.")});
       const save=document.createElement("button");save.type="button";save.className="repurpose-primary";save.textContent="Save package to library ↗";
       save.addEventListener("click",()=>{
         if(typeof library==="undefined"||typeof persist!=="function"){window.notify?.("Library is not ready. Refresh and try again.");return}
@@ -232,7 +240,7 @@
         persist();window.recontentSaveCampaignDraft?.(library[0]);window.notify?.("Content package saved to your library.");
         save.disabled=true;save.textContent="Saved to library ✓";
       });
-      actions.append(copyAll,save);repurposePanel.append(actions);
+      actions.append(copyAll,download,save);repurposePanel.append(actions);
       repurposePanel.hidden=false;repurposePanel.scrollIntoView({behavior:"smooth",block:"start"});
       button.textContent="↻ Build another package";window.notify?.("3 angles and 9 assets are ready · "+(data.usage?.remaining??"—")+" AI generations left today.");
       trackActivity?.("content.repurposed",{angles:3,assets:9});
