@@ -256,3 +256,36 @@
 /* Content Intelligence strategy planner */
 .ci-root{margin:44px 0 34px;padding:30px;border:1px solid rgba(36,48,40,.12);border-radius:22px;background:#fbfaf6;color:#252d27}.ci-head{display:flex;justify-content:space-between;align-items:flex-end;gap:24px}.ci-head h2{font-family:Georgia,serif;font-size:clamp(26px,3vw,38px);font-weight:500;letter-spacing:-1px;margin:8px 0}.ci-head p{max-width:620px;color:#6d756e;line-height:1.65;margin:0}.ci-status{font-size:12px;color:#777f77;margin:18px 0}.ci-empty{padding:42px 20px;text-align:center;border:1px dashed rgba(36,48,40,.2);border-radius:16px}.ci-empty>span{font-size:28px}.ci-empty b{display:block;margin:10px 0}.ci-empty p{margin:0;color:#777f77;font-size:13px}.ci-summary{padding:24px;border-radius:16px;background:#edf0e8;margin:18px 0 28px}.ci-summary h3{font:500 23px/1.4 Georgia,serif;max-width:850px;margin:9px 0}.ci-summary p{color:#667067;line-height:1.6;margin:0 0 12px}.ci-summary small{color:#858b83;font-size:10px}.ci-section-head{margin:28px 0 14px}.ci-section-head h3{font:500 22px Georgia,serif;margin:5px 0}.ci-pillar-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.ci-pillar,.ci-idea,.ci-week article{padding:18px;border:1px solid rgba(36,48,40,.12);border-radius:15px;background:#fff}.ci-pillar>span,.ci-idea-top>span{font-size:10px;letter-spacing:1.2px;color:#8b927f}.ci-pillar h4,.ci-idea h4{font-size:16px;margin:9px 0}.ci-pillar p,.ci-idea p{font-size:12px;color:#69736a;line-height:1.6}.ci-pillar>div{display:flex;flex-wrap:wrap;gap:5px}.ci-pillar>div small{font-size:10px;padding:5px 8px;border-radius:99px;background:#f0f2ec;color:#657064}.ci-ideas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.ci-idea-top,.ci-idea-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px}.ci-idea-top small{font-size:10px;color:#7b8279}.ci-idea blockquote{margin:12px 0;padding:11px 13px;border-left:2px solid #a3ad91;background:#f7f8f4;font:italic 14px Georgia,serif;color:#455046}.ci-idea-bottom{font-size:11px;color:#7a8178}.ci-idea-bottom button{border:0;background:transparent;text-decoration:underline;cursor:pointer;color:#3c5744;font-weight:600}.ci-week{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.ci-week article{display:flex;flex-direction:column;gap:8px}.ci-week article b{font:500 17px Georgia,serif}.ci-week article span{font-size:12px;line-height:1.5;color:#59645a}.ci-week article small{font-size:10px;color:#899087}.ci-recommend{margin-top:20px;padding:20px;border-radius:15px;background:#f0f2ec}.ci-recommend ul{margin:10px 0 0;padding-left:18px;color:#59645a;font-size:13px;line-height:1.8}.ci-footnote{font-size:11px;color:#878d85;margin-top:18px}.ci-head .primary-btn:disabled{opacity:.6;cursor:wait}
 @media(max-width:760px){.ci-root{padding:20px 16px;margin:28px 0}.ci-head{align-items:flex-start;flex-direction:column}.ci-head .primary-btn{width:100%}.ci-pillar-grid,.ci-ideas{grid-template-columns:1fr}.ci-week{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+
+/* ReContent product polish — consistent surfaces, focus states and responsive workspace */
+:root{--surface:#fbfaf6;--surface-2:#f6f3ec;--border-soft:#e3dfd5;--shadow-soft:0 12px 32px rgba(34,35,29,.055)}
+html{scroll-behavior:smooth;scroll-padding-top:82px}
+body{font-feature-settings:"ss01" on}
+button,input,textarea,select{transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease,transform .16s ease}
+button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible,[contenteditable=true]:focus-visible{outline:3px solid rgba(239,96,59,.28);outline-offset:2px}
+button:disabled{cursor:not-allowed;opacity:.58}
+.main-area{width:calc(100% - 246px);max-width:none;padding-left:clamp(24px,3.4vw,56px);padding-right:clamp(24px,3.4vw,56px)}
+.page{max-width:1420px;margin:0 auto}
+.topbar{position:sticky;top:0;z-index:15;background:rgba(241,238,230,.94);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.form-section{scroll-margin-top:90px}
+.studio-left textarea,.brief-grid input,.brief-grid select,.brief-grid textarea,.sh-form input,.sh-form select,.cm-create input,.cm-create select,.cm-add input,.cm-add select{transition:border-color .16s ease,box-shadow .16s ease,background .16s ease}
+.studio-left textarea:focus,.brief-grid input:focus,.brief-grid select:focus,.brief-grid textarea:focus,.sh-form input:focus,.sh-form select:focus,.cm-create input:focus,.cm-create select:focus,.cm-add input:focus,.cm-add select:focus{border-color:#d76a4d;box-shadow:0 0 0 3px rgba(239,96,59,.09);outline:0}
+.project-card,.result-card,.template-card,.cm-card,.pc-panel,.ci-pillar,.ci-idea,.ci-week article{box-shadow:var(--shadow-soft)}
+.project-card,.result-card,.template-card,.cm-card{transition:transform .18s ease,box-shadow .18s ease}
+.project-card:hover,.result-card:hover,.template-card:hover{box-shadow:0 16px 38px rgba(34,35,29,.09)}
+.section-heading{gap:16px}
+button:active:not(:disabled){transform:translateY(1px)}
+/* Better reading width and calmer section rhythm */
+#page-studio .studio-layout{gap:clamp(22px,3vw,42px)}
+#page-studio .studio-left{max-width:900px}
+#page-analytics .ci-root{box-shadow:var(--shadow-soft)}
+.ci-idea-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.ci-idea-actions button[data-ci-add]{background:#252923;color:#fff;border:1px solid #252923;border-radius:6px;padding:8px 11px;text-decoration:none}
+.ci-idea-actions button[data-ci-copy]{border:1px solid var(--border-soft);border-radius:6px;padding:8px 11px;text-decoration:none;background:#fff}
+.ci-idea-actions button:hover{filter:brightness(.96)}
+/* Mobile navigation and compact layouts */
+@media(max-width:1100px){.main-area{width:calc(100% - 220px);padding-left:28px;padding-right:28px}}
+@media(max-width:800px){.main-area{width:100%;padding-left:22px;padding-right:22px}.topbar{top:0}.sidebar{z-index:40}.sidebar.open{box-shadow:18px 0 50px rgba(20,22,18,.2)}.studio-layout{gap:20px}}
+@media(max-width:560px){.main-area{padding-left:15px;padding-right:15px}.topbar{height:58px}.page{padding-top:24px}.section-heading{align-items:flex-start;flex-direction:column;margin:34px 0 16px}.section-heading h2{font-size:28px}.project-grid,.library-grid{grid-template-columns:1fr}.project-card{min-height:178px}.studio-heading{align-items:flex-start;gap:8px}.studio-heading h1,.library-heading h1{font-size:43px;letter-spacing:-3px}.step-stamp{width:62px;height:62px;margin:0;flex:none}.format-grid{grid-template-columns:1fr}.studio-aside{grid-template-columns:1fr}.stats-strip{padding:14px 0}.stats-strip>div:not(.stats-sticker){padding-left:10px}.stats-strip>div:first-child{padding-left:0}.stats-strip b{font-size:21px}.bottom-callout{padding:18px;align-items:flex-start;flex-direction:column;gap:14px}.bottom-callout h3{font-size:18px}.app-footer{gap:10px;flex-wrap:wrap}.ci-root{padding:17px 13px}.ci-summary{padding:17px}.ci-week{grid-template-columns:1fr 1fr}.ci-idea-bottom{align-items:flex-start;flex-direction:column}.ci-idea-actions{justify-content:flex-start;width:100%}.ci-idea-actions button{flex:1}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
