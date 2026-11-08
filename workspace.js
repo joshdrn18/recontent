@@ -33,6 +33,23 @@
     .quality-panel{margin:0 14px 14px;padding:14px;border:1px solid var(--line);border-radius:8px;background:#fbfaf6}
     .quality-panel p{font-size:10px;line-height:1.55;color:#666;margin:8px 0}
     .quality-panel button{border:0;border-radius:5px;background:var(--ink);color:white;padding:9px 12px;font-size:9px;cursor:pointer}
+    .repurpose-panel{margin:18px 0 22px;border:1px solid var(--line);border-radius:10px;background:#f8f6f0;padding:16px}
+    .repurpose-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+    .repurpose-head b{font:600 16px var(--display);letter-spacing:-.4px}
+    .repurpose-head p{font-size:10px;color:#777;margin:4px 0 0}
+    .repurpose-actions{display:flex;gap:7px;flex-wrap:wrap}
+    .repurpose-actions button,.repurpose-piece button{border:1px solid var(--line);border-radius:5px;background:#fffdf8;padding:8px 10px;font-size:9px;color:var(--ink)}
+    .repurpose-actions .repurpose-primary{background:var(--ink);color:white;border-color:var(--ink)}
+    .repurpose-angle{border-top:1px solid var(--line);padding:15px 0}
+    .repurpose-angle h3{font:600 18px var(--display);margin:0 0 6px}
+    .repurpose-angle>p{font-size:10px;line-height:1.6;color:#666;margin:5px 0}
+    .repurpose-hook{padding:10px 12px;background:#e9e5dc;border-radius:6px;font-size:11px;line-height:1.6;margin:10px 0}
+    .repurpose-piece{border:1px solid var(--line);border-radius:7px;background:#fffdf8;margin-top:8px;overflow:hidden}
+    .repurpose-piece summary{cursor:pointer;padding:10px 12px;font-size:10px;font-weight:700}
+    .repurpose-piece pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:0 12px 12px;margin:0;font:10px/1.7 var(--sans);color:#555}
+    .repurpose-piece button{margin:0 12px 12px}
+    @media(max-width:560px){.repurpose-panel{padding:11px}.repurpose-head{align-items:flex-start}}
+
     @media(max-width:560px){.quality-panel{margin:0 8px 10px}}
     @media(max-width:560px){.brief-grid{grid-template-columns:1fr}.brief-wide{grid-column:auto}}
   `;
@@ -170,6 +187,59 @@
   };
   new MutationObserver(decorate).observe(resultRoot, {childList:true,subtree:true});
   decorate();
+  const resultsSection=$("#results-section");
+  const repurposeBar=document.createElement("div");
+  repurposeBar.className="repurpose-head";
+  repurposeBar.innerHTML='<div><b>✳ Build a content package</b><p>Turn one source into three fresh angles and nine platform-ready assets.</p></div><div class="repurpose-actions"><button type="button" class="repurpose-primary" id="repurpose-run">Build 3 angles ↗</button></div>';
+  const repurposePanel=document.createElement("section");
+  repurposePanel.className="repurpose-panel";
+  repurposePanel.append(repurposeBar);
+  resultRoot.after(repurposePanel);
+  repurposePanel.hidden=true;
+  $("#repurpose-run").addEventListener("click",async()=>{
+    const sourceText=$("#source-content")?.value.trim()||"";
+    if(sourceText.length<40){window.notify?.("Add at least 40 characters of source content first.");return}
+    if(!window.recontentAuth?.getUser?.()){window.notify?.("Sign in to build a content package.");window.recontentAuth?.open?.("login");return}
+    const button=$("#repurpose-run");button.disabled=true;button.textContent="Building angles…";
+    try{
+      const readLocal=key=>{try{return JSON.parse(localStorage.getItem(key)||"{}")}catch{return {}}};
+      const response=await fetch("/api/content/repurpose",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify({source:sourceText,tone:$("#tone")?.value||"Conversational",language:$("#language")?.value||"English",brief:readLocal("recontent-current-brief-v1"),brand:readLocal("recontent-brand-v1")})});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok||!Array.isArray(data.angles))throw new Error(data.error||"Could not build the content package.");
+      repurposePanel.querySelectorAll(".repurpose-angle").forEach(x=>x.remove());
+      data.angles.forEach((angle,index)=>{
+        const section=document.createElement("article");section.className="repurpose-angle";
+        const heading=document.createElement("h3");heading.textContent=(index+1)+". "+angle.name;section.append(heading);
+        const why=document.createElement("p");why.textContent=angle.approach+" · "+angle.audienceValue;section.append(why);
+        const hook=document.createElement("div");hook.className="repurpose-hook";hook.textContent="HOOK · "+angle.hook;section.append(hook);
+        const core=document.createElement("p");core.textContent="CORE MESSAGE · "+angle.coreMessage;section.append(core);
+        angle.pieces.forEach(piece=>{
+          const details=document.createElement("details");details.className="repurpose-piece";
+          const summary=document.createElement("summary");summary.textContent=piece.title+" · "+piece.format.toUpperCase();details.append(summary);
+          const pre=document.createElement("pre");pre.textContent=piece.text;details.append(pre);
+          const copy=document.createElement("button");copy.type="button";copy.textContent="Copy this asset";copy.addEventListener("click",()=>navigator.clipboard?.writeText(piece.text).then(()=>window.notify?.("Asset copied." )).catch(()=>window.notify?.("Could not copy automatically.")));details.append(copy);
+          section.append(details);
+        });
+        repurposePanel.append(section);
+      });
+      const actions=document.createElement("div");actions.className="repurpose-actions";
+      const copyAll=document.createElement("button");copyAll.type="button";copyAll.textContent="Copy full package";copyAll.addEventListener("click",()=>{const all=data.angles.map(a=>a.name+"\n"+a.hook+"\n"+a.pieces.map(p=>p.title+"\n"+p.text).join("\n\n")).join("\n\n----------------\n\n");navigator.clipboard?.writeText(all).then(()=>window.notify?.("Full package copied.")).catch(()=>window.notify?.("Could not copy automatically."))});
+      const save=document.createElement("button");save.type="button";save.className="repurpose-primary";save.textContent="Save package to library ↗";
+      save.addEventListener("click",()=>{
+        if(typeof library==="undefined"||typeof persist!=="function"){window.notify?.("Library is not ready. Refresh and try again.");return}
+        const outputs=data.angles.flatMap((a,i)=>a.pieces.map(p=>({format:p.format,title:a.name+" — "+p.title,text:p.text,angle:a.name})));
+        library.unshift({id:"repurpose-"+Date.now(),title:"Content package: "+data.angles.map(a=>a.name).join(" / ").slice(0,80),type:"AI CONTENT PACKAGE",formats:["thread","reel","caption"],date:"Just now",source:sourceText,outputs,saved:true,angles:data.angles});
+        persist();window.recontentSaveCampaignDraft?.(library[0]);window.notify?.("Content package saved to your library.");
+        save.disabled=true;save.textContent="Saved to library ✓";
+      });
+      actions.append(copyAll,save);repurposePanel.append(actions);
+      repurposePanel.hidden=false;repurposePanel.scrollIntoView({behavior:"smooth",block:"start"});
+      button.textContent="↻ Build another package";window.notify?.("3 angles and 9 assets are ready · "+(data.usage?.remaining??"—")+" AI generations left today.");
+      trackActivity?.("content.repurposed",{angles:3,assets:9});
+    }catch(error){window.notify?.(error.message||"Could not build the content package.");button.textContent="Try again ↗"}
+    finally{button.disabled=false}
+  });
+
 
   $("#save-all")?.addEventListener("click", () => {
     try {
