@@ -1251,6 +1251,12 @@ public final class MainActivity extends Activity {
     }
 
 
+    private String starMarks(int rank) {
+        StringBuilder value=new StringBuilder();
+        for(int i=0;i<Math.max(1,Math.min(6,rank+1));i++) value.append("★");
+        return value.toString();
+    }
+
     private JSONObject payload(Object... pairs) {
         JSONObject body = new JSONObject();
         try { for (int i=0; i+1<pairs.length; i+=2) body.put(String.valueOf(pairs[i]), pairs[i+1]); }
@@ -1389,7 +1395,9 @@ public final class MainActivity extends Activity {
     }
 
     private void renderTrades(JSONObject data) {
-        JSONArray inventory=data.optJSONArray("inventory"),trades=data.optJSONArray("trades");if(inventory==null)inventory=new JSONArray();if(trades==null)trades=new JSONArray();
+        JSONArray inventoryRaw=data.optJSONArray("inventory"),tradesRaw=data.optJSONArray("trades");
+        final JSONArray inventory=inventoryRaw==null?new JSONArray():inventoryRaw;
+        final JSONArray trades=tradesRaw==null?new JSONArray():tradesRaw;
         LinearLayout head=sectionPanel();head.addView(text("SECURE PLAYER-TO-PLAYER EXCHANGE",8,GOLD,true));
         head.addView(text("Only available tradable cards can be offered. Reserved or bound cards are excluded.",8,MUTED,false));
         TextView create=button("CREATE TRADE OFFER",true);create.setOnClickListener(v->showTradeCreateDialog(inventory));
@@ -1460,7 +1468,7 @@ public final class MainActivity extends Activity {
         content.addView(text("YOUR EVOLUTION ROSTER",8,GOLD,true));
         for(int i=0;i<cards.length();i++){
             JSONObject c=cards.optJSONObject(i);if(c==null)continue;
-            String ranks="★".repeat(Math.max(1,c.optInt("star_rank")+1));
+            String ranks=starMarks(c.optInt("star_rank"));
             String sub=c.optString("rarity")+" · "+c.optString("element")+" · Lv "+c.optInt("level")+"/"+data.optInt("max_level",30)+" · "+ranks+" · "+c.optInt("copies_available")+" copies";
             LinearLayout row=dataRow(c.optString("name","Card"),sub,"UPGRADE");JSONObject walletCopy=wallet;
             row.setOnClickListener(v->showEvolutionCardDialog(c,walletCopy));content.addView(row,rowParams());
