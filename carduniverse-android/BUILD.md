@@ -1,8 +1,4 @@
-# Building CardUniverse Android
-
-The project produces a sideloadable Android APK from the current CardUniverse web game.
-
-## Build locally
+# Building CardUniverse Native Android
 
 Requirements: JDK 17, Android SDK Platform 35, Android Build Tools 35.0.0, and Gradle 8.9.
 
@@ -16,8 +12,6 @@ Output:
 
 `carduniverse-android/app/build/outputs/apk/release/app-release.apk`
 
-The APK loads `https://carduniverse.pages.dev/` inside the installed Android application. An internet connection is required to play.
+The native app calls the existing Cloudflare Worker API directly. It does not load the Pages website or use a WebView.
 
-## Signing
-
-The CI build uses Gradle's debug signing configuration when no release keystore variables are configured. This is suitable for private sideload testing, not a final Play Store signing setup. Configure `CU_KEYSTORE_PATH`, `CU_KEYSTORE_PASSWORD`, `CU_KEY_ALIAS`, and `CU_KEY_PASSWORD` as CI environment values to sign with a dedicated release keystore.
+The CI preview build uses an ephemeral signing key. Remove an older preview installation before installing a newly signed preview APK. Player data remains on the CardUniverse server.
