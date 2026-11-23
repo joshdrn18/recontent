@@ -184,29 +184,14 @@ public final class MainActivity extends Activity {
         Window window = getWindow();
         window.setStatusBarColor(Color.rgb(11, 18, 18));
         window.setNavigationBarColor(Color.rgb(7, 13, 12));
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false);
-            android.view.WindowInsetsController controller = window.getInsetsController();
-            if (controller != null) {
-                controller.hide(android.view.WindowInsets.Type.statusBars()
-                        | android.view.WindowInsets.Type.navigationBars());
-                controller.setSystemBarsBehavior(
-                        android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-            }
-        } else {
-            final int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_FULLSCREEN
-                    | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
-            window.getDecorView().setSystemUiVisibility(flags);
-            window.getDecorView().setOnSystemUiVisibilityChangeListener(
-                    visibility -> window.getDecorView().setSystemUiVisibility(flags));
-        }
+        window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            window.getAttributes().layoutInDisplayCutoutMode =
-                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            try {
+                window.getAttributes().layoutInDisplayCutoutMode =
+                        android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+            } catch (RuntimeException ignored) {
+                // Keep the standard safe window layout on devices that do not support cutout configuration.
+            }
         }
     }
 
@@ -216,9 +201,6 @@ public final class MainActivity extends Activity {
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(8, 15, 14));
-        webView.setVerticalScrollBarEnabled(false);
-        webView.setHorizontalScrollBarEnabled(false);
-        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         root.addView(webView, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -241,74 +223,39 @@ public final class MainActivity extends Activity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
-        panel.setPadding(dp(24), dp(22), dp(24), dp(22));
+        panel.setPadding(dp(28), dp(24), dp(28), dp(24));
         panel.setBackgroundColor(Color.rgb(8, 15, 14));
 
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.CENTER_HORIZONTAL);
-        card.setPadding(dp(24), dp(24), dp(24), dp(24));
-        android.graphics.drawable.GradientDrawable cardBackground =
-                new android.graphics.drawable.GradientDrawable(
-                        android.graphics.drawable.GradientDrawable.Orientation.TL_BR,
-                        new int[]{Color.rgb(30, 49, 39), Color.rgb(15, 26, 22)});
-        cardBackground.setCornerRadius(dp(18));
-        cardBackground.setStroke(dp(1), Color.rgb(104, 126, 91));
-        card.setBackground(cardBackground);
-
-        TextView eyebrow = new TextView(this);
-        eyebrow.setText("CARDUNIVERSE  ·  FIRSTLIGHT REALM");
-        eyebrow.setTextColor(Color.rgb(211, 183, 121));
-        eyebrow.setTextSize(9);
-        eyebrow.setLetterSpacing(0.14f);
-        eyebrow.setGravity(Gravity.CENTER);
-
         TextView title = new TextView(this);
-        title.setText("The realm is out of reach");
-        title.setTextColor(Color.rgb(243, 234, 214));
-        title.setTextSize(23);
+        title.setText("Connection interrupted");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(22);
         title.setGravity(Gravity.CENTER);
         title.setTypeface(null, android.graphics.Typeface.BOLD);
 
         TextView detail = new TextView(this);
-        detail.setText("CardUniverse needs an internet connection. Check your connection, then reconnect to continue your adventure.");
-        detail.setTextColor(Color.rgb(174, 188, 171));
-        detail.setTextSize(13);
+        detail.setText("CardUniverse needs an internet connection. Check your connection and try again.");
+        detail.setTextColor(Color.rgb(167, 176, 202));
+        detail.setTextSize(14);
         detail.setGravity(Gravity.CENTER);
-        detail.setLineSpacing(dp(3), 1.0f);
+        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        detailParams.topMargin = dp(12);
 
         Button retry = new Button(this);
-        retry.setText("RECONNECT");
-        retry.setTextColor(Color.rgb(25, 31, 22));
-        retry.setTextSize(11);
-        retry.setAllCaps(false);
-        retry.setTypeface(null, android.graphics.Typeface.BOLD);
-        retry.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(211, 183, 121)));
+        retry.setText("Reconnect");
         retry.setOnClickListener(v -> {
             offlinePanel.setVisibility(View.GONE);
             webView.setVisibility(View.VISIBLE);
             webView.reload();
         });
-
-        LinearLayout.LayoutParams eyebrowParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        eyebrowParams.bottomMargin = dp(12);
-        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        detailParams.topMargin = dp(10);
         LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        buttonParams.topMargin = dp(18);
+        buttonParams.topMargin = dp(22);
 
-        card.addView(eyebrow, eyebrowParams);
-        card.addView(title);
-        card.addView(detail, detailParams);
-        card.addView(retry, buttonParams);
-
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        cardParams.width = Math.min(dp(540), getResources().getDisplayMetrics().widthPixels - dp(32));
-        panel.addView(card, cardParams);
+        panel.addView(title);
+        panel.addView(detail, detailParams);
+        panel.addView(retry, buttonParams);
         return panel;
     }
 
@@ -318,9 +265,8 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setLoadWithOverviewMode(false);
+        settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setTextZoom(100);
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
@@ -417,16 +363,20 @@ public final class MainActivity extends Activity {
 
     private void installAndroidPresentation() {
         if (webView == null) return;
-        String script = "(function(){try{"
-                + "document.documentElement.classList.add('cu-android-app');"
-                + "var viewport=document.querySelector('meta[name=viewport]');"
-                + "if(!viewport){viewport=document.createElement('meta');viewport.name='viewport';document.head.appendChild(viewport);}"
-                + "viewport.content='width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';"
-                + "var style=document.getElementById('cu-android-app-css');"
-                + "if(!style){style=document.createElement('style');style.id='cu-android-app-css';document.head.appendChild(style);}"
-                + "style.textContent=" + org.json.JSONObject.quote(ANDROID_APP_CSS) + ";"
-                + "}catch(error){console.warn('CardUniverse Android presentation could not be applied',error);}})();";
-        webView.evaluateJavascript(script, null);
+        try {
+            String script = "(function(){try{"
+                    + "document.documentElement.classList.add('cu-android-app');"
+                    + "var viewport=document.querySelector('meta[name=viewport]');"
+                    + "if(!viewport){viewport=document.createElement('meta');viewport.name='viewport';document.head.appendChild(viewport);}"
+                    + "viewport.content='width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';"
+                    + "var style=document.getElementById('cu-android-app-css');"
+                    + "if(!style){style=document.createElement('style');style.id='cu-android-app-css';document.head.appendChild(style);}"
+                    + "style.textContent=" + org.json.JSONObject.quote(ANDROID_APP_CSS) + ";"
+                    + "}catch(error){console.warn('CardUniverse Android styling skipped',error);}})();";
+            webView.evaluateJavascript(script, null);
+        } catch (RuntimeException ignored) {
+            // The native game remains usable even if this device's WebView cannot apply optional styling.
+        }
     }
 
     private boolean routeUrl(String value) {
