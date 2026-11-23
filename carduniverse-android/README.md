@@ -12,4 +12,4 @@ CardUniverse Android is an independently designed native Android client. It does
 - Player accounts, inventory, cards, progression, and game state remain in the existing Cloudflare backend.
 - Website UI and web deployments remain separate and unchanged.
 
-This is the native client foundation. Gameplay modules are being migrated to native screens in stages; a native screen should only expose an action once it is connected to the existing API.
+Native modules now include Summon, Adventure, Arena, Missions, Shop, Inbox, Guild, Settings, Dungeon, Raid, Trade Desk, Evolution, Formation, Binders, Achievement Hall, Level Rewards, Live Events, Leaderboards and Ranked Season. Master Admin tools include overview, card creation, player inspection, mail publishing and read-only management panels for additional server modules.

@@ -372,6 +372,11 @@ public final class MainActivity extends Activity {
                 {"binders", "▤", "BINDERS"},
                 {"formation", "♟", "TEAM"},
                 {"evolution", "✧", "EVOLVE"},
+                {"achievements", "✦", "RECORDS"},
+                {"progression", "⌁", "REWARDS"},
+                {"events", "✺", "EVENTS"},
+                {"leaderboards", "▥", "RANKINGS"},
+                {"ranked", "♛", "RANKED"},
                 {"summon", "✧", "SUMMON"},
                 {"adventure", "⚔", "ADVENTURE"},
                 {"dungeons", "⌘", "DUNGEON"},
@@ -522,6 +527,15 @@ public final class MainActivity extends Activity {
                     }
                     renderModule(tab, result.data);
                 }));
+            } else if ("events".equals(tab)) {
+                api.get("/api/events/login", loginResult -> ui.post(() -> {
+                    if (!"events".equals(activeTab) || content == null) return;
+                    if (loginResult.ok()) {
+                        try { result.data.put("login_event", loginResult.data); }
+                        catch (Exception ignored) {}
+                    }
+                    renderModule(tab, result.data);
+                }));
             } else {
                 renderModule(tab, result.data);
             }
@@ -651,6 +665,11 @@ public final class MainActivity extends Activity {
             case "dungeons": renderDungeons(data); break;
             case "raids": renderRaids(data); break;
             case "trades": renderTrades(data); break;
+            case "achievements": renderAchievements(data); break;
+            case "progression": renderProgression(data); break;
+            case "events": renderEvents(data); break;
+            case "leaderboards": renderLeaderboards(data); break;
+            case "ranked": renderRanked(data); break;
             case "summon": renderPacks(data); break;
             case "adventure": renderAdventure(data); break;
             case "arena": renderArena(data); break;
@@ -1503,13 +1522,21 @@ public final class MainActivity extends Activity {
     private void renderBinders(JSONObject data) {
         JSONArray binders=data.optJSONArray("binders"),cards=data.optJSONArray("cards");JSONObject active=data.optJSONObject("activeBinder");
         if(binders==null)binders=new JSONArray();if(cards==null)cards=new JSONArray();
-        LinearLayout p=sectionPanel();p.addView(text("PERSONAL CARD BINDERS",8,GOLD,true));p.addView(text(active==null?"Genesis Archive":active.optString("name","Genesis Archive"),18,TEXT,true));
-        p.addView(text("Create up to 12 themed binders to organize your collection.",8,MUTED,false));
-        TextView create=button("CREATE NEW BINDER",true);create.setOnClickListener(v->showCreateBinderDialog());p.addView(create,new LinearLayout.LayoutParams(dp(180),dp(38)));content.addView(p,rowParams());
-        for(int i=0;i<binders.length();i++){JSONObject b=binders.optJSONObject(i);if(b!=null)content.addView(dataRow(b.optString("name")+(b.optInt("is_active")==1?" · ACTIVE":""),b.optString("theme_key")+" theme · "+b.optInt("card_count")+" unique cards",b.optInt("is_default")==1?"DEFAULT":""),rowParams());}
+        LinearLayout p=sectionPanel();p.addView(text("PERSONAL CARD BINDERS",8,GOLD,true));
+        p.addView(text(active==null?"Genesis Archive":active.optString("name","Genesis Archive"),18,TEXT,true));
+        p.addView(text("Create up to 12 binders. Select a binder below to switch, rename, change its cover or manage its cards.",8,MUTED,false));
+        TextView create=button("CREATE NEW BINDER",true);create.setOnClickListener(v->showCreateBinderDialog());
+        p.addView(create,new LinearLayout.LayoutParams(dp(180),dp(38)));content.addView(p,rowParams());
+        content.addView(text("YOUR BINDERS",8,GOLD,true));
+        for(int i=0;i<binders.length();i++){
+            JSONObject b=binders.optJSONObject(i);if(b==null)continue;
+            String label=b.optString("name")+(b.optInt("is_active")==1?" · ACTIVE":"")+(b.optInt("is_default")==1?" · DEFAULT":"");
+            LinearLayout row=dataRow(label,b.optString("theme_key")+" theme · "+b.optInt("card_count")+" unique cards","MANAGE");
+            row.setOnClickListener(v->showBinderActions(b));content.addView(row,rowParams());
+        }
         content.addView(text("CARDS IN ACTIVE BINDER",8,GOLD,true));
         for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · "+c.optString("element")+" · ×"+c.optInt("owned_count"),c.optString("card_code")),rowParams());}
-        if(cards.length()==0)showNotice("This binder is empty. Your full archive remains available under Cards.");
+        if(cards.length()==0)showNotice("This binder is empty. Your full archive remains safe under Cards.");
     }
 
     private void showCreateBinderDialog() {
@@ -1609,6 +1636,331 @@ public final class MainActivity extends Activity {
     private void renderAdminReports(JSONObject data) {
         JSONArray list=data.optJSONArray("reports");if(list==null||list.length()==0)return;content.addView(text("OPEN PLAYER REPORTS",8,GOLD,true));
         for(int i=0;i<list.length();i++){JSONObject r=list.optJSONObject(i);if(r!=null)content.addView(dataRow(r.optString("category"),r.optString("reporter_name")+" → "+r.optString("target_name")+" · "+r.optString("created_at")+"\\n"+r.optString("description"),r.optString("status")),rowParams());}
+    }
+
+
+    private void renderAchievements(JSONObject data) {
+        JSONArray list=data.optJSONArray("achievements");
+        JSONObject metrics=data.optJSONObject("metrics");
+        if(list==null)list=new JSONArray();
+        int unlocked=0,claimed=0,ready=0;
+        for(int i=0;i<list.length();i++){
+            JSONObject a=list.optJSONObject(i);if(a==null)continue;
+            if(!a.isNull("unlocked_at")){unlocked++;if(a.isNull("claimed_at"))ready++;}
+            if(!a.isNull("claimed_at"))claimed++;
+        }
+        LinearLayout stats=new LinearLayout(this);
+        stats.addView(statCard("UNLOCKED",String.valueOf(unlocked),"Records earned"),weightParams(1));
+        stats.addView(statCard("CLAIMED",String.valueOf(claimed),"Rewards collected"),weightParams(1));
+        stats.addView(statCard("READY",String.valueOf(ready),"Awaiting claim"),weightParams(1));
+        content.addView(stats);addGap(content,12);
+        if(metrics!=null){
+            content.addView(text("YOUR LIFETIME RECORDS",8,GOLD,true));
+            content.addView(text("Cards "+metrics.optInt("unique_cards")+" · Adventure clears "+metrics.optInt("adventure_clears")
+                    +" · Boss clears "+metrics.optInt("boss_clears")+" · Packs opened "+metrics.optInt("packs_opened")
+                    +" · Collector Lv "+metrics.optInt("collector_level"),8,MUTED,false));
+            addGap(content,10);
+        }
+        content.addView(text("ACHIEVEMENT REGISTER",8,GOLD,true));
+        if(list.length()==0){showNotice("No active achievements are configured yet.");return;}
+        for(int i=0;i<list.length();i++){
+            JSONObject a=list.optJSONObject(i);if(a==null)continue;
+            int progress=a.optInt("progress"),target=Math.max(1,a.optInt("target"));
+            int pct=Math.min(100,Math.round(progress*100f/target));
+            boolean isUnlocked=!a.isNull("unlocked_at"),isClaimed=!a.isNull("claimed_at");
+            String status=isClaimed?"CLAIMED":isUnlocked?"UNLOCKED":"IN PROGRESS";
+            LinearLayout panel=sectionPanel();
+            panel.addView(text(a.optString("title","Achievement"),13,TEXT,true));
+            panel.addView(text(a.optString("description",""),8,MUTED,false));
+            panel.addView(text(status+" · "+progress+" / "+target+" · "+pct+"%",8,GOLD_BRIGHT,true));
+            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+            bar.setMax(100);bar.setProgress(pct);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(isUnlocked?GREEN:GOLD));
+            panel.addView(bar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(7)));
+            panel.addView(text("REWARD · "+formatNumber(a.optLong("reward_coins"))+" Gold · "
+                    +formatNumber(a.optLong("reward_xp"))+" EXP"+(a.isNull("reward_cosmetic_id")?"":" · Cosmetic"),
+                    8,GOLD_BRIGHT,true));
+            if(isUnlocked&&!isClaimed){
+                TextView claim=button("CLAIM REWARD",true);
+                claim.setOnClickListener(v->confirmAction("Claim "+a.optString("title")+"?",
+                        "Your achievement reward will be added to your account.",()->api.post("/api/achievements/"+a.optString("slug")+"/claim",new JSONObject(),r->ui.post(()->{
+                            if(!r.ok())showResultDialog("Achievement unavailable",r.error);
+                            else{JSONObject reward=r.data.optJSONObject("reward");showResultDialog("ACHIEVEMENT CLAIMED",
+                                    "Gold: "+(reward==null?0:reward.optLong("coins"))+" · EXP: "+(reward==null?0:reward.optLong("xp")));
+                                refreshAccount(()->renderTab("achievements"));}
+                        }))));
+                panel.addView(claim,rowParams());
+            }
+            content.addView(panel,rowParams());
+        }
+    }
+
+    private void renderProgression(JSONObject data) {
+        int level=data.optInt("level",1),xp=data.optInt("xp"),need=Math.max(1,data.optInt("xpRequired"));
+        int page=data.optInt("rewardPage"),pageSize=data.optInt("rewardPageSize",30),total=data.optInt("rewardTotal");
+        int pages=Math.max(1,(int)Math.ceil(total/(double)Math.max(1,pageSize)));
+        LinearLayout hero=sectionPanel();hero.addView(text("COLLECTOR LEVEL "+level,9,GOLD,true));
+        hero.addView(text(formatNumber(xp)+" / "+formatNumber(need)+" XP TO NEXT LEVEL",13,TEXT,true));
+        ProgressBar xpBar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);xpBar.setMax(100);
+        xpBar.setProgress(Math.min(100,Math.round(xp*100f/need)));xpBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
+        hero.addView(xpBar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(8)));
+        hero.addView(text(data.optInt("claimableCount")+" milestone rewards ready · up to level 1,000",8,MUTED,false));
+        content.addView(hero,rowParams());
+        JSONArray rewards=data.optJSONArray("rewards");if(rewards==null)rewards=new JSONArray();
+        content.addView(text("LEVEL MILESTONES",8,GOLD,true));
+        for(int i=0;i<rewards.length();i++){
+            JSONObject r=rewards.optJSONObject(i);if(r==null)continue;
+            int rewardLevel=r.optInt("level");boolean unlocked=rewardLevel<=level,claimed=r.optInt("claimed")==1;
+            String desc=formatNumber(r.optLong("reward_coins"))+" Gold · "+formatNumber(r.optLong("reward_gems"))+" Gems · "
+                    +formatNumber(r.optLong("reward_shards"))+" Shards";
+            if(r.optInt("reward_pack_quantity")>0)desc+=" · "+r.optInt("reward_pack_quantity")+" × "+r.optString("reward_pack_name","Pack");
+            if(!r.isNull("reward_cosmetic_name"))desc+=" · "+r.optString("reward_cosmetic_name");
+            LinearLayout row=dataRow("LEVEL "+rewardLevel+(r.optString("reward_title").isEmpty()?"":" · "+r.optString("reward_title")),
+                    desc,claimed?"CLAIMED":unlocked?"READY":"LOCKED");
+            if(unlocked&&!claimed){
+                TextView claim=button("CLAIM",true);
+                claim.setOnClickListener(v->confirmAction("Claim level "+rewardLevel+" reward?","This milestone reward can only be claimed once.",()->api.post("/api/progression/claim",payload("level",rewardLevel),x->ui.post(()->{
+                    if(!x.ok())showResultDialog("Reward unavailable",x.error);
+                    else{showResultDialog("LEVEL REWARD CLAIMED",x.data.optString("message","Milestone reward added."));refreshAccount(()->loadProgressionPage(page));}
+                }))));
+                row.addView(claim,new LinearLayout.LayoutParams(dp(82),dp(32)));
+            }
+            content.addView(row,rowParams());
+        }
+        if(total>pageSize){
+            addGap(content,10);
+            LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER);
+            TextView previous=button("← PREVIOUS",false);previous.setEnabled(page>0);
+            previous.setOnClickListener(v->loadProgressionPage(page-1));
+            TextView next=button("NEXT →",false);next.setEnabled(page+1<pages);
+            next.setOnClickListener(v->loadProgressionPage(page+1));
+            pager.addView(previous,new LinearLayout.LayoutParams(dp(120),dp(36)));
+            TextView pageLabel=text("PAGE "+(page+1)+" / "+pages,8,GOLD,true);pageLabel.setGravity(Gravity.CENTER);
+            pager.addView(pageLabel,new LinearLayout.LayoutParams(0,dp(36),1f));
+            pager.addView(next,new LinearLayout.LayoutParams(dp(100),dp(36)));content.addView(pager);
+        }
+    }
+
+    private void loadProgressionPage(int page) {
+        int safe=Math.max(0,page);
+        api.get("/api/progression?rewardPage="+safe+"&rewardPageSize=30",r->ui.post(()->{
+            if(!"progression".equals(activeTab)||content==null)return;
+            content.removeAllViews();
+            if(!r.ok()){showNotice(r.error);return;}
+            renderProgression(r.data);
+        }));
+    }
+
+    private void renderEvents(JSONObject data) {
+        JSONObject login=data.optJSONObject("login_event");
+        if(login==null)login=new JSONObject();
+        JSONObject loginEvent=login.optJSONObject("event");
+        JSONArray rewards=login.optJSONArray("rewards");
+        if(rewards==null)rewards=new JSONArray();
+        if(loginEvent!=null){
+            LinearLayout panel=sectionPanel();
+            panel.addView(text("LIMITED-TIME LOGIN JOURNEY",8,GOLD,true));
+            panel.addView(text(loginEvent.optString("title","Realm Login Event"),18,TEXT,true));
+            panel.addView(text(loginEvent.optString("description","Claim a reward for each active event day."),8,MUTED,false));
+            int day=login.optInt("currentDay");
+            panel.addView(text(login.optBoolean("completed")?"JOURNEY COMPLETE":"CURRENT DAY · "+day,8,GOLD_BRIGHT,true));
+            for(int i=0;i<rewards.length();i++){
+                JSONObject r=rewards.optJSONObject(i);if(r==null)continue;
+                int idx=r.optInt("day_index");boolean claimed=r.optInt("is_claimed")==1;
+                String desc=formatNumber(r.optLong("reward_coins"))+" Gold · "+formatNumber(r.optLong("reward_gems"))+" Gems · "
+                        +formatNumber(r.optLong("reward_shards"))+" Shards · "+formatNumber(r.optLong("reward_xp"))+" EXP";
+                if(r.optInt("reward_pack_quantity")>0)desc+=" · "+r.optInt("reward_pack_quantity")+" × "+r.optString("reward_pack_name","Pack");
+                if(!r.optString("reward_card_name").isEmpty())desc+=" · "+r.optString("reward_card_name");
+                if(!r.optString("reward_cosmetic_name").isEmpty())desc+=" · "+r.optString("reward_cosmetic_name");
+                panel.addView(dataRow("DAY "+idx+" · "+r.optString("title","Event reward"),desc,
+                        claimed?"CLAIMED":idx==day?"TODAY":idx<day?"PASSED":"UPCOMING"),rowParams());
+            }
+            if(login.optBoolean("canClaim")){
+                TextView claim=button("CLAIM TODAY'S LOGIN REWARD",true);
+                claim.setOnClickListener(v->confirmAction("Claim event login reward?","Today's event reward can only be claimed once.",()->api.post("/api/events/login/claim",new JSONObject(),r->ui.post(()->{
+                    if(!r.ok())showResultDialog("Event reward unavailable",r.error);
+                    else{showResultDialog("EVENT REWARD CLAIMED",r.data.optString("message","Your login reward has been added."));refreshAccount(()->renderTab("events"));}
+                }))));
+                panel.addView(claim,rowParams());
+            }
+            content.addView(panel,rowParams());
+        }else{
+            content.addView(sectionHeading("NO ACTIVE LOGIN EVENT"));
+            showNotice("There is no active limited-time login journey right now.");
+        }
+        JSONObject event=data.optJSONObject("event");
+        if(event==null){
+            addGap(content,10);content.addView(sectionHeading("FESTIVAL EXCHANGE"));
+            showNotice("No limited-time shop event is currently open.");
+            return;
+        }
+        addGap(content,12);
+        LinearLayout eventPanel=sectionPanel();
+        eventPanel.addView(text("LIMITED-TIME FESTIVAL",8,GOLD,true));
+        eventPanel.addView(text(event.optString("title","Festival"),20,TEXT,true));
+        eventPanel.addView(text(event.optString("description",""),8,MUTED,false));
+        eventPanel.addView(text("ENDS · "+event.optString("ends_at",""),8,GOLD_BRIGHT,true));
+        JSONObject wallet=data.optJSONObject("wallet");if(wallet==null)wallet=new JSONObject();
+        eventPanel.addView(text("WALLET · "+formatNumber(wallet.optLong("coins"))+" GOLD · "
+                +formatNumber(wallet.optLong("gems"))+" GEMS · "+formatNumber(wallet.optLong("shards"))+" SHARDS",8,MUTED,true));
+        content.addView(eventPanel,rowParams());
+        JSONArray items=data.optJSONArray("items"),history=data.optJSONArray("history");
+        if(items==null)items=new JSONArray();
+        content.addView(text("FESTIVAL EXCHANGE",8,GOLD,true));
+        for(int i=0;i<items.length();i++){
+            JSONObject item=items.optJSONObject(i);if(item==null)continue;
+            String currency=item.optString("currency","COINS").toUpperCase();
+            long balance=wallet.optLong(currency.toLowerCase());
+            boolean noStock=!item.isNull("stock_remaining")&&item.optInt("stock_remaining")<=0;
+            boolean affordable=balance>=item.optLong("price");
+            LinearLayout row=dataRow(item.optString("name","Festival reward"),
+                    item.optString("item_type")+" · "+item.optString("rarity")+" · "+formatNumber(item.optLong("price"))+" "+currency
+                            +" · "+(item.isNull("stock_remaining")?"OPEN STOCK":item.optInt("stock_remaining")+" LEFT"),
+                    noStock?"SOLD OUT":!affordable?"INSUFFICIENT":currency);
+            TextView buy=button("PURCHASE",true);buy.setEnabled(!noStock&&affordable);
+            buy.setOnClickListener(v->confirmAction("Purchase "+item.optString("name")+"?",
+                    "Spend "+formatNumber(item.optLong("price"))+" "+currency+". The server checks price and stock again.",
+                    ()->api.post("/api/events/purchase",payload("itemId",item.optString("item_id")),r->ui.post(()->{
+                        if(!r.ok())showResultDialog("Purchase failed",r.error);
+                        else{showResultDialog("FESTIVAL REWARD ADDED",r.data.optString("message","Purchase completed."));refreshAccount(()->renderTab("events"));}
+                    }))));
+            row.addView(buy,new LinearLayout.LayoutParams(dp(106),dp(34)));content.addView(row,rowParams());
+        }
+    }
+
+    private void drawLeaderboard(JSONObject data,String category) {
+        content.removeAllViews();
+        content.addView(text("FIRSTLIGHT HALL OF FAME",8,GOLD,true));
+        content.addView(text("TOP 50 COLLECTORS",19,TEXT,true));
+        LinearLayout tabs=new LinearLayout(this);tabs.setOrientation(LinearLayout.HORIZONTAL);
+        String[][] choices={{"level","LEVEL"},{"collection","COLLECTION"},{"ranked","RANKED"},{"guild","GUILD"}};
+        for(String[] choice:choices){
+            TextView b=button(choice[1],category.equals(choice[0]));
+            b.setPadding(dp(8),0,dp(8),0);
+            b.setOnClickListener(v->drawLeaderboard(data,choice[0]));
+            LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,dp(34),1f);tp.setMargins(dp(2),dp(5),dp(2),dp(5));tabs.addView(b,tp);
+        }
+        content.addView(tabs);
+        JSONArray rows=category.equals("level")?data.optJSONArray("levels"):category.equals("collection")?data.optJSONArray("collections"):
+                category.equals("ranked")?data.optJSONArray("ranked"):data.optJSONArray("guilds");
+        if(rows==null||rows.length()==0){showNotice("No rankings have been recorded in this category yet.");return;}
+        for(int i=0;i<rows.length();i++){
+            JSONObject p=rows.optJSONObject(i);if(p==null)continue;
+            String name=p.optString("display_name",p.optString("name","Collector"));
+            if(!p.optString("tag").isEmpty())name+=" ["+p.optString("tag")+"]";
+            String detail,score;
+            if(category.equals("level")){detail="LEVEL "+p.optInt("collector_level")+" · "+formatNumber(p.optLong("collector_xp"))+" XP";score=p.optInt("collector_level")+" LV";}
+            else if(category.equals("collection")){detail=p.optInt("unique_cards")+" unique cards · "+p.optInt("card_copies")+" copies";score=p.optInt("unique_cards")+" CARDS";}
+            else if(category.equals("ranked")){detail=p.optString("tier")+" · "+p.optInt("wins")+"W / "+p.optInt("losses")+"L";score=p.optInt("rating")+" RATING";}
+            else{detail="LEVEL "+p.optInt("guild_level")+" · "+p.optInt("member_count")+" members · "+formatNumber(p.optLong("guild_contribution"))+" contribution";score=formatNumber(p.optLong("guild_xp"))+" XP";}
+            content.addView(dataRow("#"+(i+1)+" · "+name,detail,score),rowParams());
+        }
+    }
+
+    private void renderLeaderboards(JSONObject data) {
+        drawLeaderboard(data,"level");
+    }
+
+    private void renderRanked(JSONObject data) {
+        JSONObject season=data.optJSONObject("season"),rating=data.optJSONObject("rating");
+        if(data.optBoolean("rankedBanned")){
+            LinearLayout p=sectionPanel();p.addView(text("RANKED ACCESS SUSPENDED",9,RED,true));
+            p.addView(text(data.optString("rankedBanReason","Moderator review"),12,TEXT,true));
+            p.addView(text(data.optString("rankedBanUntil","Permanent restriction"),8,MUTED,false));content.addView(p);return;
+        }
+        if(data.optBoolean("hidden")){
+            showNotice("Master Admin accounts are excluded from the public Ranked Season leaderboard. Private administration access remains unchanged.");return;
+        }
+        if(season==null||season.length()==0){showNotice("There is no active Ranked Season at the moment.");return;}
+        if(rating==null){showNotice("Your Ranked rating is not available yet.");return;}
+        LinearLayout hero=sectionPanel();
+        hero.addView(text("COMPETITIVE SEASON",8,GOLD,true));
+        hero.addView(text(season.optString("name","Ranked Season"),20,TEXT,true));
+        hero.addView(text(season.optString("starts_at","")+"  ·  "+season.optString("ends_at",""),8,MUTED,false));
+        hero.addView(text(rating.optString("tier","BRONZE"),25,GOLD_BRIGHT,true));
+        hero.addView(text(formatNumber(rating.optLong("rating"))+" RATING · #"+rating.optInt("position")+" ON THE LADDER",9,TEXT,true));
+        content.addView(hero,rowParams());
+        LinearLayout stats=new LinearLayout(this);
+        stats.addView(statCard("WINS",String.valueOf(rating.optInt("wins")),"Ranked"),weightParams(1));
+        stats.addView(statCard("LOSSES",String.valueOf(rating.optInt("losses")),"Ranked"),weightParams(1));
+        stats.addView(statCard("DRAWS",String.valueOf(rating.optInt("draws")),"Ranked"),weightParams(1));
+        stats.addView(statCard("STREAK",String.valueOf(rating.optInt("win_streak")),"Wins"),weightParams(1));
+        content.addView(stats);addGap(content,10);
+        content.addView(text("SEASON LEADERBOARD",8,GOLD,true));
+        JSONArray rows=data.optJSONArray("leaderboard");
+        if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject p=rows.optJSONObject(i);if(p!=null)content.addView(dataRow("#"+(i+1)+" · "+p.optString("display_name","Collector"),p.optString("rating")+" rating · "+p.optInt("wins")+"W / "+p.optInt("losses")+"L",p.optString("tier","BRONZE")),rowParams());}
+        TextView enter=button("FIND RANKED MATCH",true);
+        enter.setOnClickListener(v->confirmAction("Queue for Ranked Arena?","Ranked matchmaking uses your live rating and season. Master Admin accounts are excluded.",()->{
+            api.post("/api/arena/queue",payload("mode","RANKED"),r->ui.post(()->{
+                if(!r.ok())showResultDialog("Ranked queue unavailable",r.error);
+                else{showResultDialog("RANKED MATCHMAKING",r.data.optString("message",r.data.optBoolean("matched")?"Match found. Open Arena to continue.":"Searching for an opponent. Open Arena to check the queue."));renderTab("arena");}
+            }));
+        }));
+        content.addView(enter,new LinearLayout.LayoutParams(dp(210),dp(38)));
+    }
+
+    private void showBinderActions(JSONObject binder) {
+        String id=binder.optString("binder_id");
+        boolean isDefault=binder.optInt("is_default")==1;
+        String[] options=isDefault?new String[]{"SET ACTIVE","RENAME / CHANGE THEME"}:
+                new String[]{"SET ACTIVE","RENAME / CHANGE THEME","MANAGE CARD CONTENTS","DELETE BINDER"};
+        new AlertDialog.Builder(this).setTitle(binder.optString("name","Binder")).setItems(options,(d,w)->{
+            String choice=options[w];
+            if("SET ACTIVE".equals(choice)){
+                api.post("/api/binders/"+id,payload("set_active",true),r->ui.post(()->{
+                    if(!r.ok())showResultDialog("Binder not changed",r.error);else renderTab("binders");
+                }));
+            }else if("RENAME / CHANGE THEME".equals(choice))showBinderEditDialog(binder);
+            else if("MANAGE CARD CONTENTS".equals(choice))showBinderCardsDialog(id);
+            else if("DELETE BINDER".equals(choice))confirmAction("Delete "+binder.optString("name")+"?",
+                    "Only the binder is deleted. Your cards and collection remain untouched.",()->api.delete("/api/binders/"+id,r->ui.post(()->{
+                        if(!r.ok())showResultDialog("Binder not deleted",r.error);else{showResultDialog("BINDER DELETED",r.data.optString("message","Binder removed."));renderTab("binders");}
+                    })));
+        }).show();
+    }
+
+    private void showBinderEditDialog(JSONObject binder) {
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
+        EditText name=editField("Binder name",false);name.setText(binder.optString("name",""));
+        Spinner theme=new Spinner(this);String[] themes={"verdant","ember","tide","astral","void","gold"};
+        theme.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,themes));
+        for(int i=0;i<themes.length;i++)if(themes[i].equals(binder.optString("theme_key")))theme.setSelection(i);
+        form.addView(name,fieldParams());form.addView(text("COVER THEME",8,GOLD,true));form.addView(theme);
+        new AlertDialog.Builder(this).setTitle("Binder settings").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("SAVE",(d,w)->{
+            String value=name.getText().toString().trim();if(value.length()<2){showResultDialog("Name required","Binder names need at least two characters.");return;}
+            api.post("/api/binders/"+binder.optString("binder_id"),payload("name",value,"theme_key",themes[theme.getSelectedItemPosition()]),r->ui.post(()->{
+                if(!r.ok())showResultDialog("Binder settings not saved",r.error);else renderTab("binders");
+            }));
+        }).show();
+    }
+
+    private void showBinderCardsDialog(String binderId) {
+        api.post("/api/binders/"+binderId,payload("set_active",true),activeResult->ui.post(()->{
+            if(!activeResult.ok()){showResultDialog("Binder unavailable",activeResult.error);return;}
+            api.get("/api/binders",binderResult->ui.post(()->{
+                if(!binderResult.ok()){showResultDialog("Unable to load binder",binderResult.error);return;}
+                api.get("/api/cards",cardsResult->ui.post(()->{
+                    if(!cardsResult.ok()){showResultDialog("Unable to load card archive",cardsResult.error);return;}
+                    JSONArray binderCards=binderResult.data.optJSONArray("cards"),allCards=cardsResult.data.optJSONArray("cards");
+                    if(binderCards==null)binderCards=new JSONArray();if(allCards==null)allCards=new JSONArray();
+                    java.util.HashSet<String> selectedIds=new java.util.HashSet<>();
+                    for(int i=0;i<binderCards.length();i++){JSONObject c=binderCards.optJSONObject(i);if(c!=null)selectedIds.add(c.optString("card_id"));}
+                    java.util.ArrayList<JSONObject> owned=new java.util.ArrayList<>();
+                    for(int i=0;i<allCards.length();i++){JSONObject c=allCards.optJSONObject(i);if(c!=null&&c.optInt("owned_count")>0)owned.add(c);}
+                    if(owned.isEmpty()){showResultDialog("No owned cards","Collect cards before adding them to a custom binder.");return;}
+                    String[] labels=new String[owned.size()];boolean[] checked=new boolean[owned.size()];
+                    for(int i=0;i<owned.size();i++){JSONObject c=owned.get(i);labels[i]=c.optString("name")+" · "+c.optString("rarity")+" ×"+c.optInt("owned_count");checked[i]=selectedIds.contains(c.optString("card_id"));}
+                    new AlertDialog.Builder(this).setTitle("Cards in this binder · up to 200")
+                            .setMultiChoiceItems(labels,checked,(dialog,which,isChecked)->checked[which]=isChecked)
+                            .setNegativeButton("CANCEL",null).setPositiveButton("SAVE",(dialog,which)->{
+                                JSONArray cardIds=new JSONArray();for(int i=0;i<owned.size();i++)if(checked[i])cardIds.put(owned.get(i).optString("card_id"));
+                                if(cardIds.length()>200){showResultDialog("Binder limit","A binder can contain up to 200 unique cards.");return;}
+                                api.post("/api/binders/"+binderId+"/cards",payload("cardIds",cardIds),r->ui.post(()->{
+                                    if(!r.ok())showResultDialog("Binder contents not saved",r.error);else{showResultDialog("BINDER UPDATED",r.data.optString("message","Binder cards saved."));renderTab("binders");}
+                                }));
+                            }).show();
+                }));
+            }));
+        }));
     }
 
     private void renderObjectSummary(JSONObject data, String label) {
@@ -2009,6 +2361,11 @@ public final class MainActivity extends Activity {
             case "dungeons": return "/api/dungeons";
             case "raids": return "/api/raids";
             case "trades": return "/api/trades";
+            case "achievements": return "/api/achievements";
+            case "progression": return "/api/progression?rewardPage=0&rewardPageSize=30";
+            case "events": return "/api/events";
+            case "leaderboards": return "/api/leaderboards";
+            case "ranked": return "/api/ranked";
             case "summon": return "/api/packs";
             case "adventure": return "/api/adventure";
             case "arena": return "/api/arena";
@@ -2031,6 +2388,11 @@ public final class MainActivity extends Activity {
             case "dungeons": return "Roguelike Dungeon";
             case "raids": return "World Boss Raid";
             case "trades": return "Trade Desk";
+            case "achievements": return "Achievement Hall";
+            case "progression": return "Level Rewards";
+            case "events": return "Live Realm Events";
+            case "leaderboards": return "Hall of Fame";
+            case "ranked": return "Ranked Season";
             case "summon": return "Summon Hall";
             case "adventure": return "Realm Expedition";
             case "arena": return "Battle Arena";
@@ -2053,6 +2415,11 @@ public final class MainActivity extends Activity {
             case "dungeons": return "Choose a route, clear floors and claim expedition rewards.";
             case "raids": return "Contribute daily damage to the shared world boss.";
             case "trades": return "Exchange tradable cards securely with other collectors.";
+            case "achievements": return "Permanent records for collecting, exploring and competing.";
+            case "progression": return "Claim milestone rewards earned through collector levels.";
+            case "events": return "Limited-time login journeys and festival exchanges.";
+            case "leaderboards": return "Compare collector level, collection, Ranked and guild prestige.";
+            case "ranked": return "Your competitive rating, tier and season standing.";
             case "summon": return "Your available packs and summon inventory.";
             case "adventure": return "Chapters, encounters and expedition progress.";
             case "arena": return "Your current player-versus-player status.";
