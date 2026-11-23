@@ -63,7 +63,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CardUniverse-Android-APK
+          name: CardUniverse-Android-APK-v1.0.1
           path: carduniverse-android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
@@ -72,8 +72,8 @@ jobs:
         if: github.ref == 'refs/heads/carduniverse-android'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v1.0.0-build-${{ github.run_number }}
-          name: CardUniverse Android v1.0.0 (build ${{ github.run_number }})
+          tag_name: carduniverse-android-v1.0.1-build-${{ github.run_number }}
+          name: CardUniverse Android v1.0.1 (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
           files: carduniverse-android/app/build/outputs/apk/release/app-release.apk
