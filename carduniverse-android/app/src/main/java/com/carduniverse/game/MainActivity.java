@@ -63,6 +63,8 @@ public final class MainActivity extends Activity {
     private String activeTab = "home";
     private boolean registering = false;
     private boolean requestBusy = false;
+    private boolean syncingAccount = false;
+    private TextView syncControl;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -390,10 +392,6 @@ public final class MainActivity extends Activity {
                 {"settings", "⚙", "SETTINGS"}
         };
         for (String[] item : items) addNavItem(navStack, item[0], item[1], item[2]);
-        if ("admin".equalsIgnoreCase(me.optString("role"))) {
-            addDivider(navStack, true);
-            addNavItem(navStack, "admin", "♛", "ADMIN");
-        }
         navScroll.addView(navStack);
         rail.addView(navScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
@@ -426,6 +424,14 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(32), dp(32));
         avp.leftMargin = dp(10);
         right.addView(account);
+        syncControl = button("↻ SYNC", false);
+        syncControl.setTextSize(7);
+        syncControl.setPadding(dp(8), 0, dp(8), 0);
+        syncControl.setContentDescription("Sync latest CardUniverse data from the web backend");
+        syncControl.setOnClickListener(v -> syncWithSharedBackend(true, true));
+        LinearLayout.LayoutParams syncParams = new LinearLayout.LayoutParams(dp(58), dp(30));
+        syncParams.leftMargin = dp(9);
+        right.addView(syncControl, syncParams);
         right.addView(avatar, avp);
         top.addView(right);
         mainColumn.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
@@ -678,7 +684,6 @@ public final class MainActivity extends Activity {
             case "inbox": renderInbox(data); break;
             case "guild": renderGuild(data); break;
             case "settings": renderSettings(data); break;
-            case "admin": renderAdmin(data); break;
             default: renderObjectSummary(data, "REALM DATA");
         }
     }
@@ -1549,96 +1554,6 @@ public final class MainActivity extends Activity {
         }).show();
     }
 
-    private void renderAdmin(JSONObject data) {
-        JSONObject stats=data.optJSONObject("stats");if(stats==null)stats=new JSONObject();
-        JSONObject users=stats.optJSONObject("users"),cards=stats.optJSONObject("cards"),instances=stats.optJSONObject("instances");
-        LinearLayout row=new LinearLayout(this);row.addView(statCard("PLAYERS",String.valueOf(users==null?0:users.optLong("total")),"Registered"),weightParams(1));
-        row.addView(statCard("ACTIVE CARDS",String.valueOf(cards==null?0:cards.optLong("total")),"Catalogue"),weightParams(1));
-        row.addView(statCard("COPIES",String.valueOf(instances==null?0:instances.optLong("total")),"Inventory"),weightParams(1));content.addView(row);
-        addGap(content,12);content.addView(text("MASTER ADMIN CONSOLE",8,GOLD,true));
-        content.addView(text("Read access follows the existing Worker admin authorization. Creation actions are recorded by the server.",8,MUTED,false));
-        String[][] sections={{"cards","CARD CATALOGUE","Create and inspect cards"},{"users","PLAYER DIRECTORY","Inspect account records"},{"economy","ECONOMY","Wallet totals and transactions"},{"moderation","MODERATION","Reports, flags and appeals"},{"mail","GAME MAIL","Publish player announcements"},{"events","LIVE EVENTS","Schedules and rewards"},{"world","WORLD BUILDER","Chapters and encounters"},{"missions","MISSIONS","Mission configuration"},{"packs","PACKS","Pack settings and odds"},{"rewards","LEVEL REWARDS","Milestone configuration"}};
-        for(String[] s:sections){LinearLayout item=dataRow(s[1],s[2],"OPEN");item.setOnClickListener(v->loadAdminSection(s[0]));content.addView(item,rowParams());}
-    }
-
-    private void loadAdminSection(String section) {
-        String path;
-        switch(section){
-            case "cards":path="/api/admin/cards";break;case "users":path="/api/admin/users";break;case "economy":path="/api/admin/economy";break;
-            case "moderation":path="/api/admin/moderation/overview";break;case "mail":path="/api/admin/mail";break;case "events":path="/api/admin/events";break;
-            case "world":path="/api/admin/world";break;case "missions":path="/api/admin/missions";break;case "packs":path="/api/admin/packs";break;
-            case "rewards":path="/api/admin/rewards";break;default:return;
-        }
-        content.removeAllViews();TextView back=button("← BACK TO ADMIN",false);back.setOnClickListener(v->renderTab("admin"));content.addView(back,new LinearLayout.LayoutParams(dp(170),dp(36)));
-        content.addView(text(section.toUpperCase()+" MANAGEMENT",9,GOLD,true));renderLoading();
-        api.get(path,r->ui.post(()->{
-            if(!"admin".equals(activeTab)||content==null)return;content.removeViews(2,Math.max(0,content.getChildCount()-2));
-            if(!r.ok()){showNotice(r.error);return;}
-            switch(section){case "cards":renderAdminCards(r.data);break;case "users":renderAdminUsers(r.data);break;case "mail":renderAdminMail(r.data);break;
-                case "moderation":renderObjectSummary(r.data,"MODERATION OVERVIEW");api.get("/api/admin/moderation/reports?status=OPEN",x->ui.post(()->{if(x.ok()&&"admin".equals(activeTab))renderAdminReports(x.data);}));break;
-                default:renderObjectSummary(r.data,section.toUpperCase());}
-        }));
-    }
-
-    private void renderAdminCards(JSONObject data) {
-        TextView add=button("+ CREATE CARD",true);add.setOnClickListener(v->showAdminCreateCardDialog());content.addView(add,new LinearLayout.LayoutParams(dp(160),dp(38)));
-        JSONArray list=data.optJSONArray("cards");if(list==null)return;
-        for(int i=0;i<list.length();i++){JSONObject c=list.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("card_code")+" · "+c.optString("rarity")+" · "+c.optString("element")+" · "+c.optInt("copies")+" copies",c.optInt("is_active")==1?"ACTIVE":"INACTIVE"),rowParams());}
-    }
-
-    private void showAdminCreateCardDialog() {
-        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
-        EditText name=editField("Card name",false),desc=editField("Description",false),element=editField("Element (e.g. AETHER)",false);Spinner rarity=new Spinner(this);
-        String[] rarities={"COMMON","UNCOMMON","RARE","EPIC","LEGENDARY","MYTHIC"};rarity.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,rarities));
-        form.addView(name,fieldParams());form.addView(desc,fieldParams());form.addView(element,fieldParams());form.addView(text("RARITY",8,GOLD,true));form.addView(rarity);
-        new AlertDialog.Builder(this).setTitle("Create catalogue card").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("CREATE",(d,w)->{
-            String n=name.getText().toString().trim();if(n.length()<2){showResultDialog("Card name required","Enter at least two characters.");return;}
-            api.post("/api/admin/cards",payload("name",n,"description",desc.getText().toString().trim(),"element",element.getText().toString().trim().isEmpty()?"AETHER":element.getText().toString().trim(),"rarity",rarities[rarity.getSelectedItemPosition()]),r->ui.post(()->{
-                if(!r.ok())showResultDialog("Card not created",r.error);else{showResultDialog("CARD CREATED",r.data.optString("message","Card added."));loadAdminSection("cards");}
-            }));
-        }).show();
-    }
-
-    private void renderAdminUsers(JSONObject data) {
-        JSONArray list=data.optJSONArray("users");if(list==null)return;content.addView(text(list.length()+" ACCOUNTS",8,GOLD,true));
-        for(int i=0;i<list.length();i++){JSONObject u=list.optJSONObject(i);if(u==null)continue;LinearLayout item=dataRow(u.optString("display_name","Collector"),u.optString("email")+" · Lv "+u.optInt("collector_level")+" · "+u.optInt("card_copies")+" copies",u.optString("role","collector").toUpperCase());item.setOnClickListener(v->loadAdminPlayer(u.optString("user_id")));content.addView(item,rowParams());}
-    }
-
-    private void loadAdminPlayer(String userId) {
-        content.removeAllViews();TextView back=button("← BACK TO PLAYERS",false);back.setOnClickListener(v->loadAdminSection("users"));content.addView(back,new LinearLayout.LayoutParams(dp(170),dp(36)));renderLoading();
-        api.get("/api/admin/users/"+userId,r->ui.post(()->{
-            if(!"admin".equals(activeTab))return;if(!r.ok()){showNotice(r.error);return;}content.removeViews(1,content.getChildCount()-1);
-            JSONObject u=r.data.optJSONObject("user"),stats=r.data.optJSONObject("stats");
-            if(u!=null){content.addView(text(u.optString("display_name")+" · "+u.optString("email"),15,TEXT,true));content.addView(text("ROLE "+u.optString("role")+" · LEVEL "+u.optInt("collector_level")+" · "+u.optLong("coins")+" Gold · "+u.optLong("gems")+" Gems · "+u.optLong("shards")+" Shards",8,GOLD_BRIGHT,true));}
-            if(stats!=null)renderObjectSummary(stats,"PLAYER STATISTICS");
-            for(String key:new String[]{"cards","transactions","packs","eventClaims","purchases","ownership","audit","ranked"}){JSONArray a=r.data.optJSONArray(key);if(a!=null){content.addView(text(key.toUpperCase()+" · "+a.length(),8,GOLD,true));for(int i=0;i<Math.min(a.length(),8);i++){JSONObject it=a.optJSONObject(i);if(it!=null)renderObjectSummary(it,key.toUpperCase());}}}
-        }));
-    }
-
-    private void renderAdminMail(JSONObject data) {
-        TextView publish=button("PUBLISH ANNOUNCEMENT",true);publish.setOnClickListener(v->showAdminMailDialog());content.addView(publish,new LinearLayout.LayoutParams(dp(220),dp(38)));
-        JSONArray messages=data.optJSONArray("messages");if(messages==null)return;content.addView(text("RECENT GAME MAIL",8,GOLD,true));
-        for(int i=0;i<messages.length();i++){JSONObject m=messages.optJSONObject(i);if(m!=null)content.addView(dataRow(m.optString("subject","Announcement"),m.optString("mail_type")+" · "+m.optString("created_at")+" · "+m.optInt("read_count")+" read · "+m.optInt("claim_count")+" claimed",m.optString("status","SENT")),rowParams());}
-    }
-
-    private void showAdminMailDialog() {
-        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
-        EditText subject=editField("Announcement subject",false),body=new EditText(this);body.setHint("Message to all players");body.setTextColor(TEXT);body.setHintTextColor(MUTED);body.setMinLines(3);body.setGravity(Gravity.TOP);body.setPadding(dp(10),dp(8),dp(10),dp(8));body.setBackground(gradient(Color.rgb(9,18,15),Color.rgb(9,18,15),Color.rgb(70,83,67),dp(9)));
-        form.addView(subject,fieldParams());form.addView(body,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(100)));
-        new AlertDialog.Builder(this).setTitle("Publish to all players").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("PUBLISH",(d,w)->{
-            String s=subject.getText().toString().trim(),b=body.getText().toString().trim();if(s.length()<2||b.length()<2){showResultDialog("Complete the message","Subject and message are required.");return;}
-            api.post("/api/admin/mail",payload("mail_type","ANNOUNCEMENT","subject",s,"body",b,"target_type","ALL","coins",0,"gems",0,"shards",0,"xp",0,"pack_quantity",0),r->ui.post(()->{
-                if(!r.ok())showResultDialog("Announcement failed",r.error);else{showResultDialog("ANNOUNCEMENT PUBLISHED",r.data.optString("message","Message published."));loadAdminSection("mail");}
-            }));
-        }).show();
-    }
-
-    private void renderAdminReports(JSONObject data) {
-        JSONArray list=data.optJSONArray("reports");if(list==null||list.length()==0)return;content.addView(text("OPEN PLAYER REPORTS",8,GOLD,true));
-        for(int i=0;i<list.length();i++){JSONObject r=list.optJSONObject(i);if(r!=null)content.addView(dataRow(r.optString("category"),r.optString("reporter_name")+" → "+r.optString("target_name")+" · "+r.optString("created_at")+"\\n"+r.optString("description"),r.optString("status")),rowParams());}
-    }
-
-
     private void renderAchievements(JSONObject data) {
         JSONArray list=data.optJSONArray("achievements");
         JSONObject metrics=data.optJSONObject("metrics");
@@ -2082,6 +1997,50 @@ public final class MainActivity extends Activity {
         }));
     }
 
+    // Web Admin and Android read the same live backend. Refresh account and progression
+    // whenever the app returns to the foreground or the player requests a manual sync.
+    private void syncWithSharedBackend(boolean refreshVisibleTab, boolean showMessage) {
+        if (api == null || me == null || syncingAccount) return;
+        syncingAccount = true;
+        if (syncControl != null) {
+            syncControl.setEnabled(false);
+            syncControl.setText("SYNC...");
+        }
+        api.get("/api/me", result -> ui.post(() -> {
+            if (!result.ok()) {
+                syncingAccount = false;
+                if (syncControl != null) {
+                    syncControl.setEnabled(true);
+                    syncControl.setText("↻ SYNC");
+                }
+                if (result.status == 401) {
+                    api.clearSession();
+                    me = null;
+                    showAuth(false, "Your session expired. Please sign in again.");
+                } else if (showMessage) {
+                    Toast.makeText(this, "Sync failed: " + (result.error == null ? "connection unavailable" : result.error),
+                            Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
+            acceptMe(result.data);
+            if (accountLabel != null) accountLabel.setText(me.optString("display_name", "Collector"));
+            if (currencyLabel != null) currencyLabel.setText(walletLine());
+            api.get("/api/progression", progressResult -> ui.post(() -> {
+                if (progressResult.ok()) progression = progressResult.data;
+                syncingAccount = false;
+                if (syncControl != null) {
+                    syncControl.setEnabled(true);
+                    syncControl.setText("↻ SYNC");
+                }
+                if (refreshVisibleTab && content != null && me != null) renderTab(activeTab);
+                if (showMessage) {
+                    Toast.makeText(this, "CardUniverse account data refreshed.", Toast.LENGTH_SHORT).show();
+                }
+            }));
+        }));
+    }
+
     private void claimMission(String slug, TextView button) {
         if (slug == null || slug.isEmpty()) return;
         button.setEnabled(false);
@@ -2381,7 +2340,6 @@ public final class MainActivity extends Activity {
             case "inbox": return "/api/mail";
             case "guild": return "/api/guilds";
             case "settings": return "/api/support/contacts";
-            case "admin": return "/api/admin/summary";
             default: return null;
         }
     }
@@ -2408,7 +2366,6 @@ public final class MainActivity extends Activity {
             case "inbox": return "Realm Inbox";
             case "guild": return "Guild Headquarters";
             case "settings": return "Player Settings";
-            case "admin": return "Master Console";
             default: return "Realm";
         }
     }
@@ -2435,7 +2392,6 @@ public final class MainActivity extends Activity {
             case "inbox": return "Messages, rewards and announcements.";
             case "guild": return "Your guild membership and contribution.";
             case "settings": return "Account information, privacy and support.";
-            case "admin": return "Administrative overview for authorized accounts.";
             default: return "";
         }
     }
@@ -2611,6 +2567,14 @@ public final class MainActivity extends Activity {
             return;
         }
         super.onBackPressed();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (api != null && me != null && appRoot != null) {
+            syncWithSharedBackend(true, false);
+        }
     }
 
     @Override
