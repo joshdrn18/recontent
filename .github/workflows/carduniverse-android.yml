@@ -36,7 +36,28 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Create preview signing key
+        env:
+          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-preview.keystore
+          CU_KEYSTORE_PASSWORD: ${{ secrets.CU_PREVIEW_KEYSTORE_PASSWORD || 'cu-preview-only' }}
+          CU_KEY_ALIAS: carduniverse
+          CU_KEY_PASSWORD: ${{ secrets.CU_PREVIEW_KEY_PASSWORD || 'cu-preview-only' }}
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$CU_KEYSTORE_PATH" \
+            -storepass "$CU_KEYSTORE_PASSWORD" \
+            -alias "$CU_KEY_ALIAS" \
+            -keypass "$CU_KEY_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=CardUniverse Preview, OU=Android, O=CardUniverse, L=Kuala Lumpur, ST=Kuala Lumpur, C=MY" \
+            -noprompt
+
       - name: Build native release APK
+        env:
+          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-preview.keystore
+          CU_KEYSTORE_PASSWORD: ${{ secrets.CU_PREVIEW_KEYSTORE_PASSWORD || 'cu-preview-only' }}
+          CU_KEY_ALIAS: carduniverse
+          CU_KEY_PASSWORD: ${{ secrets.CU_PREVIEW_KEY_PASSWORD || 'cu-preview-only' }}
         run: gradle -p carduniverse-android :app:assembleRelease
 
       - name: Upload APK artifact
