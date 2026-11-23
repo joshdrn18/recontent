@@ -913,11 +913,14 @@ public final class MainActivity extends Activity {
             boolean canBuy = !alreadyOwned && (stock != 0) && price > 0 && !itemId.isEmpty();
             if (canBuy) {
                 TextView buy = button("PURCHASE", true);
-                buy.setOnClickListener(v -> confirmAction("Purchase " + title + "?",
-                        "Cost: " + priceLabel + ". The server will validate your wallet, stock and purchase limits.", () -> {
+                final String purchaseTitle = title;
+                final String purchasePriceLabel = priceLabel;
+                final String purchaseItemId = itemId;
+                buy.setOnClickListener(v -> confirmAction("Purchase " + purchaseTitle + "?",
+                        "Cost: " + purchasePriceLabel + ". The server will validate your wallet, stock and purchase limits.", () -> {
                     JSONObject payload = new JSONObject();
                     try {
-                        payload.put("itemId", itemId);
+                        payload.put("itemId", purchaseItemId);
                         payload.put("requestId", newActionId());
                         payload.put("quantity", 1);
                     } catch (Exception ignored) {}
