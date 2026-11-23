@@ -2115,6 +2115,27 @@ public final class MainActivity extends Activity {
         meta.setTextColor(accent);
     }
 
+    private void renderBinders(JSONObject data) {
+        JSONArray binders=data.optJSONArray("binders"),cards=data.optJSONArray("cards");JSONObject active=data.optJSONObject("activeBinder");
+        if(binders==null)binders=new JSONArray();if(cards==null)cards=new JSONArray();
+        LinearLayout p=sectionPanel();p.addView(text("PERSONAL CARD BINDERS",8,GOLD,true));
+        p.addView(text(active==null?"Genesis Archive":active.optString("name","Genesis Archive"),18,TEXT,true));
+        p.addView(text("Create up to 12 binders. Select a binder below to switch, rename, change its cover or manage its cards.",8,MUTED,false));
+        TextView create=button("CREATE NEW BINDER",true);create.setOnClickListener(v->showCreateBinderDialog());
+        p.addView(create,new LinearLayout.LayoutParams(dp(180),dp(38)));content.addView(p,rowParams());
+        content.addView(text("YOUR BINDERS",8,GOLD,true));
+        for(int i=0;i<binders.length();i++){
+            JSONObject b=binders.optJSONObject(i);if(b==null)continue;
+            String label=b.optString("name")+(b.optInt("is_active")==1?" · ACTIVE":"")+(b.optInt("is_default")==1?" · DEFAULT":"");
+            LinearLayout row=dataRow(label,b.optString("theme_key")+" theme · "+b.optInt("card_count")+" unique cards","MANAGE");
+            row.setOnClickListener(v->showBinderActions(b));content.addView(row,rowParams());
+        }
+        content.addView(text("CARDS IN ACTIVE BINDER",8,GOLD,true));
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · "+c.optString("element")+" · ×"+c.optInt("owned_count"),c.optString("card_code")),rowParams());}
+        if(cards.length()==0)showNotice("This binder is empty. Your full archive remains safe under Cards.");
+    }
+
+
     private void renderAchievements(JSONObject data) {
         JSONArray list=data.optJSONArray("achievements");
         JSONObject metrics=data.optJSONObject("metrics");
