@@ -1,4 +1,4 @@
-name: Build CardUniverse Android APK
+name: Build CardUniverse Native Android APK
 
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Verify preinstalled Android SDK
+      - name: Verify Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           test -d "$ANDROID_HOME/platforms/android-35"
@@ -36,34 +36,13 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Create temporary APK signing key
-        env:
-          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-ci.keystore
-          CU_KEYSTORE_PASSWORD: carduniverse-preview
-          CU_KEY_ALIAS: carduniverse
-          CU_KEY_PASSWORD: carduniverse-preview
-        run: |
-          keytool -genkeypair -v \
-            -keystore "$CU_KEYSTORE_PATH" \
-            -storepass "$CU_KEYSTORE_PASSWORD" \
-            -alias "$CU_KEY_ALIAS" \
-            -keypass "$CU_KEY_PASSWORD" \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=CardUniverse Preview, OU=Android, O=CardUniverse, L=Kuala Lumpur, ST=Kuala Lumpur, C=MY" \
-            -noprompt
-
-      - name: Build release APK
-        env:
-          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-ci.keystore
-          CU_KEYSTORE_PASSWORD: carduniverse-preview
-          CU_KEY_ALIAS: carduniverse
-          CU_KEY_PASSWORD: carduniverse-preview
+      - name: Build native release APK
         run: gradle -p carduniverse-android :app:assembleRelease
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: CardUniverse-Android-APK-v1.0.2
+          name: CardUniverse-Native-Android-2.0.0
           path: carduniverse-android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
@@ -72,8 +51,8 @@ jobs:
         if: github.ref == 'refs/heads/carduniverse-android'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v1.0.2-build-${{ github.run_number }}
-          name: CardUniverse Android v1.0.2 (build ${{ github.run_number }})
+          tag_name: carduniverse-android-v2.0.0-build-${{ github.run_number }}
+          name: CardUniverse Native Android v2.0.0 (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
           files: carduniverse-android/app/build/outputs/apk/release/app-release.apk
