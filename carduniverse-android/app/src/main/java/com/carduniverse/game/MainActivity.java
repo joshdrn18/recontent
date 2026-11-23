@@ -24,6 +24,8 @@ import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
+import android.widget.Spinner;
+import android.widget.ArrayAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -639,7 +641,7 @@ public final class MainActivity extends Activity {
             case "collection": renderCollection(data); break;
             case "summon": renderPacks(data); break;
             case "adventure": renderAdventure(data); break;
-            case "arena": renderObjectSummary(data, "BATTLE STATUS"); break;
+            case "arena": renderArena(data); break;
             case "missions": renderMissions(data); break;
             case "shop": renderShop(data); break;
             case "inbox": renderInbox(data); break;
@@ -745,6 +747,102 @@ public final class MainActivity extends Activity {
         }
         if (packs.length() == 0) showNotice("No packs are currently available.");
     }
+    private void renderArena(JSONObject data) {
+        JSONObject rating = data.optJSONObject("rating");
+        JSONObject season = data.optJSONObject("season");
+        if (rating != null) {
+            LinearLayout rated = sectionPanel();
+            rated.addView(text("RANKED SEASON  ·  " + (season == null ? "ACTIVE" : season.optString("name", "ACTIVE")), 7, GOLD, true));
+            rated.addView(text(rating.optString("tier", "BRONZE") + "  ·  " + rating.optInt("rating") + " RATING", 17, TEXT, true));
+            rated.addView(text("W " + rating.optInt("wins") + "  ·  L " + rating.optInt("losses")
+                    + "  ·  D " + rating.optInt("draws") + "  ·  STREAK " + rating.optInt("win_streak")
+                    + "  ·  POSITION #" + rating.optInt("position"), 8, MUTED, true));
+            content.addView(rated, rowParams());
+        } else if (data.optBoolean("rankedHidden")) {
+            showNotice("Ranked matchmaking and the public ranked ladder are disabled for administrator accounts.");
+        } else if (data.optBoolean("rankedBanned")) {
+            showNotice("Ranked access is restricted: " + data.optString("rankedBanReason", "moderator action"));
+        }
+
+        JSONObject active = data.optJSONObject("activeMatch");
+        JSONObject queue = data.optJSONObject("queue");
+        if (active != null) {
+            LinearLayout match = sectionPanel();
+            match.addView(text("LIVE ARENA MATCH  ·  " + active.optString("mode", "CASUAL"), 8, GOLD, true));
+            match.addView(text("VS  " + active.optString("opponentName", "Opponent"), 19, TEXT, true));
+            match.addView(text("TURN " + active.optInt("current_turn")
+                    + "  ·  YOU " + active.optLong("myHp") + " HP"
+                    + "  ·  OPPONENT " + active.optLong("opponentHp") + " HP", 9, GOLD_BRIGHT, true));
+            content.addView(match, rowParams());
+            if (active.optString("myMove", "").isEmpty()) {
+                content.addView(text("CHOOSE YOUR MOVE", 8, GOLD, true));
+                LinearLayout moves = new LinearLayout(this);
+                moves.setOrientation(LinearLayout.HORIZONTAL);
+                String[][] choices = {{"STRIKE", "⚔ STRIKE"}, {"GUARD", "◈ GUARD"}, {"FOCUS", "✦ FOCUS"}};
+                for (String[] choice : choices) {
+                    TextView move = button(choice[1], "STRIKE".equals(choice[0]));
+                    move.setOnClickListener(v -> confirmAction("Use " + choice[0] + "?",
+                            "Your move is locked for this turn once submitted.",
+                            () -> submitArenaMove(active.optString("match_id"), choice[0])));
+                    LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+                    mp.rightMargin = dp(6);
+                    moves.addView(move, mp);
+                }
+                content.addView(moves);
+            } else {
+                content.addView(text("YOUR MOVE: " + active.optString("myMove")
+                        + (active.optBoolean("opponentSubmitted") ? "  ·  RESOLVING" : "  ·  WAITING FOR OPPONENT"),
+                        9, GOLD_BRIGHT, true));
+            }
+            TextView refresh = button("REFRESH MATCH STATUS", false);
+            refresh.setOnClickListener(v -> renderTab("arena"));
+            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(180), dp(34));
+            rp.topMargin = dp(8);
+            content.addView(refresh, rp);
+        } else if (queue != null) {
+            LinearLayout waiting = sectionPanel();
+            waiting.addView(text("MATCHMAKING IN PROGRESS", 9, GOLD, true));
+            waiting.addView(text(queue.optString("mode", "CASUAL") + " QUEUE  ·  POWER "
+                    + formatNumber(queue.optLong("power")), 13, TEXT, true));
+            waiting.addView(text("Refresh the Arena screen to check whether an opponent has joined.", 8, MUTED, false));
+            TextView cancel = button("CANCEL SEARCH", false);
+            cancel.setOnClickListener(v -> confirmAction("Cancel matchmaking?", "You will leave the current arena queue.", this::cancelArenaQueue));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(150), dp(34));
+            cp.topMargin = dp(8);
+            waiting.addView(cancel, cp);
+            content.addView(waiting, rowParams());
+        } else {
+            content.addView(text("FIND AN OPPONENT", 8, GOLD, true));
+            addGap(content, 6);
+            TextView casual = button("CASUAL MATCH  ·  FIND OPPONENT", true);
+            casual.setOnClickListener(v -> joinArenaQueue("CASUAL"));
+            content.addView(casual, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+            if (!data.optBoolean("rankedHidden") && !data.optBoolean("rankedBanned")) {
+                TextView ranked = button("RANKED MATCH  ·  SEASON LADDER", false);
+                ranked.setOnClickListener(v -> joinArenaQueue("RANKED"));
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
+                rp.topMargin = dp(7);
+                content.addView(ranked, rp);
+            }
+            showNotice("Strike deals damage, Guard reduces incoming damage, and Focus charges your next action.");
+        }
+
+        JSONArray recent = data.optJSONArray("recent");
+        if (recent != null && recent.length() > 0) {
+            addGap(content, 8);
+            content.addView(text("RECENT MATCHES", 8, GOLD, true));
+            for (int i = 0; i < recent.length(); i++) {
+                JSONObject match = recent.optJSONObject(i);
+                if (match == null) continue;
+                boolean winner = me != null && me.optString("user_id").equals(match.optString("winner_id"));
+                String opponent = me != null && me.optString("user_id").equals(match.optString("player_one_id"))
+                        ? match.optString("player_two_name") : match.optString("player_one_name");
+                content.addView(dataRow(opponent, match.optString("mode", "CASUAL")
+                        + "  ·  " + match.optString("completed_at", ""), winner ? "VICTORY" : "COMPLETED"), rowParams());
+            }
+        }
+    }
+
     private void renderAdventure(JSONObject data) {
         JSONArray chapters = data.optJSONArray("chapters");
         if (chapters == null) { renderObjectSummary(data, "ADVENTURE PROGRESS"); return; }
@@ -992,26 +1090,94 @@ public final class MainActivity extends Activity {
     }
     private void renderGuild(JSONObject data) {
         JSONObject guild = data.optJSONObject("guild");
-        if (guild != null) {
-            content.addView(dataRow(guild.optString("name", "Your guild"), guild.optString("description", "Guild headquarters"), "LEVEL " + guild.optInt("guild_level", 1)), rowParams());
+        if (guild == null) {
+            LinearLayout create = sectionPanel();
+            create.addView(text("BUILD YOUR OWN GUILD", 9, GOLD, true));
+            create.addView(text("Create a banner and invite other collectors into your realm.", 8, MUTED, false));
+            TextView createButton = button("CREATE GUILD", true);
+            createButton.setOnClickListener(v -> showCreateGuildDialog());
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(145), dp(36));
+            cp.topMargin = dp(8);
+            create.addView(createButton, cp);
+            content.addView(create, rowParams());
         } else {
-            showNotice("You are not currently in a guild.");
-        }
-        JSONArray members = data.optJSONArray("members");
-        if (members != null) {
-            content.addView(text("GUILD MEMBERS", 8, GOLD, true));
-            for (int i = 0; i < members.length(); i++) {
-                JSONObject member = members.optJSONObject(i);
-                if (member != null) content.addView(dataRow(member.optString("display_name", "Collector"), "Contribution " + member.optLong("contribution"), member.optString("role", "MEMBER")), rowParams());
+            LinearLayout home = sectionPanel();
+            home.addView(text(guild.optString("emblem", "✦") + "  [" + guild.optString("tag", "GUILD") + "]", 8, GOLD, true));
+            home.addView(text(guild.optString("name", "Guild"), 20, TEXT, true));
+            home.addView(text(guild.optString("description", "Guild headquarters"), 9, MUTED, false));
+            home.addView(text("LEVEL " + guild.optInt("guild_level") + "  ·  "
+                    + guild.optInt("member_count") + "/" + guild.optInt("member_limit") + " MEMBERS"
+                    + "  ·  " + formatNumber(guild.optLong("bank_coins")) + " GOLD TREASURY",
+                    8, GOLD_BRIGHT, true));
+            TextView contribute = button("CONTRIBUTE GOLD", true);
+            contribute.setOnClickListener(v -> chooseGuildContribution());
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(170), dp(36));
+            cp.topMargin = dp(8);
+            home.addView(contribute, cp);
+            content.addView(home, rowParams());
+            JSONArray members = guild.optJSONArray("members");
+            if (members != null) {
+                content.addView(text("GUILD MEMBERS", 8, GOLD, true));
+                for (int i = 0; i < members.length(); i++) {
+                    JSONObject member = members.optJSONObject(i);
+                    if (member == null) continue;
+                    String sub = member.optString("role", "MEMBER") + "  ·  LEVEL " + member.optInt("collector_level")
+                            + "  ·  CONTRIBUTION " + formatNumber(member.optLong("contribution"));
+                    content.addView(dataRow(member.optString("display_name", "Collector"), sub, ""), rowParams());
+                }
+            }
+            JSONArray activity = guild.optJSONArray("activity");
+            if (activity != null && activity.length() > 0) {
+                addGap(content, 6);
+                content.addView(text("GUILD ACTIVITY", 8, GOLD, true));
+                for (int i = 0; i < activity.length(); i++) {
+                    JSONObject event = activity.optJSONObject(i);
+                    if (event != null) content.addView(dataRow(humanize(event.optString("event_type", "GUILD EVENT")),
+                            event.optString("display_name", "Guild member") + "  ·  " + event.optString("created_at", ""), ""), rowParams());
+                }
             }
         }
+        JSONArray directory = data.optJSONArray("directory");
+        if (directory != null && directory.length() > 0) {
+            addGap(content, 8);
+            content.addView(text(guild == null ? "RECRUITING GUILDS" : "OTHER RECRUITING GUILDS", 8, GOLD, true));
+            for (int i = 0; i < directory.length(); i++) {
+                JSONObject entry = directory.optJSONObject(i);
+                if (entry == null) continue;
+                LinearLayout item = dataRow("[" + entry.optString("tag", "??") + "] " + entry.optString("name", "Guild"),
+                        "LEADER " + entry.optString("leader_name", "Unknown") + "  ·  "
+                                + entry.optInt("member_count") + "/" + entry.optInt("member_limit") + " MEMBERS",
+                        "LV " + entry.optInt("guild_level"));
+                TextView join = button("JOIN", false);
+                join.setPadding(dp(12), 0, dp(12), 0);
+                join.setOnClickListener(v -> confirmAction("Join [" + entry.optString("tag") + "]?",
+                        "You can only belong to one guild at a time.", () -> joinGuild(entry.optString("tag"))));
+                LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(dp(76), dp(32));
+                jp.leftMargin = dp(7);
+                item.addView(join, jp);
+                content.addView(item, rowParams());
+            }
+        } else if (guild == null) {
+            showNotice("There are no recruiting guilds right now. You can create the first one.");
+        }
     }
-
     private void renderSettings(JSONObject data) {
         showPanelHeading("ACCOUNT & PRIVACY");
         TextView name = text(me.optString("display_name", "Collector"), 16, TEXT, true);
         content.addView(name);
         content.addView(text(me.optString("email", ""), 9, MUTED, false));
+        addGap(content, 10);
+        LinearLayout safetyTools = new LinearLayout(this);
+        safetyTools.setOrientation(LinearLayout.HORIZONTAL);
+        TextView editProfile = button("EDIT PROFILE", false);
+        editProfile.setOnClickListener(v -> showProfileEditor());
+        TextView reportPlayer = button("REPORT PLAYER", false);
+        reportPlayer.setOnClickListener(v -> showReportPlayerDialog());
+        safetyTools.addView(editProfile, new LinearLayout.LayoutParams(0, dp(36), 1f));
+        LinearLayout.LayoutParams reportParams = new LinearLayout.LayoutParams(0, dp(36), 1f);
+        reportParams.leftMargin = dp(7);
+        safetyTools.addView(reportPlayer, reportParams);
+        content.addView(safetyTools);
         addGap(content, 12);
         TextView supportTitle = text("OFFICIAL SUPPORT", 8, GOLD, true);
         content.addView(supportTitle);
@@ -1252,6 +1418,213 @@ public final class MainActivity extends Activity {
             }
             renderTab("inbox");
         }));
+    }
+
+    private void joinArenaQueue(String mode) {
+        confirmAction("Find a " + mode + " match?", "CardUniverse will search for an opponent within the current matchmaking rules.", () -> {
+            JSONObject payload = new JSONObject();
+            try { payload.put("mode", mode); } catch (Exception ignored) {}
+            api.post("/api/arena/queue", payload, result -> ui.post(() -> {
+                if (!result.ok()) {
+                    showResultDialog("Matchmaking unavailable", result.error);
+                    return;
+                }
+                JSONObject active = result.data.optJSONObject("activeMatch");
+                showResultDialog(active != null ? "⚔ MATCH FOUND" : "MATCHMAKING",
+                        active != null ? "Opponent found: " + active.optString("opponentName", "Collector")
+                                : "You have joined the " + mode + " queue.");
+                renderTab("arena");
+            }));
+        });
+    }
+
+    private void cancelArenaQueue() {
+        api.post("/api/arena/queue/cancel", new JSONObject(), result -> ui.post(() -> {
+            if (!result.ok()) showResultDialog("Unable to cancel queue", result.error);
+            else renderTab("arena");
+        }));
+    }
+
+    private void submitArenaMove(String matchId, String move) {
+        if (matchId == null || matchId.isEmpty()) return;
+        JSONObject payload = new JSONObject();
+        try { payload.put("move", move); payload.put("requestId", newActionId()); } catch (Exception ignored) {}
+        api.post("/api/arena/matches/" + matchId + "/move", payload, result -> ui.post(() -> {
+            if (!result.ok()) {
+                showResultDialog("Move not accepted", result.error);
+                renderTab("arena");
+                return;
+            }
+            showResultDialog("ARENA MOVE", result.data.optString("message",
+                    result.data.optBoolean("waiting") ? "Move locked. Waiting for your opponent." : "Match updated."));
+            renderTab("arena");
+        }));
+    }
+
+    private void joinGuild(String tag) {
+        if (tag == null || tag.isEmpty()) return;
+        api.post("/api/guilds/" + tag.toUpperCase(java.util.Locale.US) + "/join", new JSONObject(), result -> ui.post(() -> {
+            if (!result.ok()) { showResultDialog("Unable to join guild", result.error); return; }
+            showResultDialog("WELCOME TO THE GUILD", "You joined [" + tag.toUpperCase(java.util.Locale.US) + "].");
+            refreshAccount(() -> renderTab("guild"));
+        }));
+    }
+
+    private void showCreateGuildDialog() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(8), dp(8), dp(8), 0);
+        EditText name = editField("Guild name (3–28 characters)", false);
+        EditText tag = editField("Guild tag (2–5 letters/numbers)", false);
+        EditText description = editField("Guild description (optional)", false);
+        description.setSingleLine(false);
+        description.setMinLines(2);
+        form.addView(name, fieldParams());
+        form.addView(tag, fieldParams());
+        form.addView(description, fieldParams());
+        new AlertDialog.Builder(this).setTitle("Found a guild")
+                .setMessage("Guild names and tags must be unique.")
+                .setView(form)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("CREATE", (dialog, which) -> {
+                    JSONObject payload = new JSONObject();
+                    try {
+                        payload.put("name", name.getText().toString().trim());
+                        payload.put("tag", tag.getText().toString().trim().toUpperCase(java.util.Locale.US));
+                        payload.put("description", description.getText().toString().trim());
+                        payload.put("emblem", "✦");
+                    } catch (Exception ignored) {}
+                    api.post("/api/guilds", payload, result -> ui.post(() -> {
+                        if (!result.ok()) { showResultDialog("Guild creation failed", result.error); return; }
+                        showResultDialog("✦ GUILD FOUNDED", "Your guild has been created.");
+                        refreshAccount(() -> renderTab("guild"));
+                    }));
+                }).show();
+    }
+
+    private void chooseGuildContribution() {
+        String[] labels = {"50 Gold", "100 Gold", "250 Gold", "500 Gold", "1,000 Gold"};
+        int[] amounts = {50, 100, 250, 500, 1000};
+        new AlertDialog.Builder(this).setTitle("Contribute to treasury")
+                .setItems(labels, (dialog, which) -> confirmAction("Contribute " + labels[which] + "?",
+                        "Gold moves from your wallet into the guild treasury.", () -> {
+                    JSONObject payload = new JSONObject();
+                    try { payload.put("amount", amounts[which]); payload.put("requestId", newActionId()); }
+                    catch (Exception ignored) {}
+                    api.post("/api/guilds/contribute", payload, result -> ui.post(() -> {
+                        if (!result.ok()) { showResultDialog("Contribution failed", result.error); return; }
+                        showResultDialog("GUILD TREASURY UPDATED", result.data.optString("message", "Contribution recorded."));
+                        refreshAccount(() -> renderTab("guild"));
+                    }));
+                })).show();
+    }
+
+    private void showProfileEditor() {
+        api.get("/api/profile", result -> ui.post(() -> {
+            if (!result.ok()) { showResultDialog("Profile unavailable", result.error); return; }
+            JSONObject profileData = result.data.optJSONObject("profile");
+            if (profileData == null) profileData = new JSONObject();
+            EditText name = editField("Display name", false);
+            name.setText(me == null ? "" : me.optString("display_name", ""));
+            EditText bio = editField("Short bio (max 180 characters)", false);
+            bio.setSingleLine(false);
+            bio.setMinLines(3);
+            bio.setText(profileData.optString("bio", ""));
+            LinearLayout form = new LinearLayout(this);
+            form.setOrientation(LinearLayout.VERTICAL);
+            form.setPadding(dp(8), dp(8), dp(8), 0);
+            form.addView(name, fieldParams());
+            form.addView(bio, fieldParams());
+            String activeTitle = profileData.optString("activeTitleId", "");
+            new AlertDialog.Builder(this).setTitle("Collector profile").setView(form)
+                    .setNegativeButton("CANCEL", null)
+                    .setPositiveButton("SAVE", (dialog, which) -> {
+                        JSONObject payload = new JSONObject();
+                        try {
+                            payload.put("displayName", name.getText().toString().trim());
+                            payload.put("bio", bio.getText().toString().trim());
+                            payload.put("activeTitleId", activeTitle);
+                        } catch (Exception ignored) {}
+                        api.patch("/api/profile", payload, saved -> ui.post(() -> {
+                            if (!saved.ok()) { showResultDialog("Profile not saved", saved.error); return; }
+                            showResultDialog("PROFILE UPDATED", "Your collector profile has been saved.");
+                            refreshAccount(() -> renderTab("settings"));
+                        }));
+                    }).show();
+        }));
+    }
+
+    private void showReportPlayerDialog() {
+        EditText query = editField("Player display name (2+ characters)", false);
+        new AlertDialog.Builder(this).setTitle("Find a collector")
+                .setMessage("Search by exact or partial display name.")
+                .setView(query)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("SEARCH", (dialog, which) -> {
+                    String value = query.getText().toString().trim();
+                    if (value.length() < 2) { showResultDialog("Search needs more detail", "Enter at least two characters."); return; }
+                    api.get("/api/players/search?q=" + Uri.encode(value), result -> ui.post(() -> {
+                        if (!result.ok()) { showResultDialog("Player search failed", result.error); return; }
+                        JSONArray players = result.data.optJSONArray("players");
+                        if (players == null || players.length() == 0) { showResultDialog("No collectors found", "Try another display name."); return; }
+                        String[] labels = new String[players.length()];
+                        for (int i = 0; i < players.length(); i++) {
+                            JSONObject player = players.optJSONObject(i);
+                            labels[i] = player == null ? "Collector" :
+                                    player.optString("display_name", "Collector") + "  ·  LEVEL " + player.optInt("collector_level");
+                        }
+                        new AlertDialog.Builder(this).setTitle("Select player")
+                                .setItems(labels, (selection, index) -> showReportComposeDialog(players.optJSONObject(index)))
+                                .setNegativeButton("CANCEL", null).show();
+                    }));
+                }).show();
+    }
+
+    private void showReportComposeDialog(JSONObject player) {
+        if (player == null) return;
+        String[] values = {"HARASSMENT", "SPAM", "SCAM", "CHEATING", "EXPLOIT", "IMPERSONATION", "OTHER"};
+        String[] labels = {"Harassment", "Spam", "Scam or suspicious trade", "Cheating", "Exploit abuse", "Impersonation", "Other"};
+        Spinner category = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        category.setAdapter(adapter);
+        EditText description = new EditText(this);
+        description.setTextColor(TEXT);
+        description.setHintTextColor(MUTED);
+        description.setHint("Describe what happened (12–1500 characters)");
+        description.setSingleLine(false);
+        description.setMinLines(4);
+        description.setGravity(Gravity.TOP);
+        description.setPadding(dp(10), dp(10), dp(10), dp(10));
+        description.setBackground(gradient(Color.rgb(9, 18, 15), Color.rgb(9, 18, 15), Color.rgb(70, 83, 67), dp(9)));
+        EditText evidence = editField("Evidence URL (optional)", false);
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(8), dp(8), dp(8), 0);
+        form.addView(text("REPORTING " + player.optString("display_name", "COLLECTOR"), 9, GOLD, true));
+        form.addView(category, fieldParams());
+        form.addView(description, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(104)));
+        form.addView(evidence, fieldParams());
+        new AlertDialog.Builder(this).setTitle("Submit private report").setView(form)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("SUBMIT", (dialog, which) -> {
+                    String details = description.getText().toString().trim();
+                    if (details.length() < 12 || details.length() > 1500) {
+                        showResultDialog("Report details required", "Please enter between 12 and 1,500 characters.");
+                        return;
+                    }
+                    JSONObject payload = new JSONObject();
+                    try {
+                        payload.put("target_user_id", player.optString("user_id"));
+                        payload.put("category", values[category.getSelectedItemPosition()]);
+                        payload.put("description", details);
+                        payload.put("evidence_url", evidence.getText().toString().trim());
+                    } catch (Exception ignored) {}
+                    api.post("/api/reports", payload, result -> ui.post(() -> {
+                        if (!result.ok()) { showResultDialog("Report not submitted", result.error); return; }
+                        showResultDialog("REPORT SUBMITTED", "Your private report has been sent to moderation.");
+                    }));
+                }).show();
     }
 
     private String endpointFor(String tab) {
