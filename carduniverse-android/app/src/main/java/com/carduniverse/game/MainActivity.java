@@ -1,527 +1,1023 @@
 package com.carduniverse.game;
 
-import android.Manifest;
 import android.app.Activity;
-import android.app.DownloadManager;
-import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
-import android.webkit.CookieManager;
-import android.webkit.PermissionRequest;
-import android.webkit.SslErrorHandler;
-import android.webkit.URLUtil;
-import android.webkit.ValueCallback;
-import android.webkit.WebChromeClient;
-import android.webkit.WebResourceError;
-import android.webkit.WebResourceRequest;
-import android.webkit.WebSettings;
-import android.webkit.WebView;
-import android.webkit.WebViewClient;
+import android.view.WindowManager;
+import android.view.inputmethod.InputMethodManager;
+import android.content.Context;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import android.net.http.SslError;
-import java.util.ArrayList;
-import java.util.List;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 public final class MainActivity extends Activity {
-    private static final String GAME_URL = "https://carduniverse.pages.dev/";
-    private static final int FILE_CHOOSER_REQUEST = 4101;
-    private static final int WEB_PERMISSION_REQUEST = 4102;
+    private static final int BG = Color.rgb(7, 13, 14);
+    private static final int PANEL = Color.rgb(17, 29, 27);
+    private static final int PANEL_LIGHT = Color.rgb(24, 39, 35);
+    private static final int GOLD = Color.rgb(216, 184, 119);
+    private static final int GOLD_BRIGHT = Color.rgb(244, 218, 164);
+    private static final int TEXT = Color.rgb(240, 237, 224);
+    private static final int MUTED = Color.rgb(157, 169, 158);
+    private static final int GREEN = Color.rgb(115, 184, 139);
+    private static final int RED = Color.rgb(224, 126, 111);
 
-    private FrameLayout root;
-    private WebView webView;
-    private ProgressBar progressBar;
-    private View offlinePanel;
-    private ValueCallback<Uri[]> fileChooserCallback;
-
-    private static final String ANDROID_APP_CSS = """
-            
-            /* CardUniverse Android — landscape-first app presentation */
-            html,body{min-height:100%;background:#0b1212!important;overscroll-behavior:none}
-            body{ -webkit-text-size-adjust:100%; }
-            *{-webkit-tap-highlight-color:transparent}
-            button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}
-            .wrap{width:100%!important;max-width:none!important;padding-left:max(12px,env(safe-area-inset-left))!important;padding-right:max(12px,env(safe-area-inset-right))!important}
-            .modal,#cu-report-overlay,#cu-support-layer,#cu-appeal-overlay,#cu-blocks-layer{padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
-            button{touch-action:manipulation}
-            .game-section-title h2,.phase2-heading h2{line-height:1.15}
-            #content .panel,#content .game-card,#content .mission-card,#content .stage-card{min-width:0}
-            #content input,#content select,#content textarea{font-size:16px!important}
-            .cu-settings-page{padding-bottom:22px}
-            @media (orientation:landscape) and (max-height:700px) and (min-width:700px){
-             .wrap{padding:8px 12px 14px!important}
-             .game-masthead{height:42px!important;margin-bottom:7px!important;padding:0 3px 6px!important}
-             .masthead-brand{gap:8px}.brand-crest{width:29px;height:29px}
-             .masthead-wordmark strong{font-size:11px!important;letter-spacing:1.5px!important}
-             .masthead-wordmark small{font-size:6px!important;margin-top:3px!important}
-             .masthead-season{font-size:7px!important;letter-spacing:1px!important}
-             #landing .landing-world-panel{min-height:0!important;padding:22px 26px 16px!important}
-             #landing .landing-world-panel h1{font-size:clamp(32px,4vw,52px)!important;margin:12px 0 7px!important}
-             #landing .landing-world-panel .auth-lede{font-size:10px!important;line-height:1.5!important;max-width:580px}
-             #landing .landing-world-panel .auth-landscape{height:clamp(115px,24vh,175px)!important;margin:0 -10px!important}
-             #landing .landing-world-panel .auth-card-stack{transform:scale(.65)!important;right:2%!important;bottom:7px!important;transform-origin:bottom right!important}
-             #landing .landing-actions{margin-top:10px!important;padding:13px 17px!important;gap:12px!important}
-             #landing .landing-actions-copy h2{font-size:20px!important}
-             #landing .landing-actions-copy p{font-size:9px!important}
-             #landing .landing-primary{min-width:145px!important;padding:10px 14px!important}
-             #landing .landing-secondary{padding:10px 12px!important}
-             #landing .landing-feature-section{margin:20px 0 12px!important}
-             #landing .landing-feature-grid{gap:9px!important}
-             #landing .landing-feature-card{min-height:130px!important;padding:13px!important}
-             #auth{padding:0!important}
-             .auth-layout{display:grid!important;grid-template-columns:minmax(0,1.18fr) minmax(290px,.82fr)!important;gap:12px!important;min-height:0!important;max-width:none!important;margin:0!important;align-items:stretch!important}
-             .auth-world-panel{height:calc(100vh - 62px)!important;min-height:0!important;padding:18px 20px 12px!important}
-             .auth-world-panel h1{font-size:clamp(27px,3.3vw,42px)!important;line-height:1.02!important;margin:11px 0 7px!important}
-             .auth-lede{font-size:10px!important;line-height:1.45!important;max-width:440px!important}
-             .auth-landscape{height:clamp(90px,20vh,140px)!important;margin:1px -9px 0!important}
-             .auth-card-stack{transform:scale(.55)!important;right:0!important;bottom:3px!important;transform-origin:bottom right!important}
-             .auth-world-facts{font-size:6px!important}
-             .auth-form-panel{width:auto!important;max-width:none!important;height:calc(100vh - 62px)!important;min-height:0!important;padding:17px clamp(17px,2.1vw,28px)!important;display:flex!important;flex-direction:column!important;justify-content:center!important}
-             .auth-panel-emblem{width:35px!important;height:35px!important;font-size:16px!important;margin-bottom:8px!important}
-             .auth-panel-kicker{font-size:7px!important}
-             .auth-form-panel h2{font-size:clamp(22px,2.4vw,28px)!important;margin:5px 0!important}
-             .auth-panel-copy{font-size:9px!important;line-height:1.45!important;margin:0 0 9px!important}
-             .auth-form-panel .field{margin:8px 0!important}
-             .auth-form-panel .field label{font-size:7px!important;margin-bottom:4px!important}
-             .auth-form-panel .field input{padding:9px 11px!important;font-size:13px!important}
-             .auth-submit{padding:10px 13px!important;font-size:10px!important}
-             .auth-switch{margin-top:9px!important;font-size:9px!important}
-             .auth-switch .secondary{padding:6px 9px!important;font-size:9px!important}
-             .auth-security{margin-top:10px!important;font-size:6px!important}
-             .game-topbar{grid-template-columns:auto minmax(0,1fr) auto!important;gap:9px!important;padding:5px 0 8px!important}
-             .topbar-crest{width:29px!important;height:29px!important;font-size:14px!important}
-             .game-topbar-brand{gap:7px!important}
-             .game-topbar-brand b{font-size:8px!important;letter-spacing:1.1px!important}
-             .game-topbar-brand small{font-size:6px!important;letter-spacing:1px!important}
-             .game-player-identity h1{font-size:15px!important}
-             .game-player-identity small{font-size:6px!important}
-             .game-topbar-actions{gap:6px!important}
-             .season-chip{display:none!important}
-             .logout-btn{padding:6px 9px!important;font-size:8px!important}
-             #app.game-app{max-width:none!important;width:100%!important;padding:0 10px 10px!important}
-             .game-layout{grid-template-columns:minmax(0,1fr)!important;gap:7px!important;margin-top:7px!important;min-height:0!important}
-             .game-rail{position:sticky!important;top:0!important;z-index:55!important;display:block!important;height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important;padding:5px!important;border-radius:9px!important}
-             .game-rail-head,.game-rail-footer{display:none!important}
-             #app .nav.game-nav,.game-rail .game-nav{position:relative!important;top:auto!important;display:flex!important;flex-direction:row!important;align-items:center!important;gap:4px!important;overflow-x:auto!important;overflow-y:hidden!important;flex-wrap:nowrap!important;white-space:nowrap!important;margin:0!important;padding:3px!important;border-radius:7px!important;scrollbar-width:none!important}
-             .game-nav::-webkit-scrollbar{display:none!important}
-             .game-nav .nav-cluster{display:contents!important;flex:0 0 auto!important;margin:0!important;padding:0!important}
-             .game-nav .nav-cluster-label{display:none!important}
-             .game-nav button,#app .nav.game-nav button{display:inline-flex!important;flex:0 0 auto!important;width:auto!important;min-width:max-content!important;min-height:32px!important;padding:6px 9px!important;gap:6px!important;font-size:8px!important;border-radius:6px!important}
-             .game-nav button i,#app .nav.game-nav button i{font-size:12px!important}
-             .game-stage{min-width:0!important;padding:0 0 12px!important}
-             .game-stage-toolbar{min-height:21px!important;font-size:6px!important;margin:0 2px 4px!important}
-             .game-content{min-height:0!important;padding-bottom:16px!important}
-             .world-banner{min-height:clamp(220px,44vh,315px)!important}
-             .world-banner-copy{padding:20px 20px 65px!important;width:68%!important}
-             .world-banner-copy h2{font-size:clamp(30px,4vw,48px)!important}
-             .world-banner-copy p{font-size:10px!important;line-height:1.5!important}
-             .world-banner-emblem{transform:scale(.72)!important;transform-origin:bottom right!important;right:8px!important}
-             .home-hud{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important;gap:9px!important}
-             .economy-console{grid-template-columns:repeat(3,minmax(0,1fr))!important}
-             .economy-item{padding:7px 9px!important}
-             .phase2-page{padding:0 0 15px!important}
-             .phase2-heading{margin:4px 0 12px!important}
-             .phase2-heading h2{font-size:26px!important}
-             #content .game-section-title{margin:14px 0 8px!important}
-             #content .game-section-title h2{font-size:19px!important}
-             #content .panel,#content .game-card{padding:13px!important}
-             #content .grid{gap:9px!important}
-             #content .btn{min-height:34px!important;padding:8px 11px!important}
-             .modal{padding:8px!important}
-             .modal>.panel{max-height:88vh!important;overflow:auto!important;padding:14px!important}
-             #cu-report-dialog,#cu-support-dialog,#cu-appeal-dialog,#cu-blocks-dialog{max-height:88vh!important;overflow:auto!important}
-             .cu-settings-page{gap:10px!important;padding:0 0 14px!important}
-             .cu-settings-hero{padding:14px 17px!important}
-             .cu-settings-hero h2{font-size:23px!important;margin:5px 0!important}
-             .cu-settings-hero p{font-size:9px!important}
-             .cu-settings-section{padding:12px!important}
-             .cu-settings-section-head h3{font-size:16px!important}
-            }
-            @media (orientation:landscape) and (max-height:700px) and (max-width:699px){
-             #auth{padding:0!important}
-             .auth-layout{display:grid!important;grid-template-columns:1fr!important;max-width:540px!important;min-height:0!important}
-             .auth-world-panel{display:none!important}
-             .auth-form-panel{height:auto!important;min-height:calc(100vh - 72px)!important;max-width:none!important;padding:24px!important;justify-content:center!important}
-             .auth-panel-emblem{margin-bottom:10px!important}
-             .auth-form-panel h2{font-size:26px!important}
-             .auth-form-panel .field{margin:10px 0!important}
-            }
-            
-            """;
-
-
-    private PermissionRequest pendingWebPermission;
-    private String[] pendingWebResources = new String[0];
+    private final Handler ui = new Handler(Looper.getMainLooper());
+    private ApiClient api;
+    private FrameLayout frame;
+    private LinearLayout appRoot;
+    private LinearLayout mainColumn;
+    private LinearLayout content;
+    private LinearLayout rail;
+    private TextView pageTitle;
+    private TextView accountLabel;
+    private TextView currencyLabel;
+    private final Map<String, TextView> navLabels = new LinkedHashMap<>();
+    private JSONObject me;
+    private JSONObject progression;
+    private String activeTab = "home";
+    private boolean registering = false;
+    private boolean requestBusy = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        configureSystemBars();
-        buildLayout();
-        configureWebView();
+        api = new ApiClient(this);
+        configureWindow();
+        showSplash();
+        api.get("/api/me", result -> ui.post(() -> {
+            if (result.ok()) {
+                me = result.data.optJSONObject("user");
+                loadProgressionAndShow();
+            } else {
+                if (result.status == 0) showConnectionError(result.error);
+                else showAuth(false, "");
+            }
+        }));
+    }
 
-        if (savedInstanceState != null && webView.restoreState(savedInstanceState) != null) {
+    private void configureWindow() {
+        Window window = getWindow();
+        window.setStatusBarColor(BG);
+        window.setNavigationBarColor(BG);
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
+        window.getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY |
+                View.SYSTEM_UI_FLAG_LAYOUT_STABLE |
+                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+    }
+
+    private void showSplash() {
+        FrameLayout splash = new FrameLayout(this);
+        splash.setBackground(gradient(BG, Color.rgb(17, 39, 31), GOLD, 0));
+        LinearLayout center = new LinearLayout(this);
+        center.setGravity(Gravity.CENTER);
+        center.setOrientation(LinearLayout.VERTICAL);
+        TextView sigil = text("✦", 42, GOLD_BRIGHT, true);
+        sigil.setGravity(Gravity.CENTER);
+        TextView brand = text("CARDUNIVERSE", 23, TEXT, true);
+        brand.setLetterSpacing(0.22f);
+        brand.setGravity(Gravity.CENTER);
+        TextView subtitle = text("FIRSTLIGHT REALM  ·  ANDROID", 9, GOLD, true);
+        subtitle.setLetterSpacing(0.2f);
+        subtitle.setGravity(Gravity.CENTER);
+        ProgressBar spinner = new ProgressBar(this);
+        spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(GOLD));
+        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(30), dp(30));
+        sp.topMargin = dp(24);
+        center.addView(sigil);
+        center.addView(brand);
+        center.addView(subtitle);
+        center.addView(spinner, sp);
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER);
+        splash.addView(center, cp);
+        setContentView(splash);
+    }
+
+    private void loadProgressionAndShow() {
+        if (me == null) {
+            showAuth(false, "");
             return;
         }
-        webView.loadUrl(GAME_URL);
+        api.get("/api/progression", result -> ui.post(() -> {
+            progression = result.ok() ? result.data : new JSONObject();
+            showApp();
+        }));
     }
 
-    private void configureSystemBars() {
-        Window window = getWindow();
-        window.setStatusBarColor(Color.rgb(11, 18, 18));
-        window.setNavigationBarColor(Color.rgb(7, 13, 12));
-        window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            try {
-                window.getAttributes().layoutInDisplayCutoutMode =
-                        android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-            } catch (RuntimeException ignored) {
-                // Keep the standard safe window layout on devices that do not support cutout configuration.
-            }
-        }
-    }
-
-    private void buildLayout() {
-        root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(11, 16, 35));
-
-        webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(8, 15, 14));
-        root.addView(webView, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        progressBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progressBar.setMax(100);
-        progressBar.setProgressTintList(android.content.res.ColorStateList.valueOf(Color.rgb(211, 183, 121)));
-        progressBar.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.TRANSPARENT));
-        root.addView(progressBar, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(3), Gravity.TOP));
-
-        offlinePanel = makeOfflinePanel();
-        offlinePanel.setVisibility(View.GONE);
-        root.addView(offlinePanel, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        setContentView(root);
-    }
-
-    private View makeOfflinePanel() {
+    private void showConnectionError(String message) {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
-        panel.setPadding(dp(28), dp(24), dp(28), dp(24));
-        panel.setBackgroundColor(Color.rgb(8, 15, 14));
-
-        TextView title = new TextView(this);
-        title.setText("Connection interrupted");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(22);
+        panel.setPadding(dp(28), dp(22), dp(28), dp(22));
+        panel.setBackgroundColor(BG);
+        TextView icon = text("◌", 40, GOLD, true);
+        icon.setGravity(Gravity.CENTER);
+        TextView title = text("THE REALM IS UNREACHABLE", 17, TEXT, true);
         title.setGravity(Gravity.CENTER);
-        title.setTypeface(null, android.graphics.Typeface.BOLD);
-
-        TextView detail = new TextView(this);
-        detail.setText("CardUniverse needs an internet connection. Check your connection and try again.");
-        detail.setTextColor(Color.rgb(167, 176, 202));
-        detail.setTextSize(14);
+        TextView detail = text(message == null ? "Check your internet connection and reconnect." : message, 11, MUTED, false);
         detail.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        detailParams.topMargin = dp(12);
-
-        Button retry = new Button(this);
-        retry.setText("Reconnect");
+        detail.setPadding(dp(10), dp(10), dp(10), dp(12));
+        TextView retry = button("RECONNECT", true);
         retry.setOnClickListener(v -> {
-            offlinePanel.setVisibility(View.GONE);
-            webView.setVisibility(View.VISIBLE);
-            webView.reload();
+            showSplash();
+            api.get("/api/me", result -> ui.post(() -> {
+                if (result.ok()) {
+                    me = result.data.optJSONObject("user");
+                    loadProgressionAndShow();
+                } else if (result.status == 0) showConnectionError(result.error);
+                else showAuth(false, "");
+            }));
         });
-        LinearLayout.LayoutParams buttonParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        buttonParams.topMargin = dp(22);
-
+        panel.addView(icon);
         panel.addView(title);
-        panel.addView(detail, detailParams);
-        panel.addView(retry, buttonParams);
+        panel.addView(detail);
+        panel.addView(retry, new LinearLayout.LayoutParams(dp(180), dp(42)));
+        setContentView(panel);
+    }
+
+    // Native account entry — no website landing page or embedded browser.
+    private void showAuth(boolean register, String error) {
+        registering = register;
+        requestBusy = false;
+        FrameLayout root = new FrameLayout(this);
+        root.setBackground(gradient(BG, Color.rgb(16, 34, 28), Color.rgb(75, 93, 68), 0));
+
+        LinearLayout split = new LinearLayout(this);
+        split.setOrientation(LinearLayout.HORIZONTAL);
+        split.setPadding(dp(18), dp(14), dp(18), dp(14));
+
+        LinearLayout world = new LinearLayout(this);
+        world.setOrientation(LinearLayout.VERTICAL);
+        world.setGravity(Gravity.CENTER_VERTICAL);
+        world.setPadding(dp(20), dp(14), dp(18), dp(14));
+        TextView eyebrow = text("A NEW CHAPTER BEGINS", 9, GOLD, true);
+        eyebrow.setLetterSpacing(0.24f);
+        TextView title = text("ENTER THE\nFIRSTLIGHT REALM", 29, TEXT, true);
+        title.setLineSpacing(0, 0.94f);
+        TextView copy = text("Collect rare cards. Build your formation.\nExplore a living universe made for collectors.", 11, MUTED, false);
+        copy.setLineSpacing(dp(4), 1f);
+
+        FrameLayout artwork = new FrameLayout(this);
+        artwork.setBackground(gradient(Color.rgb(35, 65, 49), Color.rgb(13, 25, 22), Color.rgb(120, 105, 71), dp(18)));
+        TextView moon = text("◉", 68, GOLD_BRIGHT, true);
+        moon.setAlpha(0.8f);
+        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(dp(100), dp(100), Gravity.TOP | Gravity.END);
+        mp.setMargins(0, dp(4), dp(24), 0);
+        artwork.addView(moon, mp);
+        TextView crest = text("✦", 62, GOLD_BRIGHT, true);
+        FrameLayout.LayoutParams crestP = new FrameLayout.LayoutParams(dp(100), dp(100), Gravity.CENTER);
+        artwork.addView(crest, crestP);
+        LinearLayout artCaption = new LinearLayout(this);
+        artCaption.setOrientation(LinearLayout.VERTICAL);
+        artCaption.setPadding(dp(15), 0, 0, dp(13));
+        TextView c1 = text("THE ARCHIVE IS OPEN", 8, GOLD, true);
+        TextView c2 = text("Your collection awaits.", 12, TEXT, true);
+        artCaption.addView(c1);
+        artCaption.addView(c2);
+        FrameLayout.LayoutParams cap = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
+        artwork.addView(artCaption, cap);
+
+        LinearLayout facts = new LinearLayout(this);
+        facts.setOrientation(LinearLayout.HORIZONTAL);
+        facts.setGravity(Gravity.CENTER_VERTICAL);
+        TextView f1 = text("✧  COLLECT", 8, GOLD_BRIGHT, true);
+        TextView f2 = text("⚔  BATTLE", 8, GOLD_BRIGHT, true);
+        TextView f3 = text("◈  DISCOVER", 8, GOLD_BRIGHT, true);
+        facts.addView(f1, weightParams(1));
+        facts.addView(f2, weightParams(1));
+        facts.addView(f3, weightParams(1));
+
+        world.addView(eyebrow);
+        addGap(world, 9);
+        world.addView(title);
+        addGap(world, 10);
+        world.addView(copy);
+        addGap(world, 14);
+        world.addView(artwork, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        addGap(world, 12);
+        world.addView(facts);
+
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setGravity(Gravity.CENTER_VERTICAL);
+        form.setPadding(dp(22), dp(18), dp(22), dp(18));
+        form.setBackground(gradient(Color.rgb(24, 35, 30), Color.rgb(13, 22, 19), Color.rgb(119, 102, 67), dp(18)));
+
+        TextView mini = text("✦  CARDUNIVERSE", 9, GOLD, true);
+        mini.setLetterSpacing(0.14f);
+        TextView heading = text(register ? "Create your account" : "Welcome back", 22, TEXT, true);
+        TextView hint = text(register ? "Begin your collection in the Firstlight Realm." : "Sign in to return to your collection.", 10, MUTED, false);
+        EditText nameField = editField("Display name", false);
+        EditText emailField = editField("Email address", false);
+        emailField.setInputType( android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        EditText passwordField = editField("Password", true);
+        passwordField.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        if (!register) nameField.setVisibility(View.GONE);
+
+        TextView errorText = text(error == null ? "" : error, 9, RED, false);
+        errorText.setMaxLines(3);
+        TextView submit = button(register ? "CREATE ACCOUNT" : "SIGN IN", true);
+        TextView switchMode = text(register ? "Already have an account?  SIGN IN" : "New to the realm?  CREATE ACCOUNT", 9, GOLD_BRIGHT, true);
+        switchMode.setGravity(Gravity.CENTER);
+        switchMode.setPadding(0, dp(11), 0, dp(5));
+        switchMode.setOnClickListener(v -> showAuth(!register, ""));
+
+        TextView security = text("SECURE SIGN-IN  ·  YOUR GAME DATA STAYS SAVED", 7, MUTED, true);
+        security.setGravity(Gravity.CENTER);
+        security.setLetterSpacing(0.05f);
+
+        form.addView(mini);
+        addGap(form, 13);
+        form.addView(heading);
+        addGap(form, 4);
+        form.addView(hint);
+        addGap(form, 13);
+        form.addView(nameField, fieldParams());
+        form.addView(emailField, fieldParams());
+        form.addView(passwordField, fieldParams());
+        if (!register) addGap(form, 2);
+        form.addView(errorText);
+        addGap(form, 7);
+        form.addView(submit, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
+        form.addView(switchMode);
+        addGap(form, 5);
+        form.addView(security);
+
+        submit.setOnClickListener(v -> {
+            if (requestBusy) return;
+            String email = emailField.getText().toString().trim();
+            String password = passwordField.getText().toString();
+            String displayName = nameField.getText().toString().trim();
+            if (email.isEmpty() || password.isEmpty() || (register && displayName.length() < 2)) {
+                errorText.setText(register ? "Enter your display name, email and password." : "Enter your email and password.");
+                return;
+            }
+            if (register && password.length() < 10) {
+                errorText.setText("Password must contain at least 10 characters.");
+                return;
+            }
+            requestBusy = true;
+            submit.setText("CONNECTING...");
+            JSONObject payload = new JSONObject();
+            try {
+                payload.put("email", email);
+                payload.put("password", password);
+                if (register) payload.put("displayName", displayName);
+            } catch (Exception ignored) {}
+            api.post(register ? "/api/auth/register" : "/api/auth/login", payload, result -> ui.post(() -> {
+                requestBusy = false;
+                if (result.ok() && api.hasSession()) {
+                    hideKeyboard();
+                    showSplash();
+                    api.get("/api/me", meResult -> ui.post(() -> {
+                        if (meResult.ok()) {
+                            me = meResult.data.optJSONObject("user");
+                            loadProgressionAndShow();
+                        } else {
+                            showAuth(false, meResult.error);
+                        }
+                    }));
+                } else {
+                    submit.setText(register ? "CREATE ACCOUNT" : "SIGN IN");
+                    errorText.setText(result.error == null || result.error.isEmpty() ? "Unable to sign in. Please try again." : result.error);
+                }
+            }));
+        });
+
+        split.addView(world, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        LinearLayout.LayoutParams formParams = new LinearLayout.LayoutParams(dp(330), ViewGroup.LayoutParams.MATCH_PARENT);
+        formParams.leftMargin = dp(12);
+        split.addView(form, formParams);
+        root.addView(split, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+    }
+
+    private void hideKeyboard() {
+        try {
+            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
+            if (imm != null && getCurrentFocus() != null) imm.hideSoftInputFromWindow(getCurrentFocus().getWindowToken(), 0);
+        } catch (Exception ignored) {}
+    }
+
+    private void showApp() {
+        appRoot = new LinearLayout(this);
+        appRoot.setOrientation(LinearLayout.HORIZONTAL);
+        appRoot.setBackgroundColor(BG);
+
+        rail = new LinearLayout(this);
+        rail.setOrientation(LinearLayout.VERTICAL);
+        rail.setPadding(dp(7), dp(9), dp(7), dp(8));
+        rail.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        rail.setBackground(gradient(Color.rgb(17, 29, 25), Color.rgb(9, 17, 15), Color.rgb(49, 65, 51), 0));
+        appRoot.addView(rail, new LinearLayout.LayoutParams(dp(82), ViewGroup.LayoutParams.MATCH_PARENT));
+
+        TextView emblem = text("✦", 25, GOLD_BRIGHT, true);
+        emblem.setGravity(Gravity.CENTER);
+        rail.addView(emblem, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+        TextView brand = text("CU", 8, GOLD, true);
+        brand.setGravity(Gravity.CENTER);
+        brand.setLetterSpacing(0.18f);
+        rail.addView(brand, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
+        addDivider(rail, true);
+
+        ScrollView navScroll = new ScrollView(this);
+        navScroll.setFillViewport(false);
+        LinearLayout navStack = new LinearLayout(this);
+        navStack.setOrientation(LinearLayout.VERTICAL);
+        String[][] items = {
+                {"home", "⌂", "HOME"},
+                {"collection", "▧", "CARDS"},
+                {"summon", "✧", "SUMMON"},
+                {"adventure", "⚔", "ADVENTURE"},
+                {"arena", "◈", "ARENA"},
+                {"missions", "☷", "MISSIONS"},
+                {"shop", "♢", "SHOP"},
+                {"inbox", "✉", "INBOX"},
+                {"guild", "♜", "GUILD"},
+                {"settings", "⚙", "SETTINGS"}
+        };
+        for (String[] item : items) addNavItem(navStack, item[0], item[1], item[2]);
+        if ("admin".equalsIgnoreCase(me.optString("role"))) {
+            addDivider(navStack, true);
+            addNavItem(navStack, "admin", "♛", "ADMIN");
+        }
+        navScroll.addView(navStack);
+        rail.addView(navScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        mainColumn = new LinearLayout(this);
+        mainColumn.setOrientation(LinearLayout.VERTICAL);
+        mainColumn.setPadding(dp(12), dp(9), dp(14), dp(8));
+        appRoot.addView(mainColumn, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.setPadding(dp(4), 0, dp(4), dp(6));
+        pageTitle = text("REALM OVERVIEW", 13, TEXT, true);
+        pageTitle.setLetterSpacing(0.09f);
+        top.addView(pageTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout right = new LinearLayout(this);
+        right.setGravity(Gravity.CENTER_VERTICAL);
+        accountLabel = text(me.optString("display_name", "Collector"), 9, GOLD_BRIGHT, true);
+        accountLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        currencyLabel = text(walletLine(), 8, MUTED, true);
+        currencyLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        LinearLayout account = new LinearLayout(this);
+        account.setOrientation(LinearLayout.VERTICAL);
+        account.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        account.addView(accountLabel);
+        account.addView(currencyLabel);
+        TextView avatar = text(initials(me.optString("display_name", "CU")), 11, BG, true);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(gradient(GOLD_BRIGHT, GOLD, GOLD, dp(24)));
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(32), dp(32));
+        avp.leftMargin = dp(10);
+        right.addView(account);
+        right.addView(avatar, avp);
+        top.addView(right);
+        mainColumn.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
+        addDivider(mainColumn, false);
+
+        ScrollView scroller = new ScrollView(this);
+        scroller.setFillViewport(false);
+        scroller.setClipToPadding(false);
+        content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(3), dp(11), dp(3), dp(22));
+        scroller.addView(content);
+        mainColumn.addView(scroller, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        setContentView(appRoot);
+        refreshNav();
+        renderTab("home");
+    }
+
+    private void addNavItem(LinearLayout target, String key, String icon, String label) {
+        LinearLayout item = new LinearLayout(this);
+        item.setGravity(Gravity.CENTER);
+        item.setOrientation(LinearLayout.VERTICAL);
+        item.setPadding(dp(2), dp(7), dp(2), dp(7));
+        item.setBackground(gradient(PANEL, PANEL, Color.TRANSPARENT, dp(9)));
+        TextView glyph = text(icon, 17, MUTED, true);
+        glyph.setGravity(Gravity.CENTER);
+        TextView name = text(label, 6, MUTED, true);
+        name.setGravity(Gravity.CENTER);
+        name.setLetterSpacing(0.03f);
+        item.addView(glyph);
+        item.addView(name);
+        item.setOnClickListener(v -> renderTab(key));
+        target.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(47)));
+        LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3));
+        View spacer = new View(this);
+        target.addView(spacer, gap);
+        navLabels.put(key, name);
+    }
+
+    private void refreshNav() {
+        for (Map.Entry<String, TextView> entry : navLabels.entrySet()) {
+            TextView label = entry.getValue();
+            boolean active = entry.getKey().equals(activeTab);
+            label.setTextColor(active ? GOLD_BRIGHT : MUTED);
+            View parent = (View) label.getParent();
+            if (parent != null) parent.setBackground(gradient(
+                    active ? Color.rgb(54, 61, 43) : PANEL,
+                    active ? Color.rgb(30, 46, 34) : PANEL,
+                    active ? GOLD : Color.TRANSPARENT, dp(9)));
+        }
+    }
+
+    private void renderTab(String tab) {
+        activeTab = tab;
+        refreshNav();
+        String title = tab.toUpperCase().replace("_", " ");
+        if (pageTitle != null) pageTitle.setText(title.equals("HOME") ? "REALM OVERVIEW" : title);
+        if (content == null) return;
+        content.removeAllViews();
+        if ("home".equals(tab)) {
+            renderHome();
+            return;
+        }
+        TextView eyebrow = text("FIRSTLIGHT REALM  /  " + title, 8, GOLD, true);
+        eyebrow.setLetterSpacing(0.14f);
+        content.addView(eyebrow);
+        addGap(content, 5);
+        content.addView(text(screenHeading(tab), 23, TEXT, true));
+        content.addView(text(screenDescription(tab), 10, MUTED, false));
+        addGap(content, 14);
+        renderLoading();
+        String path = endpointFor(tab);
+        if (path == null) {
+            showNotice("This section is not available for this account.");
+            return;
+        }
+        api.get(path, result -> ui.post(() -> {
+            if (!tab.equals(activeTab) || content == null) return;
+            content.removeAllViews();
+            content.addView(eyebrow);
+            addGap(content, 5);
+            content.addView(text(screenHeading(tab), 23, TEXT, true));
+            content.addView(text(screenDescription(tab), 10, MUTED, false));
+            addGap(content, 14);
+            if (!result.ok()) {
+                showNotice(result.error == null ? "Unable to load this section." : result.error);
+                TextView retry = button("TRY AGAIN", false);
+                retry.setOnClickListener(v -> renderTab(tab));
+                content.addView(retry, new LinearLayout.LayoutParams(dp(140), dp(38)));
+                return;
+            }
+            renderModule(tab, result.data);
+        }));
+    }
+
+    private void renderHome() {
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.HORIZONTAL);
+        hero.setGravity(Gravity.CENTER_VERTICAL);
+        hero.setPadding(dp(18), dp(15), dp(18), dp(15));
+        hero.setBackground(gradient(Color.rgb(41, 67, 48), Color.rgb(17, 33, 27), Color.rgb(143, 116, 73), dp(16)));
+
+        LinearLayout heroCopy = new LinearLayout(this);
+        heroCopy.setOrientation(LinearLayout.VERTICAL);
+        heroCopy.addView(text("WELCOME TO FIRSTLIGHT", 8, GOLD_BRIGHT, true));
+        addGap(heroCopy, 5);
+        heroCopy.addView(text("The realm is yours, " + me.optString("display_name", "Collector") + ".", 20, TEXT, true));
+        heroCopy.addView(text("Your next discovery is waiting beyond the archive.", 9, MUTED, false));
+        TextView level = text("COLLECTOR LEVEL  " + me.optInt("collector_level", 1), 8, GOLD_BRIGHT, true);
+        level.setPadding(0, dp(8), 0, 0);
+        heroCopy.addView(level);
+        hero.addView(heroCopy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        LinearLayout heroMark = new LinearLayout(this);
+        heroMark.setGravity(Gravity.CENTER);
+        heroMark.setBackground(gradient(Color.rgb(78, 76, 49), Color.rgb(36, 49, 34), Color.rgb(172, 144, 91), dp(14)));
+        TextView star = text("✦", 40, GOLD_BRIGHT, true);
+        star.setGravity(Gravity.CENTER);
+        heroMark.addView(star);
+        LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(dp(86), dp(86));
+        hmp.leftMargin = dp(12);
+        hero.addView(heroMark, hmp);
+        content.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        addGap(content, 12);
+        TextView statTitle = text("YOUR COLLECTION AT A GLANCE", 8, GOLD, true);
+        statTitle.setLetterSpacing(0.12f);
+        content.addView(statTitle);
+        addGap(content, 7);
+
+        JSONObject wallet = me.optJSONObject("wallet");
+        JSONObject collection = me.optJSONObject("collection");
+        if (wallet == null) wallet = new JSONObject();
+        if (collection == null) collection = new JSONObject();
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statCard("LEVEL", String.valueOf(me.optInt("collector_level", 1)), "Collector rank"), weightParams(1));
+        stats.addView(statCard("UNIQUE CARDS", formatNumber(collection.optLong("unique_cards")), "In your archive"), weightParams(1));
+        stats.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Available coins"), weightParams(1));
+        stats.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Premium currency"), weightParams(1));
+        content.addView(stats);
+        addGap(content, 14);
+
+        TextView featureTitle = text("CHOOSE YOUR NEXT ADVENTURE", 8, GOLD, true);
+        featureTitle.setLetterSpacing(0.12f);
+        content.addView(featureTitle);
+        addGap(content, 7);
+
+        String[][] features = {
+                {"collection", "▧", "Card Archive", "Browse cards and owned copies"},
+                {"summon", "✧", "Summon Hall", "View your available packs"},
+                {"adventure", "⚔", "Adventure", "Explore chapters and stages"},
+                {"arena", "◈", "Battle Arena", "View your battle status"},
+                {"missions", "☷", "Missions", "Track goals and daily rewards"},
+                {"shop", "♢", "Realm Shop", "Browse available items"}
+        };
+        LinearLayout row = null;
+        for (int i = 0; i < features.length; i++) {
+            if (i % 3 == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                content.addView(row, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                if (i > 0) addGap(content, 7);
+            }
+            final String key = features[i][0];
+            row.addView(featureCard(features[i][1], features[i][2], features[i][3], () -> renderTab(key)), weightParams(1));
+            if (i % 3 != 2) {
+                View gap = new View(this);
+                row.addView(gap, new LinearLayout.LayoutParams(dp(7), 1));
+            }
+        }
+        addGap(content, 12);
+        LinearLayout lower = new LinearLayout(this);
+        lower.setOrientation(LinearLayout.HORIZONTAL);
+        lower.addView(featureCard("✉", "Inbox", "Announcements and gifts", () -> renderTab("inbox")), weightParams(1));
+        View gap = new View(this);
+        lower.addView(gap, new LinearLayout.LayoutParams(dp(7), 1));
+        lower.addView(featureCard("⚙", "Player Settings", "Privacy, support and account", () -> renderTab("settings")), weightParams(1));
+        content.addView(lower);
+    }
+
+    private void renderModule(String tab, JSONObject data) {
+        switch (tab) {
+            case "collection": renderCollection(data); break;
+            case "summon": renderPacks(data); break;
+            case "adventure": renderAdventure(data); break;
+            case "arena": renderObjectSummary(data, "BATTLE STATUS"); break;
+            case "missions": renderMissions(data); break;
+            case "shop": renderShop(data); break;
+            case "inbox": renderInbox(data); break;
+            case "guild": renderGuild(data); break;
+            case "settings": renderSettings(data); break;
+            case "admin": renderObjectSummary(data, "ADMIN OVERVIEW"); break;
+            default: renderObjectSummary(data, "REALM DATA");
+        }
+    }
+
+    private void renderCollection(JSONObject data) {
+        JSONArray cards = data.optJSONArray("cards");
+        if (cards == null) { showNotice("No card data was returned."); return; }
+        int owned = 0;
+        for (int i = 0; i < cards.length(); i++) if (cards.optJSONObject(i) != null && cards.optJSONObject(i).optInt("owned_count") > 0) owned++;
+        content.addView(statCard("OWNED CARD TYPES", String.valueOf(owned), "Cards with at least one copy"));
+        addGap(content, 10);
+        content.addView(text("ARCHIVE CATALOGUE", 8, GOLD, true));
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject item = cards.optJSONObject(i);
+            if (item == null || item.optInt("owned_count") <= 0) continue;
+            String sub = item.optString("rarity", "COMMON") + "  ·  " + item.optString("element", "UNKNOWN")
+                    + "  ·  OWNED " + item.optInt("owned_count");
+            content.addView(dataRow(item.optString("name", "Unknown card"), sub, item.optString("card_code", "CARD")));
+        }
+        if (owned == 0) showNotice("Your archive is waiting for its first card.");
+    }
+
+    private void renderPacks(JSONObject data) {
+        JSONArray packs = data.optJSONArray("packs");
+        if (packs == null) { showNotice("No summon packs are available."); return; }
+        for (int i = 0; i < packs.length(); i++) {
+            JSONObject pack = packs.optJSONObject(i);
+            if (pack == null) continue;
+            String sub = pack.optInt("cards_per_pack") + " cards per pack  ·  " + pack.optString("currency", "COINS")
+                    + " " + formatNumber(pack.optLong("price"));
+            content.addView(dataRow(pack.optString("name", "Summon pack"),
+                    pack.optString("description", sub), "INVENTORY  " + pack.optInt("quantity")));
+        }
+        if (packs.length() == 0) showNotice("No packs are currently available.");
+        else showNotice("Your available pack inventory is shown above. Pack opening and purchase actions will be connected in the native Summon Hall.");
+    }
+
+    private void renderAdventure(JSONObject data) {
+        JSONArray chapters = data.optJSONArray("chapters");
+        if (chapters == null) { renderObjectSummary(data, "ADVENTURE PROGRESS"); return; }
+        for (int i = 0; i < chapters.length(); i++) {
+            JSONObject chapter = chapters.optJSONObject(i);
+            if (chapter == null) continue;
+            LinearLayout block = sectionPanel();
+            block.addView(text("CHAPTER " + (i + 1), 7, GOLD, true));
+            block.addView(text(chapter.optString("title", "Unknown chapter"), 15, TEXT, true));
+            block.addView(text(chapter.optString("description", ""), 9, MUTED, false));
+            JSONArray stages = chapter.optJSONArray("stages");
+            if (stages != null) {
+                for (int j = 0; j < stages.length(); j++) {
+                    JSONObject stage = stages.optJSONObject(j);
+                    if (stage == null) continue;
+                    String status = stage.optBoolean("cleared") ? "CLEARED" : (stage.optBoolean("unlocked") ? "UNLOCKED" : "LOCKED");
+                    block.addView(dataRow(stage.optString("title", "Stage"), stage.optString("enemy_name", "Realm encounter"), status));
+                }
+            }
+            content.addView(block);
+            addGap(content, 8);
+        }
+    }
+
+    private void renderMissions(JSONObject data) {
+        JSONArray missions = data.optJSONArray("missions");
+        if (missions == null) { renderObjectSummary(data, "MISSION STATUS"); return; }
+        for (int i = 0; i < missions.length(); i++) {
+            JSONObject mission = missions.optJSONObject(i);
+            if (mission == null) continue;
+            String title = mission.optString("title", mission.optString("name", "Mission"));
+            String sub = mission.optString("description", mission.optString("period_type", "MISSION"));
+            String progressText = mission.optInt("progress") + " / " + mission.optInt("target_count")
+                    + (mission.optBoolean("claimed") || !mission.isNull("claimed_at") ? "  ·  CLAIMED" : "");
+            content.addView(dataRow(title, sub, progressText));
+        }
+        if (missions.length() == 0) showNotice("No active missions are available right now.");
+    }
+
+    private void renderShop(JSONObject data) {
+        JSONArray items = data.optJSONArray("items");
+        if (items == null) { renderObjectSummary(data, "SHOP INVENTORY"); return; }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) continue;
+            String sub = item.optString("description", item.optString("item_type", "REALM ITEM"));
+            String price = formatNumber(item.optLong("price")) + " " + item.optString("currency", "COINS");
+            content.addView(dataRow(item.optString("name", "Item"), sub, price));
+        }
+        if (items.length() == 0) showNotice("The shop has no active items right now.");
+        else showNotice("Prices and stock are live. Purchase actions are being moved into the native shop experience.");
+    }
+
+    private void renderInbox(JSONObject data) {
+        JSONArray items = data.optJSONArray("items");
+        if (items == null) { showNotice("Your inbox is clear."); return; }
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) continue;
+            String sub = item.optString("body", "");
+            String status = item.optBoolean("is_read") ? "READ" : "NEW";
+            if (item.optBoolean("is_claimed")) status += "  ·  CLAIMED";
+            content.addView(dataRow(item.optString("subject", "Realm message"), sub, status));
+        }
+        if (items.length() == 0) showNotice("Your inbox is clear. New messages will appear here.");
+    }
+
+    private void renderGuild(JSONObject data) {
+        JSONObject guild = data.optJSONObject("guild");
+        if (guild != null) {
+            content.addView(dataRow(guild.optString("name", "Your guild"), guild.optString("description", "Guild headquarters"), "LEVEL " + guild.optInt("guild_level", 1)));
+        } else {
+            showNotice("You are not currently in a guild.");
+        }
+        JSONArray members = data.optJSONArray("members");
+        if (members != null) {
+            content.addView(text("GUILD MEMBERS", 8, GOLD, true));
+            for (int i = 0; i < members.length(); i++) {
+                JSONObject member = members.optJSONObject(i);
+                if (member != null) content.addView(dataRow(member.optString("display_name", "Collector"), "Contribution " + member.optLong("contribution"), member.optString("role", "MEMBER")));
+            }
+        }
+    }
+
+    private void renderSettings(JSONObject data) {
+        showPanelHeading("ACCOUNT & PRIVACY");
+        TextView name = text(me.optString("display_name", "Collector"), 16, TEXT, true);
+        content.addView(name);
+        content.addView(text(me.optString("email", ""), 9, MUTED, false));
+        addGap(content, 12);
+        TextView supportTitle = text("OFFICIAL SUPPORT", 8, GOLD, true);
+        content.addView(supportTitle);
+        JSONArray contacts = data.optJSONArray("contacts");
+        if (contacts != null && contacts.length() > 0) {
+            for (int i = 0; i < contacts.length(); i++) {
+                JSONObject c = contacts.optJSONObject(i);
+                if (c == null) continue;
+                TextView contact = dataRow(c.optString("label", c.optString("platform", "Support")),
+                        c.optString("description", "Contact the CardUniverse team"), c.optString("platform", "OPEN"));
+                contact.setOnClickListener(v -> {
+                    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(c.optString("url")))); }
+                    catch (Exception ex) { Toast.makeText(this, "Unable to open this support link.", Toast.LENGTH_SHORT).show(); }
+                });
+                content.addView(contact);
+            }
+        } else {
+            showNotice("Official support contacts have not been configured yet.");
+        }
+        addGap(content, 12);
+        TextView logout = button("SIGN OUT", false);
+        logout.setOnClickListener(v -> {
+            JSONObject payload = new JSONObject();
+            api.post("/api/auth/logout", payload, result -> ui.post(() -> {
+                api.clearSession();
+                me = null;
+                progression = null;
+                showAuth(false, "");
+            }));
+        });
+        content.addView(logout, new LinearLayout.LayoutParams(dp(150), dp(40)));
+        addGap(content, 8);
+        content.addView(text("Your collector account, inventory and progress remain stored in the shared CardUniverse backend.", 8, MUTED, false));
+    }
+
+    private void renderObjectSummary(JSONObject data, String label) {
+        showPanelHeading(label);
+        boolean rendered = false;
+        java.util.Iterator<String> keys = data.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            if ("ok".equals(key) || data.isNull(key)) continue;
+            Object value = data.opt(key);
+            String display;
+            if (value instanceof JSONObject) display = "Available";
+            else if (value instanceof JSONArray) display = ((JSONArray) value).length() + " entries";
+            else display = String.valueOf(value);
+            content.addView(dataRow(humanize(key), display, ""));
+            rendered = true;
+        }
+        if (!rendered) showNotice("No additional status is available at the moment.");
+    }
+
+    private void showPanelHeading(String label) {
+        LinearLayout p = sectionPanel();
+        p.addView(text(label, 8, GOLD, true));
+        p.addView(text("CardUniverse native account", 14, TEXT, true));
+        p.addView(text("Connected directly to the live game services.", 9, MUTED, false));
+        content.addView(p);
+        addGap(content, 10);
+    }
+
+    private void renderLoading() {
+        LinearLayout box = sectionPanel();
+        box.setGravity(Gravity.CENTER);
+        ProgressBar progress = new ProgressBar(this);
+        progress.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(GOLD));
+        box.addView(progress, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        box.addView(text("SYNCING WITH THE REALM...", 8, MUTED, true));
+        content.addView(box);
+    }
+
+    private void showNotice(String message) {
+        LinearLayout box = sectionPanel();
+        TextView title = text("REALM NOTICE", 8, GOLD, true);
+        TextView body = text(message, 9, MUTED, false);
+        box.addView(title);
+        addGap(box, 5);
+        box.addView(body);
+        content.addView(box);
+    }
+
+    private String endpointFor(String tab) {
+        switch (tab) {
+            case "collection": return "/api/cards";
+            case "summon": return "/api/packs";
+            case "adventure": return "/api/adventure";
+            case "arena": return "/api/arena";
+            case "missions": return "/api/missions";
+            case "shop": return "/api/shop";
+            case "inbox": return "/api/mail";
+            case "guild": return "/api/guilds";
+            case "settings": return "/api/support/contacts";
+            case "admin": return "/api/admin/summary";
+            default: return null;
+        }
+    }
+
+    private String screenHeading(String tab) {
+        switch (tab) {
+            case "collection": return "The Card Archive";
+            case "summon": return "Summon Hall";
+            case "adventure": return "Realm Expedition";
+            case "arena": return "Battle Arena";
+            case "missions": return "Missions & Challenges";
+            case "shop": return "Realm Marketplace";
+            case "inbox": return "Realm Inbox";
+            case "guild": return "Guild Headquarters";
+            case "settings": return "Player Settings";
+            case "admin": return "Master Console";
+            default: return "Realm";
+        }
+    }
+
+    private String screenDescription(String tab) {
+        switch (tab) {
+            case "collection": return "Your owned cards and archive catalogue.";
+            case "summon": return "Your available packs and summon inventory.";
+            case "adventure": return "Chapters, encounters and expedition progress.";
+            case "arena": return "Your current player-versus-player status.";
+            case "missions": return "Live mission progress from the game server.";
+            case "shop": return "Current items, prices and availability.";
+            case "inbox": return "Messages, rewards and announcements.";
+            case "guild": return "Your guild membership and contribution.";
+            case "settings": return "Account information, privacy and support.";
+            case "admin": return "Administrative overview for authorized accounts.";
+            default: return "";
+        }
+    }
+
+    private LinearLayout statCard(String kicker, String value, String caption) {
+        LinearLayout card = sectionPanel();
+        card.addView(text(kicker, 7, GOLD, true));
+        TextView valueView = text(value, 18, TEXT, true);
+        valueView.setPadding(0, dp(3), 0, dp(2));
+        card.addView(valueView);
+        card.addView(text(caption, 7, MUTED, false));
+        return card;
+    }
+
+    private LinearLayout featureCard(String icon, String title, String description, Runnable action) {
+        LinearLayout card = sectionPanel();
+        card.setMinimumHeight(dp(80));
+        card.addView(text(icon, 18, GOLD_BRIGHT, true));
+        addGap(card, 2);
+        card.addView(text(title, 11, TEXT, true));
+        card.addView(text(description, 8, MUTED, false));
+        card.setOnClickListener(v -> action.run());
+        return card;
+    }
+
+    private TextView dataRow(String title, String subtitle, String trailing) {
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(11), dp(8), dp(11), dp(8));
+        row.setBackground(gradient(Color.rgb(19, 31, 28), Color.rgb(14, 24, 21), Color.rgb(51, 66, 53), dp(10)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.addView(text(title, 10, TEXT, true));
+        TextView details = text(subtitle, 8, MUTED, false);
+        details.setMaxLines(2);
+        copy.addView(details);
+        row.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        if (trailing != null && !trailing.isEmpty()) {
+            TextView badge = text(trailing, 7, GOLD_BRIGHT, true);
+            badge.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            badge.setMaxWidth(dp(130));
+            row.addView(badge);
+        }
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = dp(6);
+        // The outer view is used for display and, on support rows, can receive a click listener.
+        row.setTag(title);
+        content.addView(row, params);
+        return title;
+    }
+
+    private LinearLayout sectionPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(12), dp(10), dp(12), dp(10));
+        panel.setBackground(gradient(PANEL_LIGHT, PANEL, Color.rgb(56, 73, 58), dp(12)));
         return panel;
     }
 
-    @SuppressWarnings("SetJavaScriptEnabled")
-    private void configureWebView() {
-        WebSettings settings = webView.getSettings();
-        settings.setJavaScriptEnabled(true);
-        settings.setDomStorageEnabled(true);
-        settings.setDatabaseEnabled(true);
-        settings.setLoadWithOverviewMode(true);
-        settings.setUseWideViewPort(true);
-        settings.setSupportZoom(false);
-        settings.setBuiltInZoomControls(false);
-        settings.setDisplayZoomControls(false);
-        settings.setJavaScriptCanOpenWindowsAutomatically(true);
-        settings.setMediaPlaybackRequiresUserGesture(true);
-        settings.setAllowFileAccess(false);
-        settings.setAllowContentAccess(true);
-        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            settings.setSafeBrowsingEnabled(true);
-        }
-        settings.setUserAgentString(settings.getUserAgentString() + " CardUniverseAndroid/1.0.0");
-
-        CookieManager cookies = CookieManager.getInstance();
-        cookies.setAcceptCookie(true);
-        cookies.setAcceptThirdPartyCookies(webView, true);
-
-        webView.setWebViewClient(new WebViewClient() {
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
-                return routeUrl(request.getUrl().toString());
-            }
-
-            @Override
-            public boolean shouldOverrideUrlLoading(WebView view, String url) {
-                return routeUrl(url);
-            }
-
-            @Override
-            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                offlinePanel.setVisibility(View.GONE);
-                webView.setVisibility(View.VISIBLE);
-                progressBar.setVisibility(View.VISIBLE);
-                progressBar.setProgress(5);
-            }
-
-            @Override
-            public void onPageFinished(WebView view, String url) {
-                installAndroidPresentation();
-                progressBar.setProgress(100);
-                progressBar.setVisibility(View.GONE);
-                CookieManager.getInstance().flush();
-            }
-
-            @Override
-            public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) {
-                    showOfflinePanel();
-                }
-            }
-
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler, SslError error) {
-                handler.cancel();
-                showOfflinePanel();
-            }
-        });
-
-        webView.setWebChromeClient(new WebChromeClient() {
-            @Override
-            public void onProgressChanged(WebView view, int newProgress) {
-                progressBar.setProgress(newProgress);
-                progressBar.setVisibility(newProgress >= 100 ? View.GONE : View.VISIBLE);
-            }
-
-            @Override
-            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
-                                             FileChooserParams params) {
-                if (fileChooserCallback != null) {
-                    fileChooserCallback.onReceiveValue(null);
-                }
-                fileChooserCallback = callback;
-                try {
-                    Intent picker = params.createIntent();
-                    picker.addCategory(Intent.CATEGORY_OPENABLE);
-                    startActivityForResult(picker, FILE_CHOOSER_REQUEST);
-                    return true;
-                } catch (ActivityNotFoundException ex) {
-                    fileChooserCallback = null;
-                    Toast.makeText(MainActivity.this, "No file picker is available.", Toast.LENGTH_SHORT).show();
-                    return false;
-                }
-            }
-
-            @Override
-            public void onPermissionRequest(PermissionRequest request) {
-                runOnUiThread(() -> handleWebPermissionRequest(request));
-            }
-        });
-
-        webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) ->
-                downloadFile(url, userAgent, contentDisposition, mimeType));
+    private void addDivider(LinearLayout parent, boolean verticalSpace) {
+        View divider = new View(this);
+        divider.setBackgroundColor(Color.rgb(55, 68, 55));
+        LinearLayout.LayoutParams lp = verticalSpace
+                ? new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1))
+                : new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+        lp.topMargin = dp(6);
+        lp.bottomMargin = dp(6);
+        parent.addView(divider, lp);
     }
 
-    private void installAndroidPresentation() {
-        if (webView == null) return;
-        try {
-            String script = "(function(){try{"
-                    + "document.documentElement.classList.add('cu-android-app');"
-                    + "var viewport=document.querySelector('meta[name=viewport]');"
-                    + "if(!viewport){viewport=document.createElement('meta');viewport.name='viewport';document.head.appendChild(viewport);}"
-                    + "viewport.content='width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover';"
-                    + "var style=document.getElementById('cu-android-app-css');"
-                    + "if(!style){style=document.createElement('style');style.id='cu-android-app-css';document.head.appendChild(style);}"
-                    + "style.textContent=" + org.json.JSONObject.quote(ANDROID_APP_CSS) + ";"
-                    + "}catch(error){console.warn('CardUniverse Android styling skipped',error);}})();";
-            webView.evaluateJavascript(script, null);
-        } catch (RuntimeException ignored) {
-            // The native game remains usable even if this device's WebView cannot apply optional styling.
-        }
+    private TextView editField(String hint, boolean password) {
+        EditText edit = new EditText(this);
+        edit.setSingleLine(true);
+        edit.setTextSize(11);
+        edit.setTextColor(TEXT);
+        edit.setHintTextColor(MUTED);
+        edit.setHint(hint);
+        edit.setPadding(dp(12), 0, dp(12), 0);
+        edit.setBackground(gradient(Color.rgb(9, 18, 15), Color.rgb(9, 18, 15), Color.rgb(70, 83, 67), dp(9)));
+        edit.setSelectAllOnFocus(false);
+        return edit;
     }
 
-    private boolean routeUrl(String value) {
-        Uri uri = Uri.parse(value);
-        String scheme = uri.getScheme();
-        if (scheme == null || "http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
-            // Keep the game and its web-based flows inside this native app.
-            return false;
-        }
-        try {
-            if ("intent".equalsIgnoreCase(scheme)) {
-                Intent intent = Intent.parseUri(value, Intent.URI_INTENT_SCHEME);
-                if (intent.resolveActivity(getPackageManager()) != null) {
-                    startActivity(intent);
-                    return true;
-                }
-                String fallback = intent.getStringExtra("browser_fallback_url");
-                if (fallback != null) webView.loadUrl(fallback);
-                return true;
-            }
-            startActivity(new Intent(Intent.ACTION_VIEW, uri));
-            return true;
-        } catch (Exception ignored) {
-            Toast.makeText(this, "This link cannot be opened on this device.", Toast.LENGTH_SHORT).show();
-            return true;
-        }
+    private LinearLayout.LayoutParams fieldParams() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
+        lp.bottomMargin = dp(8);
+        return lp;
     }
 
-    private void handleWebPermissionRequest(PermissionRequest request) {
-        List<String> osPermissions = new ArrayList<>();
-        List<String> webResources = new ArrayList<>();
-
-        for (String resource : request.getResources()) {
-            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
-                webResources.add(resource);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                        && checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-                    osPermissions.add(Manifest.permission.CAMERA);
-                }
-            } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
-                webResources.add(resource);
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                        && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                    osPermissions.add(Manifest.permission.RECORD_AUDIO);
-                }
-            }
-        }
-
-        if (webResources.isEmpty()) {
-            request.deny();
-            return;
-        }
-        if (osPermissions.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            request.grant(webResources.toArray(new String[0]));
-            return;
-        }
-
-        pendingWebPermission = request;
-        pendingWebResources = webResources.toArray(new String[0]);
-        requestPermissions(osPermissions.toArray(new String[0]), WEB_PERMISSION_REQUEST);
+    private TextView button(String label, boolean primary) {
+        TextView button = text(label, 9, primary ? Color.rgb(24, 28, 20) : GOLD_BRIGHT, true);
+        button.setGravity(Gravity.CENTER);
+        button.setLetterSpacing(0.1f);
+        button.setBackground(gradient(
+                primary ? GOLD_BRIGHT : Color.rgb(32, 46, 35),
+                primary ? GOLD : Color.rgb(18, 31, 25),
+                primary ? GOLD_BRIGHT : Color.rgb(113, 99, 67), dp(9)));
+        button.setClickable(true);
+        button.setFocusable(true);
+        return button;
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode != WEB_PERMISSION_REQUEST || pendingWebPermission == null) return;
-
-        boolean granted = grantResults.length > 0;
-        for (int result : grantResults) granted &= result == PackageManager.PERMISSION_GRANTED;
-        try {
-            if (granted) pendingWebPermission.grant(pendingWebResources);
-            else pendingWebPermission.deny();
-        } catch (IllegalStateException ignored) {
-            // The page may cancel the media request while Android shows the permission prompt.
-        }
-        pendingWebPermission = null;
-        pendingWebResources = new String[0];
+    private TextView text(String value, float size, int color, boolean bold) {
+        TextView view = new TextView(this);
+        view.setText(value);
+        view.setTextSize(size);
+        view.setTextColor(color);
+        view.setTypeface(Typeface.create(bold ? "sans-serif" : "sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        view.setIncludeFontPadding(true);
+        return view;
     }
 
-    private void downloadFile(String url, String userAgent, String contentDisposition, String mimeType) {
-        try {
-            DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
-            String cookie = CookieManager.getInstance().getCookie(url);
-            if (cookie != null) request.addRequestHeader("Cookie", cookie);
-            if (userAgent != null) request.addRequestHeader("User-Agent", userAgent);
-            request.setMimeType(mimeType);
-            String filename = URLUtil.guessFileName(url, contentDisposition, mimeType);
-            request.setTitle(filename);
-            request.setDescription("Downloading from CardUniverse");
-            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, filename);
-            DownloadManager manager = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
-            if (manager != null) {
-                manager.enqueue(request);
-                Toast.makeText(this, "Download started.", Toast.LENGTH_SHORT).show();
-            }
-        } catch (Exception ex) {
-            Toast.makeText(this, "Unable to start the download.", Toast.LENGTH_LONG).show();
-        }
+    private GradientDrawable gradient(int top, int bottom, int stroke, int radius) {
+        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{top, bottom});
+        d.setCornerRadius(radius);
+        if (stroke != Color.TRANSPARENT) d.setStroke(dp(1), stroke);
+        return d;
     }
 
-    private void showOfflinePanel() {
-        progressBar.setVisibility(View.GONE);
-        webView.setVisibility(View.GONE);
-        offlinePanel.setVisibility(View.VISIBLE);
+    private LinearLayout.LayoutParams weightParams(float weight) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, weight);
+        return lp;
+    }
+
+    private void addGap(LinearLayout parent, int amount) {
+        View gap = new View(this);
+        parent.addView(gap, new LinearLayout.LayoutParams(1, dp(amount)));
     }
 
     private int dp(int value) {
         return Math.round(value * getResources().getDisplayMetrics().density);
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == FILE_CHOOSER_REQUEST && fileChooserCallback != null) {
-            Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
-            fileChooserCallback.onReceiveValue(results);
-            fileChooserCallback = null;
-        }
+    private String walletLine() {
+        JSONObject wallet = me == null ? null : me.optJSONObject("wallet");
+        if (wallet == null) return "SYNCING ACCOUNT";
+        return "◈ " + formatNumber(wallet.optLong("coins")) + "    ✧ " + formatNumber(wallet.optLong("gems"));
+    }
+
+    private String initials(String name) {
+        String[] parts = name.trim().split("\\s+");
+        String value = parts.length > 1 ? parts[0].substring(0, 1) + parts[1].substring(0, 1)
+                : name.substring(0, Math.min(2, name.length()));
+        return value.toUpperCase();
+    }
+
+    private String formatNumber(long value) {
+        if (value >= 1_000_000) return String.format(java.util.Locale.US, "%.1fM", value / 1_000_000d);
+        if (value >= 10_000) return String.format(java.util.Locale.US, "%.1fK", value / 1_000d);
+        return String.format(java.util.Locale.US, "%,d", value);
+    }
+
+    private String humanize(String key) {
+        String spaced = key.replaceAll("([a-z])([A-Z])", "$1 $2").replace('_', ' ');
+        return spaced.toUpperCase();
+    }
+
+    private void onLogout() {
+        api.post("/api/auth/logout", new JSONObject(), result -> ui.post(() -> {
+            api.clearSession();
+            me = null;
+            showAuth(false, "");
+        }));
     }
 
     @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        if (webView != null) webView.saveState(outState);
-        super.onSaveInstanceState(outState);
-    }
-
-    @Override
-    protected void onPause() {
-        if (webView != null) webView.onPause();
-        CookieManager.getInstance().flush();
-        super.onPause();
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (webView != null) webView.onResume();
-    }
-
-    @Override
-    @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
+        if (!"home".equals(activeTab) && content != null) {
+            renderTab("home");
             return;
         }
         super.onBackPressed();
@@ -529,17 +1025,6 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        if (fileChooserCallback != null) {
-            fileChooserCallback.onReceiveValue(null);
-            fileChooserCallback = null;
-        }
-        if (webView != null) {
-            webView.stopLoading();
-            webView.setWebChromeClient(null);
-            webView.setWebViewClient(null);
-            webView.destroy();
-            webView = null;
-        }
         super.onDestroy();
     }
 }
