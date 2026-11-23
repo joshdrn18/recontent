@@ -902,12 +902,8 @@ public final class MainActivity extends Activity {
             badge.setMaxWidth(dp(130));
             row.addView(badge);
         }
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        params.bottomMargin = dp(6);
-        // The outer view is used for display and, on support rows, can receive a click listener.
         row.setTag(title);
-        content.addView(row, params);
-        return title;
+        return row;
     }
 
     private LinearLayout.LayoutParams rowParams() {
