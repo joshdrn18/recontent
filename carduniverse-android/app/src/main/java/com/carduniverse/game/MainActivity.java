@@ -14,7 +14,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
-import android.view.inputmethod.InputMethodManager;
 import android.content.Context;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
@@ -69,7 +68,7 @@ public final class MainActivity extends Activity {
         showSplash();
         api.get("/api/me", result -> ui.post(() -> {
             if (result.ok()) {
-                me = result.data.optJSONObject("user");
+                acceptMe(result.data);
                 loadProgressionAndShow();
             } else {
                 if (result.status == 0) showConnectionError(result.error);
@@ -120,6 +119,17 @@ public final class MainActivity extends Activity {
         setContentView(splash);
     }
 
+    private void acceptMe(JSONObject payload) {
+        me = payload == null ? null : payload.optJSONObject("user");
+        if (me != null) {
+            try {
+                me.put("wallet", payload.optJSONObject("wallet"));
+                me.put("collection", payload.optJSONObject("collection"));
+                me.put("packs", payload.optJSONArray("packs"));
+            } catch (Exception ignored) {}
+        }
+    }
+
     private void loadProgressionAndShow() {
         if (me == null) {
             showAuth(false, "");
@@ -149,7 +159,7 @@ public final class MainActivity extends Activity {
             showSplash();
             api.get("/api/me", result -> ui.post(() -> {
                 if (result.ok()) {
-                    me = result.data.optJSONObject("user");
+                    acceptMe(result.data);
                     loadProgressionAndShow();
                 } else if (result.status == 0) showConnectionError(result.error);
                 else showAuth(false, "");
@@ -299,7 +309,7 @@ public final class MainActivity extends Activity {
                     showSplash();
                     api.get("/api/me", meResult -> ui.post(() -> {
                         if (meResult.ok()) {
-                            me = meResult.data.optJSONObject("user");
+                            acceptMe(meResult.data);
                             loadProgressionAndShow();
                         } else {
                             showAuth(false, meResult.error);
@@ -613,7 +623,7 @@ public final class MainActivity extends Activity {
             if (item == null || item.optInt("owned_count") <= 0) continue;
             String sub = item.optString("rarity", "COMMON") + "  ·  " + item.optString("element", "UNKNOWN")
                     + "  ·  OWNED " + item.optInt("owned_count");
-            content.addView(dataRow(item.optString("name", "Unknown card"), sub, item.optString("card_code", "CARD")));
+            content.addView(dataRow(item.optString("name", "Unknown card"), sub, item.optString("card_code", "CARD")), rowParams());
         }
         if (owned == 0) showNotice("Your archive is waiting for its first card.");
     }
@@ -627,7 +637,7 @@ public final class MainActivity extends Activity {
             String sub = pack.optInt("cards_per_pack") + " cards per pack  ·  " + pack.optString("currency", "COINS")
                     + " " + formatNumber(pack.optLong("price"));
             content.addView(dataRow(pack.optString("name", "Summon pack"),
-                    pack.optString("description", sub), "INVENTORY  " + pack.optInt("quantity")));
+                    pack.optString("description", sub), "INVENTORY  " + pack.optInt("quantity")), rowParams());
         }
         if (packs.length() == 0) showNotice("No packs are currently available.");
         else showNotice("Your available pack inventory is shown above. Pack opening and purchase actions will be connected in the native Summon Hall.");
@@ -667,7 +677,7 @@ public final class MainActivity extends Activity {
             String sub = mission.optString("description", mission.optString("period_type", "MISSION"));
             String progressText = mission.optInt("progress") + " / " + mission.optInt("target_count")
                     + (mission.optBoolean("claimed") || !mission.isNull("claimed_at") ? "  ·  CLAIMED" : "");
-            content.addView(dataRow(title, sub, progressText));
+            content.addView(dataRow(title, sub, progressText), rowParams());
         }
         if (missions.length() == 0) showNotice("No active missions are available right now.");
     }
@@ -680,7 +690,7 @@ public final class MainActivity extends Activity {
             if (item == null) continue;
             String sub = item.optString("description", item.optString("item_type", "REALM ITEM"));
             String price = formatNumber(item.optLong("price")) + " " + item.optString("currency", "COINS");
-            content.addView(dataRow(item.optString("name", "Item"), sub, price));
+            content.addView(dataRow(item.optString("name", "Item"), sub, price), rowParams());
         }
         if (items.length() == 0) showNotice("The shop has no active items right now.");
         else showNotice("Prices and stock are live. Purchase actions are being moved into the native shop experience.");
@@ -695,7 +705,7 @@ public final class MainActivity extends Activity {
             String sub = item.optString("body", "");
             String status = item.optBoolean("is_read") ? "READ" : "NEW";
             if (item.optBoolean("is_claimed")) status += "  ·  CLAIMED";
-            content.addView(dataRow(item.optString("subject", "Realm message"), sub, status));
+            content.addView(dataRow(item.optString("subject", "Realm message"), sub, status), rowParams());
         }
         if (items.length() == 0) showNotice("Your inbox is clear. New messages will appear here.");
     }
@@ -703,7 +713,7 @@ public final class MainActivity extends Activity {
     private void renderGuild(JSONObject data) {
         JSONObject guild = data.optJSONObject("guild");
         if (guild != null) {
-            content.addView(dataRow(guild.optString("name", "Your guild"), guild.optString("description", "Guild headquarters"), "LEVEL " + guild.optInt("guild_level", 1)));
+            content.addView(dataRow(guild.optString("name", "Your guild"), guild.optString("description", "Guild headquarters"), "LEVEL " + guild.optInt("guild_level", 1)), rowParams());
         } else {
             showNotice("You are not currently in a guild.");
         }
@@ -712,7 +722,7 @@ public final class MainActivity extends Activity {
             content.addView(text("GUILD MEMBERS", 8, GOLD, true));
             for (int i = 0; i < members.length(); i++) {
                 JSONObject member = members.optJSONObject(i);
-                if (member != null) content.addView(dataRow(member.optString("display_name", "Collector"), "Contribution " + member.optLong("contribution"), member.optString("role", "MEMBER")));
+                if (member != null) content.addView(dataRow(member.optString("display_name", "Collector"), "Contribution " + member.optLong("contribution"), member.optString("role", "MEMBER")), rowParams());
             }
         }
     }
@@ -730,13 +740,13 @@ public final class MainActivity extends Activity {
             for (int i = 0; i < contacts.length(); i++) {
                 JSONObject c = contacts.optJSONObject(i);
                 if (c == null) continue;
-                TextView contact = dataRow(c.optString("label", c.optString("platform", "Support")),
+                LinearLayout contact = dataRow(c.optString("label", c.optString("platform", "Support")),
                         c.optString("description", "Contact the CardUniverse team"), c.optString("platform", "OPEN"));
                 contact.setOnClickListener(v -> {
                     try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(c.optString("url")))); }
                     catch (Exception ex) { Toast.makeText(this, "Unable to open this support link.", Toast.LENGTH_SHORT).show(); }
                 });
-                content.addView(contact);
+                content.addView(contact, rowParams());
             }
         } else {
             showNotice("Official support contacts have not been configured yet.");
@@ -769,7 +779,7 @@ public final class MainActivity extends Activity {
             if (value instanceof JSONObject) display = "Available";
             else if (value instanceof JSONArray) display = ((JSONArray) value).length() + " entries";
             else display = String.valueOf(value);
-            content.addView(dataRow(humanize(key), display, ""));
+            content.addView(dataRow(humanize(key), display, ""), rowParams());
             rendered = true;
         }
         if (!rendered) showNotice("No additional status is available at the moment.");
@@ -873,7 +883,7 @@ public final class MainActivity extends Activity {
         return card;
     }
 
-    private TextView dataRow(String title, String subtitle, String trailing) {
+    private LinearLayout dataRow(String title, String subtitle, String trailing) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -900,6 +910,12 @@ public final class MainActivity extends Activity {
         return title;
     }
 
+    private LinearLayout.LayoutParams rowParams() {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = dp(6);
+        return params;
+    }
+
     private LinearLayout sectionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
@@ -919,7 +935,7 @@ public final class MainActivity extends Activity {
         parent.addView(divider, lp);
     }
 
-    private TextView editField(String hint, boolean password) {
+    private EditText editField(String hint, boolean password) {
         EditText edit = new EditText(this);
         edit.setSingleLine(true);
         edit.setTextSize(11);
