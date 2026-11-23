@@ -369,9 +369,15 @@ public final class MainActivity extends Activity {
         String[][] items = {
                 {"home", "⌂", "HOME"},
                 {"collection", "▧", "CARDS"},
+                {"binders", "▤", "BINDERS"},
+                {"formation", "♟", "TEAM"},
+                {"evolution", "✧", "EVOLVE"},
                 {"summon", "✧", "SUMMON"},
                 {"adventure", "⚔", "ADVENTURE"},
+                {"dungeons", "⌘", "DUNGEON"},
+                {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
+                {"trades", "⇄", "TRADES"},
                 {"missions", "☷", "MISSIONS"},
                 {"shop", "♢", "SHOP"},
                 {"inbox", "✉", "INBOX"},
@@ -639,6 +645,12 @@ public final class MainActivity extends Activity {
     private void renderModule(String tab, JSONObject data) {
         switch (tab) {
             case "collection": renderCollection(data); break;
+            case "binders": renderBinders(data); break;
+            case "formation": renderFormation(data); break;
+            case "evolution": renderEvolution(data); break;
+            case "dungeons": renderDungeons(data); break;
+            case "raids": renderRaids(data); break;
+            case "trades": renderTrades(data); break;
             case "summon": renderPacks(data); break;
             case "adventure": renderAdventure(data); break;
             case "arena": renderArena(data); break;
@@ -647,7 +659,7 @@ public final class MainActivity extends Activity {
             case "inbox": renderInbox(data); break;
             case "guild": renderGuild(data); break;
             case "settings": renderSettings(data); break;
-            case "admin": renderObjectSummary(data, "ADMIN OVERVIEW"); break;
+            case "admin": renderAdmin(data); break;
             default: renderObjectSummary(data, "REALM DATA");
         }
     }
@@ -1238,6 +1250,376 @@ public final class MainActivity extends Activity {
         content.addView(text("Your collector account, inventory and progress remain stored in the shared CardUniverse backend.", 8, MUTED, false));
     }
 
+
+    private JSONObject payload(Object... pairs) {
+        JSONObject body = new JSONObject();
+        try { for (int i=0; i+1<pairs.length; i+=2) body.put(String.valueOf(pairs[i]), pairs[i+1]); }
+        catch (Exception ignored) {}
+        return body;
+    }
+
+    private void renderCollection(JSONObject data) {
+        JSONArray cards=data.optJSONArray("cards");
+        if(cards==null){showNotice("No card data was returned.");return;}
+        int owned=0,copies=0;
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null&&c.optInt("owned_count")>0){owned++;copies+=c.optInt("owned_count");}}
+        LinearLayout stats=new LinearLayout(this);
+        stats.addView(statCard("OWNED TYPES",String.valueOf(owned),"Unique cards"),weightParams(1));
+        stats.addView(statCard("TOTAL COPIES",String.valueOf(copies),"Available archive"),weightParams(1));
+        content.addView(stats);addGap(content,10);content.addView(text("YOUR CARD ARCHIVE",8,GOLD,true));
+        for(int i=0;i<cards.length();i++){
+            JSONObject c=cards.optJSONObject(i);if(c==null||c.optInt("owned_count")<=0)continue;
+            LinearLayout row=dataRow(c.optString("name","Unknown card"),c.optString("rarity","COMMON")+" · "+c.optString("element","AETHER")+" · ×"+c.optInt("owned_count"),c.optString("card_code",""));
+            row.setOnClickListener(v->showCardDetails(c));content.addView(row,rowParams());
+        }
+        addGap(content,12);content.addView(text("CARD CATALOGUE",8,GOLD,true));
+        for(int i=0;i<cards.length();i++){
+            JSONObject c=cards.optJSONObject(i);if(c==null||c.optInt("owned_count")>0)continue;
+            LinearLayout row=dataRow(c.optString("name","Unknown card"),c.optString("rarity","COMMON")+" · "+c.optString("element","AETHER")+" · Not owned",c.optString("card_code",""));
+            row.setOnClickListener(v->showCardDetails(c));content.addView(row,rowParams());
+        }
+        if(owned==0)showNotice("Your archive is waiting for its first card. Visit Summon Hall to collect.");
+        loadDuplicateConversionPanel();
+    }
+
+    private void showCardDetails(JSONObject c) {
+        new AlertDialog.Builder(this).setTitle(c.optString("name","Card Details"))
+            .setMessage(c.optString("card_code","CARD")+"\\n"+c.optString("rarity","COMMON")+" · "+c.optString("element","AETHER")
+                +"\\n\\n"+c.optString("description","A collectible from the Firstlight Realm.")
+                +"\\n\\nOwned copies: "+c.optInt("owned_count"))
+            .setPositiveButton("CLOSE",null).show();
+    }
+
+    private void loadDuplicateConversionPanel() {
+        api.get("/api/duplicates",r->ui.post(()->{
+            if(!"collection".equals(activeTab)||content==null)return;
+            LinearLayout p=sectionPanel();p.addView(text("DUPLICATE CONVERTER",9,GOLD,true));
+            if(!r.ok()){p.addView(text(r.error,8,MUTED,false));content.addView(p,rowParams());return;}
+            JSONArray groups=r.data.optJSONArray("cards");int total=r.data.optInt("total_convertible");
+            p.addView(text(total+" duplicate copies can become Shards. One primary copy is always protected.",8,MUTED,false));
+            TextView convert=button("CONVERT UP TO 20 COPIES",true);convert.setEnabled(total>0);
+            convert.setOnClickListener(v->{
+                JSONArray ids=new JSONArray();
+                if(groups!=null)outer:for(int i=0;i<groups.length();i++){JSONObject g=groups.optJSONObject(i);JSONArray a=g==null?null:g.optJSONArray("instance_ids");if(a==null)continue;for(int j=0;j<a.length();j++){if(ids.length()>=20)break outer;ids.put(a.optString(j));}}
+                if(ids.length()==0)return;
+                confirmAction("Convert duplicate cards?","This permanently converts "+ids.length()+" copies into Shards. Your main copy and trade-locked cards are protected.",()->api.post("/api/duplicates/convert",payload("instanceIds",ids,"requestId",newActionId()),x->ui.post(()->{
+                    if(!x.ok())showResultDialog("Conversion failed",x.error);else{showResultDialog("DUPLICATES CONVERTED","Copies converted: "+x.data.optInt("converted_count")+"\\nShards awarded: "+x.data.optInt("shards_awarded"));refreshAccount(()->renderTab("collection"));}
+                })));
+            });
+            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(dp(220),dp(38));bp.topMargin=dp(8);p.addView(convert,bp);content.addView(p,rowParams());
+        }));
+    }
+
+    private void renderDungeons(JSONObject data) {
+        JSONArray dungeons=data.optJSONArray("dungeons"),claimable=data.optJSONArray("claimableRuns"),history=data.optJSONArray("history");
+        JSONObject run=data.optJSONObject("activeRun");
+        int used=data.optInt("dailyRuns"),limit=data.optInt("dailyLimit",3),remaining=Math.max(0,limit-used);
+        LinearLayout summary=sectionPanel();summary.addView(text("DAILY EXPEDITION LIMIT",8,GOLD,true));
+        summary.addView(text(remaining+" / "+limit+" entries remaining today",14,TEXT,true));content.addView(summary,rowParams());
+        if(run!=null){
+            JSONObject rw=run.optJSONObject("reward");if(rw==null)rw=new JSONObject();
+            boolean done="COMPLETED".equalsIgnoreCase(run.optString("result"))||"DEFEAT".equalsIgnoreCase(run.optString("result"));
+            LinearLayout p=sectionPanel();p.addView(text(done?"EXPEDITION RESULT":"ACTIVE EXPEDITION",8,GOLD,true));
+            p.addView(text(run.optString("dungeon_name","Dungeon"),18,TEXT,true));
+            p.addView(text("Floor "+run.optInt("floor_reached")+" / "+rw.optInt("max_floors",6)+" · "+(done?run.optString("result"):"Choose your next chamber"),9,MUTED,false));
+            p.addView(text(formatNumber(rw.optLong("coins"))+" Gold · "+formatNumber(rw.optLong("xp"))+" EXP · "+formatNumber(rw.optLong("shards"))+" Shards",8,GOLD_BRIGHT,true));
+            if(done){
+                TextView claim=button("CLAIM EXPEDITION REWARDS",true);
+                claim.setOnClickListener(v->api.post("/api/dungeons/runs/"+run.optString("run_id")+"/claim",new JSONObject(),x->ui.post(()->{
+                    if(!x.ok())showResultDialog("Claim failed",x.error);else{showResultDialog("EXPEDITION CLAIMED",x.data.optString("message","Rewards added."));refreshAccount(()->renderTab("dungeons"));}
+                })));
+                p.addView(claim,rowParams());
+            }else{
+                p.addView(text("CHOOSE YOUR NEXT CHAMBER",8,GOLD,true));
+                String[][] choices={{"battle","⚔ BATTLE"},{"treasure","◇ TREASURE"},{"sanctuary","✧ SANCTUARY"}};
+                for(String[] ch:choices){
+                    TextView b=button(ch[1],false);String choice=ch[0];
+                    b.setOnClickListener(v->confirmAction("Choose "+choice+"?","Your route and rewards are saved after the step.",()->api.post("/api/dungeons/runs/"+run.optString("run_id")+"/step",payload("choice",choice,"requestId",newActionId()),x->ui.post(()->{
+                        if(!x.ok())showResultDialog("Dungeon step failed",x.error);else{JSONObject step=x.data.optJSONObject("step");showResultDialog("FLOOR RESOLVED",step==null?x.data.optString("message","Route updated."):step.optString("title","Route updated."));refreshAccount(()->renderTab("dungeons"));}
+                    }))));
+                    p.addView(b,rowParams());
+                }
+            }
+            content.addView(p,rowParams());
+        }
+        if(dungeons!=null){
+            content.addView(text("EXPEDITION GATES",8,GOLD,true));
+            for(int i=0;i<dungeons.length();i++){
+                JSONObject d=dungeons.optJSONObject(i);if(d==null)continue;JSONObject rw=d.optJSONObject("reward");if(rw==null)rw=new JSONObject();
+                LinearLayout row=dataRow(d.optString("name","Dungeon"),d.optString("description","")+"\\nDifficulty "+d.optInt("difficulty")+" · "+rw.optInt("max_floors",6)+" floors",d.optString("slug",""));
+                TextView start=button(run!=null?"ACTIVE":remaining<=0?"LIMIT REACHED":"ENTER",true);start.setEnabled(run==null&&remaining>0);
+                start.setOnClickListener(v->confirmAction("Enter "+d.optString("name")+"?","This uses one of your daily dungeon entries.",()->api.post("/api/dungeons/"+d.optString("slug")+"/start",new JSONObject(),x->ui.post(()->{
+                    if(!x.ok())showResultDialog("Cannot enter dungeon",x.error);else refreshAccount(()->renderTab("dungeons"));
+                }))));
+                row.addView(start,new LinearLayout.LayoutParams(dp(94),dp(34)));content.addView(row,rowParams());
+            }
+        }
+        if(claimable!=null&&claimable.length()>0){content.addView(text("UNCLAIMED EXPEDITION REWARDS",8,GOLD,true));for(int i=0;i<claimable.length();i++){JSONObject item=claimable.optJSONObject(i);if(item==null)continue;TextView b=button("CLAIM · "+item.optString("dungeon_name","Expedition"),false);b.setOnClickListener(v->api.post("/api/dungeons/runs/"+item.optString("run_id")+"/claim",new JSONObject(),x->ui.post(()->{if(!x.ok())showResultDialog("Claim failed",x.error);else renderTab("dungeons");})));content.addView(b,rowParams());}}
+        if(history!=null&&history.length()>0){content.addView(text("RECENT EXPEDITIONS",8,GOLD,true));for(int i=0;i<history.length();i++){JSONObject h=history.optJSONObject(i);if(h!=null)content.addView(dataRow(h.optString("dungeon_name","Expedition"),"Floor "+h.optInt("floor_reached")+" · "+h.optString("result"),""),rowParams());}}
+    }
+
+    private void renderRaids(JSONObject data) {
+        JSONArray bosses=data.optJSONArray("bosses");
+        if(bosses==null||bosses.length()==0){showNotice("No world raid is scheduled. Return when the next guardian awakens.");return;}
+        for(int i=0;i<bosses.length();i++){
+            JSONObject b=bosses.optJSONObject(i);if(b==null)continue;JSONObject rw=b.optJSONObject("reward");if(rw==null)rw=new JSONObject();
+            boolean live=b.optBoolean("is_event_open");
+            LinearLayout p=sectionPanel();p.addView(text("WORLD RAID · "+(b.optBoolean("defeated")?"DEFEATED":live?"EVENT LIVE":"SCHEDULED"),8,GOLD,true));
+            p.addView(text(b.optString("name","World Guardian"),19,TEXT,true));p.addView(text(b.optString("description",""),9,MUTED,false));
+            p.addView(text("BOSS HP  "+formatNumber(b.optLong("remaining_hp"))+" / "+formatNumber(b.optLong("hp")),9,GOLD_BRIGHT,true));
+            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(100);bar.setProgress(Math.max(0,Math.min(100,b.optInt("progress_percent"))));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
+            p.addView(bar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(8)));
+            p.addView(text(formatNumber(b.optLong("total_damage"))+" total damage · "+formatNumber(b.optLong("participants"))+" collectors",8,MUTED,false));
+            p.addView(text("Reward: "+formatNumber(rw.optLong("coins"))+" Gold · "+formatNumber(rw.optLong("xp"))+" EXP · "+formatNumber(rw.optLong("shards"))+" Shards",8,GOLD_BRIGHT,true));
+            if(live&&!b.optBoolean("defeated")){
+                TextView attack=button(b.optLong("my_today_damage")>0?"DAILY STRIKE USED":"STRIKE WORLD BOSS",true);attack.setEnabled(b.optLong("my_today_damage")<=0);
+                attack.setOnClickListener(v->confirmAction("Strike "+b.optString("name")+"?","Your formation power determines damage. One strike per day.",()->api.post("/api/raids/"+b.optString("slug")+"/attack",payload("requestId",newActionId()),x->ui.post(()->{
+                    if(!x.ok())showResultDialog("Raid strike failed",x.error);else{JSONObject a=x.data.optJSONObject("attempt");showResultDialog("WORLD RAID STRIKE","Damage dealt: "+(a==null?"—":formatNumber(a.optLong("damage"))));refreshAccount(()->renderTab("raids"));}
+                }))));
+                p.addView(attack,rowParams());
+            }
+            if(b.optBoolean("my_claimable")){
+                TextView claim=button("CLAIM RAID REWARDS",false);claim.setOnClickListener(v->api.post("/api/raids/"+b.optString("slug")+"/claim",new JSONObject(),x->ui.post(()->{
+                    if(!x.ok())showResultDialog("Raid claim failed",x.error);else{showResultDialog("REWARDS CLAIMED",x.data.optString("message","Rewards added."));refreshAccount(()->renderTab("raids"));}
+                })));
+                p.addView(claim,rowParams());
+            }
+            content.addView(p,rowParams());
+        }
+    }
+
+    private void renderTrades(JSONObject data) {
+        JSONArray inventory=data.optJSONArray("inventory"),trades=data.optJSONArray("trades");if(inventory==null)inventory=new JSONArray();if(trades==null)trades=new JSONArray();
+        LinearLayout head=sectionPanel();head.addView(text("SECURE PLAYER-TO-PLAYER EXCHANGE",8,GOLD,true));
+        head.addView(text("Only available tradable cards can be offered. Reserved or bound cards are excluded.",8,MUTED,false));
+        TextView create=button("CREATE TRADE OFFER",true);create.setOnClickListener(v->showTradeCreateDialog(inventory));
+        head.addView(create,new LinearLayout.LayoutParams(dp(190),dp(38)));content.addView(head,rowParams());
+        String uid=me==null?"":me.optString("user_id");int count=0;content.addView(text("TRADE OFFERS",8,GOLD,true));
+        for(int i=0;i<trades.length();i++){
+            JSONObject t=trades.optJSONObject(i);if(t==null)continue;boolean incoming=uid.equals(t.optString("target_user_id")),outgoing=uid.equals(t.optString("creator_user_id"));if(!incoming&&!outgoing)continue;
+            String title=incoming?t.optString("creator_name","Collector")+" sent an offer":"Offer to "+t.optString("target_name","Collector");
+            StringBuilder detail=new StringBuilder(t.optString("status","PENDING"));if(!t.optString("message").isEmpty())detail.append(" · ").append(t.optString("message"));
+            JSONArray items=t.optJSONArray("items");if(items!=null)for(int j=0;j<items.length();j++){JSONObject it=items.optJSONObject(j);if(it!=null)detail.append("\\n").append(it.optString("name")).append(" · ").append(it.optString("rarity"));}
+            LinearLayout row=dataRow(title,detail.toString(),t.optString("status"));
+            if(incoming&&"PENDING".equalsIgnoreCase(t.optString("status"))){
+                TextView accept=button("ACCEPT",true);accept.setOnClickListener(v->showTradeAcceptDialog(t.optString("trade_id"),inventory));
+                TextView decline=button("DECLINE",false);decline.setOnClickListener(v->confirmAction("Decline trade?","The offered cards will be released.",()->api.post("/api/trades/"+t.optString("trade_id")+"/decline",new JSONObject(),x->ui.post(()->{if(!x.ok())showResultDialog("Trade error",x.error);else renderTab("trades");}))));
+                row.addView(accept,new LinearLayout.LayoutParams(dp(72),dp(32)));LinearLayout.LayoutParams dp2=new LinearLayout.LayoutParams(dp(78),dp(32));dp2.leftMargin=dp(5);row.addView(decline,dp2);
+            }else if(outgoing&&"PENDING".equalsIgnoreCase(t.optString("status"))){
+                TextView cancel=button("CANCEL",false);cancel.setOnClickListener(v->confirmAction("Cancel trade offer?","Your reserved cards will become available again.",()->api.post("/api/trades/"+t.optString("trade_id")+"/cancel",new JSONObject(),x->ui.post(()->{if(!x.ok())showResultDialog("Trade error",x.error);else renderTab("trades");}))));
+                row.addView(cancel,new LinearLayout.LayoutParams(dp(78),dp(32)));
+            }
+            content.addView(row,rowParams());count++;
+        }
+        if(count==0)showNotice("No trade offers yet. Create one to start exchanging cards.");
+        content.addView(text("AVAILABLE TRADABLE CARDS · "+inventory.length(),8,GOLD,true));
+        for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · Tradable",""),rowParams());}
+    }
+
+    private void showTradeCreateDialog(JSONArray inventory) {
+        if(inventory.length()==0){showResultDialog("No tradable cards","No available tradable cards were returned for this account.");return;}
+        String[] labels=new String[inventory.length()];boolean[] selected=new boolean[inventory.length()];
+        for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);labels[i]=c==null?"Unknown card":c.optString("name")+" · "+c.optString("rarity");}
+        new AlertDialog.Builder(this).setTitle("Select 1–5 cards to offer").setMultiChoiceItems(labels,selected,(d,n,checked)->selected[n]=checked)
+            .setNegativeButton("CANCEL",null).setPositiveButton("NEXT",(d,w)->{
+                JSONArray ids=new JSONArray();for(int i=0;i<selected.length;i++)if(selected[i]&&inventory.optJSONObject(i)!=null)ids.put(inventory.optJSONObject(i).optString("instance_id"));
+                if(ids.length()<1||ids.length()>5){showResultDialog("Select cards","Choose between 1 and 5 tradable cards.");return;}showTradeRecipientDialog(ids);
+            }).show();
+    }
+
+    private void showTradeRecipientDialog(JSONArray ids) {
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
+        EditText email=editField("Recipient account email",false);email.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
+        EditText message=editField("Optional message",false);form.addView(email,fieldParams());form.addView(message,fieldParams());
+        new AlertDialog.Builder(this).setTitle("Send trade offer").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("SEND OFFER",(d,w)->{
+            String target=email.getText().toString().trim();if(target.isEmpty()){showResultDialog("Recipient required","Enter the recipient's account email.");return;}
+            api.post("/api/trades",payload("targetEmail",target,"message",message.getText().toString().trim(),"instanceIds",ids),r->ui.post(()->{
+                if(!r.ok())showResultDialog("Trade offer failed",r.error);else{showResultDialog("OFFER SENT",r.data.optString("message","Your offer has been sent."));refreshAccount(()->renderTab("trades"));}
+            }));
+        }).show();
+    }
+
+    private void showTradeAcceptDialog(String tradeId,JSONArray inventory) {
+        if(inventory.length()==0){showResultDialog("No exchange cards","You need available tradable cards to accept this offer.");return;}
+        String[] labels=new String[inventory.length()];boolean[] selected=new boolean[inventory.length()];
+        for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);labels[i]=c==null?"Unknown card":c.optString("name")+" · "+c.optString("rarity");}
+        new AlertDialog.Builder(this).setTitle("Choose cards to exchange").setMultiChoiceItems(labels,selected,(d,n,checked)->selected[n]=checked)
+            .setNegativeButton("CANCEL",null).setPositiveButton("ACCEPT",(d,w)->{
+                JSONArray ids=new JSONArray();for(int i=0;i<selected.length;i++)if(selected[i]&&inventory.optJSONObject(i)!=null)ids.put(inventory.optJSONObject(i).optString("instance_id"));
+                if(ids.length()==0){showResultDialog("Choose an exchange","Select at least one tradable card in return.");return;}
+                confirmAction("Complete this exchange?","Both sides exchange selected cards. This action cannot be reversed.",()->api.post("/api/trades/"+tradeId+"/accept",payload("instanceIds",ids),r->ui.post(()->{
+                    if(!r.ok())showResultDialog("Trade failed",r.error);else{showResultDialog("TRADE COMPLETE",r.data.optString("message","Cards exchanged."));refreshAccount(()->renderTab("trades"));}
+                })));
+            }).show();
+    }
+
+    private void renderEvolution(JSONObject data) {
+        JSONObject wallet=data.optJSONObject("wallet");if(wallet==null)wallet=new JSONObject();
+        LinearLayout money=new LinearLayout(this);money.addView(statCard("GOLD",formatNumber(wallet.optLong("coins")),"Training"),weightParams(1));money.addView(statCard("GEMS",formatNumber(wallet.optLong("gems")),"Ascension"),weightParams(1));money.addView(statCard("SHARDS",formatNumber(wallet.optLong("shards")),"Upgrade"),weightParams(1));content.addView(money);
+        JSONArray cards=data.optJSONArray("cards");if(cards==null||cards.length()==0){showNotice("No cards are ready for evolution. Collect cards from Summon Hall first.");return;}
+        content.addView(text("YOUR EVOLUTION ROSTER",8,GOLD,true));
+        for(int i=0;i<cards.length();i++){
+            JSONObject c=cards.optJSONObject(i);if(c==null)continue;
+            String ranks="★".repeat(Math.max(1,c.optInt("star_rank")+1));
+            String sub=c.optString("rarity")+" · "+c.optString("element")+" · Lv "+c.optInt("level")+"/"+data.optInt("max_level",30)+" · "+ranks+" · "+c.optInt("copies_available")+" copies";
+            LinearLayout row=dataRow(c.optString("name","Card"),sub,"UPGRADE");JSONObject walletCopy=wallet;
+            row.setOnClickListener(v->showEvolutionCardDialog(c,walletCopy));content.addView(row,rowParams());
+        }
+    }
+
+    private void showEvolutionCardDialog(JSONObject c,JSONObject wallet) {
+        String message=c.optString("card_code")+" · "+c.optString("element")+" · "+c.optString("rarity")
+            +"\\nLevel "+c.optInt("level")+" · Ascension "+c.optInt("star_rank")+"★"
+            +"\\nAvailable copies: "+c.optInt("copies_available")
+            +"\\n\\nLevel-up: "+formatNumber(c.optLong("level_cost"))+" Gold + "+formatNumber(c.optLong("level_shards"))+" Shards"
+            +"\\n\\nSignature: "+c.optString("skill_name","Firstlight Gift")+"\\n"+c.optString("skill_description","Unlocks at 2★");
+        String[] actions={"LEVEL UP","ASCEND"};
+        new AlertDialog.Builder(this).setTitle(c.optString("name","Card Evolution")).setMessage(message).setItems(actions,(d,w)->{
+            String action=w==0?"LEVEL_UP":"ASCEND";JSONObject cost=c.optJSONObject("next_star_cost");
+            String extra=action.equals("ASCEND")&&cost!=null?"\\nDuplicates "+cost.optInt("duplicates")+" · Gold "+cost.optLong("coins")+" · Gems "+cost.optLong("gems")+" · Shards "+cost.optLong("shards"):"";
+            String warning=action.equals("ASCEND")?"Ascension is permanent. It consumes duplicate copies of this exact card while preserving one primary copy.":"The server will verify your Gold and Shard balance before upgrading.";
+            confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+extra,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
+                if(!r.ok())showResultDialog("Evolution unavailable",r.error);else{showResultDialog("EVOLUTION UPDATED",r.data.optString("message","Your card has been upgraded."));refreshAccount(()->renderTab("evolution"));}
+            })));
+        }).show();
+    }
+
+    private void renderFormation(JSONObject data) {
+        JSONArray cards=data.optJSONArray("cards"),saved=data.optJSONArray("formation");if(cards==null)cards=new JSONArray();if(saved==null)saved=new JSONArray();
+        if(cards.length()==0){showNotice("Collect at least one card before building a formation.");return;}
+        Map<Integer,String> savedSlots=new LinkedHashMap<>();for(int i=0;i<saved.length();i++){JSONObject s=saved.optJSONObject(i);if(s!=null)savedSlots.put(s.optInt("slot_no"),s.optString("card_id"));}
+        String[] labels=new String[cards.length()+1],ids=new String[cards.length()+1];labels[0]="Empty slot";ids[0]="";
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);ids[i+1]=c==null?"":c.optString("card_id");labels[i+1]=c==null?"Unknown card":c.optString("name")+" · "+c.optString("element")+" · "+c.optString("rarity")+" ×"+c.optInt("owned_count");}
+        content.addView(text("YOUR EFFECTIVE POWER · "+formatNumber(data.optLong("power")),10,GOLD_BRIGHT,true));
+        LinearLayout grid=new LinearLayout(this);grid.setOrientation(LinearLayout.HORIZONTAL);Spinner[] slots=new Spinner[5];
+        for(int i=0;i<5;i++){
+            LinearLayout col=new LinearLayout(this);col.setOrientation(LinearLayout.VERTICAL);col.setPadding(dp(4),dp(4),dp(4),dp(4));col.setBackground(gradient(PANEL_LIGHT,PANEL,Color.rgb(72,88,67),dp(8)));
+            col.addView(text("POSITION 0"+(i+1),7,GOLD,true));Spinner spinner=new Spinner(this);
+            ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,labels);adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);spinner.setAdapter(adapter);
+            String sid=savedSlots.get(i+1);for(int j=0;j<ids.length;j++)if(ids[j].equals(sid))spinner.setSelection(j);slots[i]=spinner;col.addView(spinner);
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);cp.setMargins(dp(3),dp(5),dp(3),dp(5));grid.addView(col,cp);
+        }
+        content.addView(grid);JSONObject synergy=data.optJSONObject("synergy");
+        if(synergy!=null)content.addView(text("RESONANCE · "+synergy.optString("title","No active resonance")+" · +"+synergy.optInt("bonus_pct")+"%",9,GOLD_BRIGHT,true));
+        TextView save=button("SAVE FORMATION",true);save.setOnClickListener(v->{
+            JSONArray chosen=new JSONArray();java.util.HashSet<String> unique=new java.util.HashSet<>();
+            for(Spinner sp:slots){int index=sp.getSelectedItemPosition();String id=index>=0&&index<ids.length?ids[index]:"";if(id.isEmpty())continue;if(!unique.add(id)){showResultDialog("Duplicate selection","Each card can only occupy one formation slot.");return;}chosen.put(id);}
+            save.setEnabled(false);api.post("/api/formation",payload("cards",chosen),r->ui.post(()->{save.setEnabled(true);if(!r.ok())showResultDialog("Formation not saved",r.error);else{showResultDialog("FORMATION SAVED","Effective power: "+formatNumber(r.data.optLong("power")));refreshAccount(()->renderTab("formation"));}}));
+        });
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(190),dp(40));sp.topMargin=dp(12);content.addView(save,sp);
+    }
+
+    private void renderBinders(JSONObject data) {
+        JSONArray binders=data.optJSONArray("binders"),cards=data.optJSONArray("cards");JSONObject active=data.optJSONObject("activeBinder");
+        if(binders==null)binders=new JSONArray();if(cards==null)cards=new JSONArray();
+        LinearLayout p=sectionPanel();p.addView(text("PERSONAL CARD BINDERS",8,GOLD,true));p.addView(text(active==null?"Genesis Archive":active.optString("name","Genesis Archive"),18,TEXT,true));
+        p.addView(text("Create up to 12 themed binders to organize your collection.",8,MUTED,false));
+        TextView create=button("CREATE NEW BINDER",true);create.setOnClickListener(v->showCreateBinderDialog());p.addView(create,new LinearLayout.LayoutParams(dp(180),dp(38)));content.addView(p,rowParams());
+        for(int i=0;i<binders.length();i++){JSONObject b=binders.optJSONObject(i);if(b!=null)content.addView(dataRow(b.optString("name")+(b.optInt("is_active")==1?" · ACTIVE":""),b.optString("theme_key")+" theme · "+b.optInt("card_count")+" unique cards",b.optInt("is_default")==1?"DEFAULT":""),rowParams());}
+        content.addView(text("CARDS IN ACTIVE BINDER",8,GOLD,true));
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · "+c.optString("element")+" · ×"+c.optInt("owned_count"),c.optString("card_code")),rowParams());}
+        if(cards.length()==0)showNotice("This binder is empty. Your full archive remains available under Cards.");
+    }
+
+    private void showCreateBinderDialog() {
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
+        EditText name=editField("Binder name",false);Spinner theme=new Spinner(this);String[] themes={"verdant","ember","tide","astral","void","gold"};
+        theme.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,themes));form.addView(name,fieldParams());form.addView(text("COVER THEME",8,GOLD,true));form.addView(theme);
+        new AlertDialog.Builder(this).setTitle("Create binder").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("CREATE",(d,w)->{
+            String value=name.getText().toString().trim();if(value.length()<2){showResultDialog("Name required","Binder names need at least two characters.");return;}
+            api.post("/api/binders",payload("name",value,"theme_key",themes[theme.getSelectedItemPosition()]),r->ui.post(()->{if(!r.ok())showResultDialog("Binder not created",r.error);else renderTab("binders");}));
+        }).show();
+    }
+
+    private void renderAdmin(JSONObject data) {
+        JSONObject stats=data.optJSONObject("stats");if(stats==null)stats=new JSONObject();
+        JSONObject users=stats.optJSONObject("users"),cards=stats.optJSONObject("cards"),instances=stats.optJSONObject("instances");
+        LinearLayout row=new LinearLayout(this);row.addView(statCard("PLAYERS",String.valueOf(users==null?0:users.optLong("total")),"Registered"),weightParams(1));
+        row.addView(statCard("ACTIVE CARDS",String.valueOf(cards==null?0:cards.optLong("total")),"Catalogue"),weightParams(1));
+        row.addView(statCard("COPIES",String.valueOf(instances==null?0:instances.optLong("total")),"Inventory"),weightParams(1));content.addView(row);
+        addGap(content,12);content.addView(text("MASTER ADMIN CONSOLE",8,GOLD,true));
+        content.addView(text("Read access follows the existing Worker admin authorization. Creation actions are recorded by the server.",8,MUTED,false));
+        String[][] sections={{"cards","CARD CATALOGUE","Create and inspect cards"},{"users","PLAYER DIRECTORY","Inspect account records"},{"economy","ECONOMY","Wallet totals and transactions"},{"moderation","MODERATION","Reports, flags and appeals"},{"mail","GAME MAIL","Publish player announcements"},{"events","LIVE EVENTS","Schedules and rewards"},{"world","WORLD BUILDER","Chapters and encounters"},{"missions","MISSIONS","Mission configuration"},{"packs","PACKS","Pack settings and odds"},{"rewards","LEVEL REWARDS","Milestone configuration"}};
+        for(String[] s:sections){LinearLayout item=dataRow(s[1],s[2],"OPEN");item.setOnClickListener(v->loadAdminSection(s[0]));content.addView(item,rowParams());}
+    }
+
+    private void loadAdminSection(String section) {
+        String path;
+        switch(section){
+            case "cards":path="/api/admin/cards";break;case "users":path="/api/admin/users";break;case "economy":path="/api/admin/economy";break;
+            case "moderation":path="/api/admin/moderation/overview";break;case "mail":path="/api/admin/mail";break;case "events":path="/api/admin/events";break;
+            case "world":path="/api/admin/world";break;case "missions":path="/api/admin/missions";break;case "packs":path="/api/admin/packs";break;
+            case "rewards":path="/api/admin/rewards";break;default:return;
+        }
+        content.removeAllViews();TextView back=button("← BACK TO ADMIN",false);back.setOnClickListener(v->renderTab("admin"));content.addView(back,new LinearLayout.LayoutParams(dp(170),dp(36)));
+        content.addView(text(section.toUpperCase()+" MANAGEMENT",9,GOLD,true));renderLoading();
+        api.get(path,r->ui.post(()->{
+            if(!"admin".equals(activeTab)||content==null)return;content.removeViews(2,Math.max(0,content.getChildCount()-2));
+            if(!r.ok()){showNotice(r.error);return;}
+            switch(section){case "cards":renderAdminCards(r.data);break;case "users":renderAdminUsers(r.data);break;case "mail":renderAdminMail(r.data);break;
+                case "moderation":renderObjectSummary(r.data,"MODERATION OVERVIEW");api.get("/api/admin/moderation/reports?status=OPEN",x->ui.post(()->{if(x.ok()&&"admin".equals(activeTab))renderAdminReports(x.data);}));break;
+                default:renderObjectSummary(r.data,section.toUpperCase());}
+        }));
+    }
+
+    private void renderAdminCards(JSONObject data) {
+        TextView add=button("+ CREATE CARD",true);add.setOnClickListener(v->showAdminCreateCardDialog());content.addView(add,new LinearLayout.LayoutParams(dp(160),dp(38)));
+        JSONArray list=data.optJSONArray("cards");if(list==null)return;
+        for(int i=0;i<list.length();i++){JSONObject c=list.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("card_code")+" · "+c.optString("rarity")+" · "+c.optString("element")+" · "+c.optInt("copies")+" copies",c.optInt("is_active")==1?"ACTIVE":"INACTIVE"),rowParams());}
+    }
+
+    private void showAdminCreateCardDialog() {
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
+        EditText name=editField("Card name",false),desc=editField("Description",false),element=editField("Element (e.g. AETHER)",false);Spinner rarity=new Spinner(this);
+        String[] rarities={"COMMON","UNCOMMON","RARE","EPIC","LEGENDARY","MYTHIC"};rarity.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,rarities));
+        form.addView(name,fieldParams());form.addView(desc,fieldParams());form.addView(element,fieldParams());form.addView(text("RARITY",8,GOLD,true));form.addView(rarity);
+        new AlertDialog.Builder(this).setTitle("Create catalogue card").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("CREATE",(d,w)->{
+            String n=name.getText().toString().trim();if(n.length()<2){showResultDialog("Card name required","Enter at least two characters.");return;}
+            api.post("/api/admin/cards",payload("name",n,"description",desc.getText().toString().trim(),"element",element.getText().toString().trim().isEmpty()?"AETHER":element.getText().toString().trim(),"rarity",rarities[rarity.getSelectedItemPosition()]),r->ui.post(()->{
+                if(!r.ok())showResultDialog("Card not created",r.error);else{showResultDialog("CARD CREATED",r.data.optString("message","Card added."));loadAdminSection("cards");}
+            }));
+        }).show();
+    }
+
+    private void renderAdminUsers(JSONObject data) {
+        JSONArray list=data.optJSONArray("users");if(list==null)return;content.addView(text(list.length()+" ACCOUNTS",8,GOLD,true));
+        for(int i=0;i<list.length();i++){JSONObject u=list.optJSONObject(i);if(u==null)continue;LinearLayout item=dataRow(u.optString("display_name","Collector"),u.optString("email")+" · Lv "+u.optInt("collector_level")+" · "+u.optInt("card_copies")+" copies",u.optString("role","collector").toUpperCase());item.setOnClickListener(v->loadAdminPlayer(u.optString("user_id")));content.addView(item,rowParams());}
+    }
+
+    private void loadAdminPlayer(String userId) {
+        content.removeAllViews();TextView back=button("← BACK TO PLAYERS",false);back.setOnClickListener(v->loadAdminSection("users"));content.addView(back,new LinearLayout.LayoutParams(dp(170),dp(36)));renderLoading();
+        api.get("/api/admin/users/"+userId,r->ui.post(()->{
+            if(!"admin".equals(activeTab))return;if(!r.ok()){showNotice(r.error);return;}content.removeViews(1,content.getChildCount()-1);
+            JSONObject u=r.data.optJSONObject("user"),stats=r.data.optJSONObject("stats");
+            if(u!=null){content.addView(text(u.optString("display_name")+" · "+u.optString("email"),15,TEXT,true));content.addView(text("ROLE "+u.optString("role")+" · LEVEL "+u.optInt("collector_level")+" · "+u.optLong("coins")+" Gold · "+u.optLong("gems")+" Gems · "+u.optLong("shards")+" Shards",8,GOLD_BRIGHT,true));}
+            if(stats!=null)renderObjectSummary(stats,"PLAYER STATISTICS");
+            for(String key:new String[]{"cards","transactions","packs","eventClaims","purchases","ownership","audit","ranked"}){JSONArray a=r.data.optJSONArray(key);if(a!=null){content.addView(text(key.toUpperCase()+" · "+a.length(),8,GOLD,true));for(int i=0;i<Math.min(a.length(),8);i++){JSONObject it=a.optJSONObject(i);if(it!=null)renderObjectSummary(it,key.toUpperCase());}}}
+        }));
+    }
+
+    private void renderAdminMail(JSONObject data) {
+        TextView publish=button("PUBLISH ANNOUNCEMENT",true);publish.setOnClickListener(v->showAdminMailDialog());content.addView(publish,new LinearLayout.LayoutParams(dp(220),dp(38)));
+        JSONArray messages=data.optJSONArray("messages");if(messages==null)return;content.addView(text("RECENT GAME MAIL",8,GOLD,true));
+        for(int i=0;i<messages.length();i++){JSONObject m=messages.optJSONObject(i);if(m!=null)content.addView(dataRow(m.optString("subject","Announcement"),m.optString("mail_type")+" · "+m.optString("created_at")+" · "+m.optInt("read_count")+" read · "+m.optInt("claim_count")+" claimed",m.optString("status","SENT")),rowParams());}
+    }
+
+    private void showAdminMailDialog() {
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
+        EditText subject=editField("Announcement subject",false),body=new EditText(this);body.setHint("Message to all players");body.setTextColor(TEXT);body.setHintTextColor(MUTED);body.setMinLines(3);body.setGravity(Gravity.TOP);body.setPadding(dp(10),dp(8),dp(10),dp(8));body.setBackground(gradient(Color.rgb(9,18,15),Color.rgb(9,18,15),Color.rgb(70,83,67),dp(9)));
+        form.addView(subject,fieldParams());form.addView(body,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(100)));
+        new AlertDialog.Builder(this).setTitle("Publish to all players").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("PUBLISH",(d,w)->{
+            String s=subject.getText().toString().trim(),b=body.getText().toString().trim();if(s.length()<2||b.length()<2){showResultDialog("Complete the message","Subject and message are required.");return;}
+            api.post("/api/admin/mail",payload("mail_type","ANNOUNCEMENT","subject",s,"body",b,"target_type","ALL","coins",0,"gems",0,"shards",0,"xp",0,"pack_quantity",0),r->ui.post(()->{
+                if(!r.ok())showResultDialog("Announcement failed",r.error);else{showResultDialog("ANNOUNCEMENT PUBLISHED",r.data.optString("message","Message published."));loadAdminSection("mail");}
+            }));
+        }).show();
+    }
+
+    private void renderAdminReports(JSONObject data) {
+        JSONArray list=data.optJSONArray("reports");if(list==null||list.length()==0)return;content.addView(text("OPEN PLAYER REPORTS",8,GOLD,true));
+        for(int i=0;i<list.length();i++){JSONObject r=list.optJSONObject(i);if(r!=null)content.addView(dataRow(r.optString("category"),r.optString("reporter_name")+" → "+r.optString("target_name")+" · "+r.optString("created_at")+"\\n"+r.optString("description"),r.optString("status")),rowParams());}
+    }
+
     private void renderObjectSummary(JSONObject data, String label) {
         showPanelHeading(label);
         boolean rendered = false;
@@ -1630,6 +2012,12 @@ public final class MainActivity extends Activity {
     private String endpointFor(String tab) {
         switch (tab) {
             case "collection": return "/api/cards";
+            case "binders": return "/api/binders";
+            case "formation": return "/api/formation";
+            case "evolution": return "/api/evolution";
+            case "dungeons": return "/api/dungeons";
+            case "raids": return "/api/raids";
+            case "trades": return "/api/trades";
             case "summon": return "/api/packs";
             case "adventure": return "/api/adventure";
             case "arena": return "/api/arena";
@@ -1646,6 +2034,12 @@ public final class MainActivity extends Activity {
     private String screenHeading(String tab) {
         switch (tab) {
             case "collection": return "The Card Archive";
+            case "binders": return "Collector Binders";
+            case "formation": return "Battle Formation";
+            case "evolution": return "Evolution Forge";
+            case "dungeons": return "Roguelike Dungeon";
+            case "raids": return "World Boss Raid";
+            case "trades": return "Trade Desk";
             case "summon": return "Summon Hall";
             case "adventure": return "Realm Expedition";
             case "arena": return "Battle Arena";
@@ -1661,7 +2055,13 @@ public final class MainActivity extends Activity {
 
     private String screenDescription(String tab) {
         switch (tab) {
-            case "collection": return "Your owned cards and archive catalogue.";
+            case "collection": return "Your owned cards, full catalogue and duplicate copies.";
+            case "binders": return "Organize the cards in your personal archive binders.";
+            case "formation": return "Assign up to five cards to strengthen every battle.";
+            case "evolution": return "Train cards, awaken signature skills and ascend ranks.";
+            case "dungeons": return "Choose a route, clear floors and claim expedition rewards.";
+            case "raids": return "Contribute daily damage to the shared world boss.";
+            case "trades": return "Exchange tradable cards securely with other collectors.";
             case "summon": return "Your available packs and summon inventory.";
             case "adventure": return "Chapters, encounters and expedition progress.";
             case "arena": return "Your current player-versus-player status.";
