@@ -752,6 +752,31 @@ public final class MainActivity extends Activity {
             showNotice("Official support contacts have not been configured yet.");
         }
         addGap(content, 12);
+        content.addView(text("BLOCKED PLAYERS", 8, GOLD, true));
+        TextView blockedLoading = text("Loading your blocked list...", 8, MUTED, false);
+        content.addView(blockedLoading);
+        api.get("/api/blocks", result -> ui.post(() -> {
+            if (!"settings".equals(activeTab) || content == null) return;
+            content.removeView(blockedLoading);
+            JSONArray blocked = result.ok() ? result.data.optJSONArray("blocked") : null;
+            if (blocked == null || blocked.length() == 0) {
+                content.addView(text(result.ok() ? "No players are blocked on this account." : result.error, 8, MUTED, false));
+            } else {
+                for (int i = 0; i < blocked.length(); i++) {
+                    JSONObject player = blocked.optJSONObject(i);
+                    if (player == null) continue;
+                    final String playerId = player.optString("blocked_user_id");
+                    LinearLayout blockedRow = dataRow(player.optString("display_name", "Collector"),
+                            "Collector level " + player.optInt("collector_level"), "UNBLOCK");
+                    blockedRow.setOnClickListener(v -> api.delete("/api/blocks/" + playerId, deleteResult -> ui.post(() -> {
+                        if (deleteResult.ok()) renderTab("settings");
+                        else Toast.makeText(this, deleteResult.error, Toast.LENGTH_LONG).show();
+                    })));
+                    content.addView(blockedRow, rowParams());
+                }
+            }
+        }));
+        addGap(content, 12);
         TextView logout = button("SIGN OUT", false);
         logout.setOnClickListener(v -> {
             JSONObject payload = new JSONObject();
