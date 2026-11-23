@@ -664,24 +664,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void renderCollection(JSONObject data) {
-        JSONArray cards = data.optJSONArray("cards");
-        if (cards == null) { showNotice("No card data was returned."); return; }
-        int owned = 0;
-        for (int i = 0; i < cards.length(); i++) if (cards.optJSONObject(i) != null && cards.optJSONObject(i).optInt("owned_count") > 0) owned++;
-        content.addView(statCard("OWNED CARD TYPES", String.valueOf(owned), "Cards with at least one copy"));
-        addGap(content, 10);
-        content.addView(text("ARCHIVE CATALOGUE", 8, GOLD, true));
-        for (int i = 0; i < cards.length(); i++) {
-            JSONObject item = cards.optJSONObject(i);
-            if (item == null || item.optInt("owned_count") <= 0) continue;
-            String sub = item.optString("rarity", "COMMON") + "  ·  " + item.optString("element", "UNKNOWN")
-                    + "  ·  OWNED " + item.optInt("owned_count");
-            content.addView(dataRow(item.optString("name", "Unknown card"), sub, item.optString("card_code", "CARD")), rowParams());
-        }
-        if (owned == 0) showNotice("Your archive is waiting for its first card.");
-    }
-
+    
     private void renderPacks(JSONObject data) {
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
