@@ -65,6 +65,8 @@ public final class MainActivity extends Activity {
     private boolean registering = false;
     private boolean requestBusy = false;
     private boolean syncingAccount = false;
+    private boolean compactLayout = false;
+    private boolean showingAuth = false;
     private TextView syncControl;
 
     @Override
@@ -99,6 +101,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showSplash() {
+        showingAuth = false;
         FrameLayout splash = new FrameLayout(this);
         splash.setBackground(gradient(BG, Color.rgb(17, 39, 31), GOLD, 0));
         LinearLayout center = new LinearLayout(this);
@@ -149,6 +152,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showConnectionError(String message) {
+        showingAuth = false;
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
@@ -181,6 +185,8 @@ public final class MainActivity extends Activity {
 
     // Native account entry — no website landing page or embedded browser.
     private void showAuth(boolean register, String error) {
+        showingAuth = true;
+        compactLayout = isCompactLayout();
         registering = register;
         requestBusy = false;
         FrameLayout root = new FrameLayout(this);
@@ -320,6 +326,7 @@ public final class MainActivity extends Activity {
             api.post(register ? "/api/auth/register" : "/api/auth/login", payload, result -> ui.post(() -> {
                 requestBusy = false;
                 if (result.ok() && api.hasSession()) {
+                    activeTab = "home";
                     hideKeyboard();
                     showSplash();
                     api.get("/api/me", meResult -> ui.post(() -> {
@@ -376,7 +383,9 @@ public final class MainActivity extends Activity {
     }
 
     private void showApp() {
+        showingAuth = false;
         boolean compact = isCompactLayout();
+        compactLayout = compact;
         navLabels.clear();
         rail = null;
         appRoot = new LinearLayout(this);
@@ -2671,9 +2680,12 @@ public final class MainActivity extends Activity {
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        if (me != null) {
+        boolean nextCompact = isCompactLayout();
+        if (nextCompact == compactLayout) return; // Ignore keyboard-only configuration changes.
+        compactLayout = nextCompact;
+        if (me != null && appRoot != null) {
             showApp();
-        } else if (!isFinishing()) {
+        } else if (showingAuth && !isFinishing()) {
             showAuth(registering, "");
         }
     }
