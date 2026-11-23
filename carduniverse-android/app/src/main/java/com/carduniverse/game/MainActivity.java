@@ -3,6 +3,7 @@ package com.carduniverse.game;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -185,17 +186,21 @@ public final class MainActivity extends Activity {
         FrameLayout root = new FrameLayout(this);
         root.setBackground(gradient(BG, Color.rgb(16, 34, 28), Color.rgb(75, 93, 68), 0));
 
+        boolean compact = isCompactLayout();
         LinearLayout split = new LinearLayout(this);
-        split.setOrientation(LinearLayout.HORIZONTAL);
-        split.setPadding(dp(18), dp(14), dp(18), dp(14));
+        split.setOrientation(compact ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
+        split.setPadding(dp(compact ? 14 : 18), dp(compact ? 10 : 14),
+                dp(compact ? 14 : 18), dp(compact ? 14 : 14));
 
         LinearLayout world = new LinearLayout(this);
         world.setOrientation(LinearLayout.VERTICAL);
-        world.setGravity(Gravity.CENTER_VERTICAL);
-        world.setPadding(dp(20), dp(14), dp(18), dp(14));
+        world.setGravity(compact ? Gravity.TOP : Gravity.CENTER_VERTICAL);
+        world.setPadding(dp(compact ? 4 : 20), dp(compact ? 4 : 14),
+                dp(compact ? 4 : 18), dp(compact ? 2 : 14));
         TextView eyebrow = text("A NEW CHAPTER BEGINS", 9, GOLD, true);
         eyebrow.setLetterSpacing(0.24f);
-        TextView title = text("ENTER THE\nFIRSTLIGHT REALM", 29, TEXT, true);
+        TextView title = text(compact ? "ENTER THE FIRSTLIGHT REALM" : "ENTER THE\nFIRSTLIGHT REALM",
+                compact ? 19 : 29, TEXT, true);
         title.setLineSpacing(0, 0.94f);
         TextView copy = text("Collect rare cards. Build your formation.\nExplore a living universe made for collectors.", 11, MUTED, false);
         copy.setLineSpacing(dp(4), 1f);
@@ -232,19 +237,23 @@ public final class MainActivity extends Activity {
         facts.addView(f3, weightParams(1));
 
         world.addView(eyebrow);
-        addGap(world, 9);
+        addGap(world, compact ? 4 : 9);
         world.addView(title);
-        addGap(world, 10);
+        addGap(world, compact ? 3 : 10);
         world.addView(copy);
-        addGap(world, 14);
-        world.addView(artwork, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
-        addGap(world, 12);
+        addGap(world, compact ? 7 : 14);
+        LinearLayout.LayoutParams artworkParams = compact
+                ? new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(86))
+                : new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
+        world.addView(artwork, artworkParams);
+        addGap(world, compact ? 6 : 12);
         world.addView(facts);
 
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setGravity(Gravity.CENTER_VERTICAL);
-        form.setPadding(dp(22), dp(18), dp(22), dp(18));
+        form.setGravity(compact ? Gravity.TOP : Gravity.CENTER_VERTICAL);
+        form.setPadding(dp(compact ? 15 : 22), dp(compact ? 13 : 18),
+                dp(compact ? 15 : 22), dp(compact ? 13 : 18));
         form.setBackground(gradient(Color.rgb(24, 35, 30), Color.rgb(13, 22, 19), Color.rgb(119, 102, 67), dp(18)));
 
         TextView mini = text("✦  CARDUNIVERSE", 9, GOLD, true);
@@ -271,11 +280,11 @@ public final class MainActivity extends Activity {
         security.setLetterSpacing(0.05f);
 
         form.addView(mini);
-        addGap(form, 13);
+        addGap(form, compact ? 7 : 13);
         form.addView(heading);
         addGap(form, 4);
         form.addView(hint);
-        addGap(form, 13);
+        addGap(form, compact ? 8 : 13);
         form.addView(nameField, fieldParams());
         form.addView(emailField, fieldParams());
         form.addView(passwordField, fieldParams());
@@ -328,11 +337,27 @@ public final class MainActivity extends Activity {
             }));
         });
 
-        split.addView(world, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
-        LinearLayout.LayoutParams formParams = new LinearLayout.LayoutParams(dp(330), ViewGroup.LayoutParams.MATCH_PARENT);
-        formParams.leftMargin = dp(12);
-        split.addView(form, formParams);
-        root.addView(split, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        if (compact) {
+            split.addView(world, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams formParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            formParams.topMargin = dp(10);
+            split.addView(form, formParams);
+            ScrollView authScroll = new ScrollView(this);
+            authScroll.setFillViewport(true);
+            authScroll.setClipToPadding(false);
+            authScroll.addView(split);
+            root.addView(authScroll, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        } else {
+            split.addView(world, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+            LinearLayout.LayoutParams formParams = new LinearLayout.LayoutParams(dp(330), ViewGroup.LayoutParams.MATCH_PARENT);
+            formParams.leftMargin = dp(12);
+            split.addView(form, formParams);
+            root.addView(split, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        }
         setContentView(root);
     }
 
@@ -343,31 +368,21 @@ public final class MainActivity extends Activity {
         } catch (Exception ignored) {}
     }
 
+    private boolean isCompactLayout() {
+        int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
+                / getResources().getDisplayMetrics().density);
+        return getResources().getConfiguration().orientation == Configuration.ORIENTATION_PORTRAIT
+                || widthDp < 680;
+    }
+
     private void showApp() {
+        boolean compact = isCompactLayout();
+        navLabels.clear();
+        rail = null;
         appRoot = new LinearLayout(this);
-        appRoot.setOrientation(LinearLayout.HORIZONTAL);
+        appRoot.setOrientation(compact ? LinearLayout.VERTICAL : LinearLayout.HORIZONTAL);
         appRoot.setBackgroundColor(BG);
 
-        rail = new LinearLayout(this);
-        rail.setOrientation(LinearLayout.VERTICAL);
-        rail.setPadding(dp(7), dp(9), dp(7), dp(8));
-        rail.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        rail.setBackground(gradient(Color.rgb(17, 29, 25), Color.rgb(9, 17, 15), Color.rgb(49, 65, 51), 0));
-        appRoot.addView(rail, new LinearLayout.LayoutParams(dp(82), ViewGroup.LayoutParams.MATCH_PARENT));
-
-        TextView emblem = text("✦", 25, GOLD_BRIGHT, true);
-        emblem.setGravity(Gravity.CENTER);
-        rail.addView(emblem, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
-        TextView brand = text("CU", 8, GOLD, true);
-        brand.setGravity(Gravity.CENTER);
-        brand.setLetterSpacing(0.18f);
-        rail.addView(brand, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
-        addDivider(rail, true);
-
-        ScrollView navScroll = new ScrollView(this);
-        navScroll.setFillViewport(false);
-        LinearLayout navStack = new LinearLayout(this);
-        navStack.setOrientation(LinearLayout.VERTICAL);
         String[][] items = {
                 {"home", "⌂", "HOME"},
                 {"collection", "▧", "CARDS"},
@@ -391,50 +406,100 @@ public final class MainActivity extends Activity {
                 {"guild", "♜", "GUILD"},
                 {"settings", "⚙", "SETTINGS"}
         };
-        for (String[] item : items) addNavItem(navStack, item[0], item[1], item[2]);
-        navScroll.addView(navStack);
-        rail.addView(navScroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+
+        if (!compact) {
+            rail = new LinearLayout(this);
+            rail.setOrientation(LinearLayout.VERTICAL);
+            rail.setPadding(dp(7), dp(9), dp(7), dp(8));
+            rail.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+            rail.setBackground(gradient(Color.rgb(17, 29, 25), Color.rgb(9, 17, 15), Color.rgb(49, 65, 51), 0));
+            appRoot.addView(rail, new LinearLayout.LayoutParams(dp(82), ViewGroup.LayoutParams.MATCH_PARENT));
+
+            TextView emblem = text("✦", 25, GOLD_BRIGHT, true);
+            emblem.setGravity(Gravity.CENTER);
+            rail.addView(emblem, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+            TextView brand = text("CU", 8, GOLD, true);
+            brand.setGravity(Gravity.CENTER);
+            brand.setLetterSpacing(0.18f);
+            rail.addView(brand, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(20)));
+            addDivider(rail, true);
+
+            ScrollView navScroll = new ScrollView(this);
+            navScroll.setFillViewport(false);
+            LinearLayout navStack = new LinearLayout(this);
+            navStack.setOrientation(LinearLayout.VERTICAL);
+            for (String[] item : items) addNavItem(navStack, item[0], item[1], item[2]);
+            navScroll.addView(navStack);
+            rail.addView(navScroll, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        }
 
         mainColumn = new LinearLayout(this);
         mainColumn.setOrientation(LinearLayout.VERTICAL);
-        mainColumn.setPadding(dp(12), dp(9), dp(14), dp(8));
-        appRoot.addView(mainColumn, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        mainColumn.setPadding(dp(compact ? 10 : 12), dp(compact ? 7 : 9),
+                dp(compact ? 10 : 14), dp(compact ? 6 : 8));
+        appRoot.addView(mainColumn, compact
+                ? new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f)
+                : new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
 
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
-        top.setPadding(dp(4), 0, dp(4), dp(6));
-        pageTitle = text("REALM OVERVIEW", 13, TEXT, true);
+        top.setPadding(dp(4), 0, dp(4), dp(5));
+        pageTitle = text(compact ? "CARDUNIVERSE" : "REALM OVERVIEW",
+                compact ? 11 : 13, TEXT, true);
+        pageTitle.setSingleLine(true);
         pageTitle.setLetterSpacing(0.09f);
-        top.addView(pageTitle, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        top.addView(pageTitle, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        accountLabel = text(me.optString("display_name", "Collector"), 9, GOLD_BRIGHT, true);
+        accountLabel = text(me.optString("display_name", "Collector"), compact ? 8 : 9, GOLD_BRIGHT, true);
         accountLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        currencyLabel = text(walletLine(), 8, MUTED, true);
+        accountLabel.setSingleLine(true);
+        accountLabel.setMaxWidth(dp(compact ? 70 : 180));
+        currencyLabel = text(walletLine(), compact ? 6 : 8, MUTED, true);
         currencyLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        currencyLabel.setSingleLine(true);
+        currencyLabel.setMaxWidth(dp(compact ? 116 : 220));
         LinearLayout account = new LinearLayout(this);
         account.setOrientation(LinearLayout.VERTICAL);
         account.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         account.addView(accountLabel);
         account.addView(currencyLabel);
-        TextView avatar = text(initials(me.optString("display_name", "CU")), 11, BG, true);
+        TextView avatar = text(initials(me.optString("display_name", "CU")), 10, BG, true);
         avatar.setGravity(Gravity.CENTER);
         avatar.setBackground(gradient(GOLD_BRIGHT, GOLD, GOLD, dp(24)));
-        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(dp(32), dp(32));
-        avp.leftMargin = dp(10);
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(
+                dp(compact ? 27 : 32), dp(compact ? 27 : 32));
+        avp.leftMargin = dp(compact ? 6 : 10);
         right.addView(account);
-        syncControl = button("↻ SYNC", false);
-        syncControl.setTextSize(7);
-        syncControl.setPadding(dp(8), 0, dp(8), 0);
+
+        syncControl = button(compact ? "↻" : "↻ SYNC", false);
+        syncControl.setTextSize(compact ? 11 : 7);
+        syncControl.setPadding(dp(compact ? 4 : 8), 0, dp(compact ? 4 : 8), 0);
         syncControl.setContentDescription("Sync latest CardUniverse data from the web backend");
         syncControl.setOnClickListener(v -> syncWithSharedBackend(true, true));
-        LinearLayout.LayoutParams syncParams = new LinearLayout.LayoutParams(dp(58), dp(30));
-        syncParams.leftMargin = dp(9);
+        LinearLayout.LayoutParams syncParams = new LinearLayout.LayoutParams(
+                dp(compact ? 30 : 58), dp(compact ? 28 : 30));
+        syncParams.leftMargin = dp(compact ? 6 : 9);
         right.addView(syncControl, syncParams);
         right.addView(avatar, avp);
         top.addView(right);
-        mainColumn.addView(top, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)));
+        mainColumn.addView(top, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(compact ? 39 : 44)));
+
+        if (compact) {
+            HorizontalScrollView navScroll = new HorizontalScrollView(this);
+            navScroll.setHorizontalScrollBarEnabled(false);
+            navScroll.setFillViewport(false);
+            LinearLayout navStack = new LinearLayout(this);
+            navStack.setOrientation(LinearLayout.HORIZONTAL);
+            for (String[] item : items) addCompactNavItem(navStack, item[0], item[1], item[2]);
+            navScroll.addView(navStack);
+            mainColumn.addView(navScroll, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(43)));
+        }
         addDivider(mainColumn, false);
 
         ScrollView scroller = new ScrollView(this);
@@ -442,13 +507,39 @@ public final class MainActivity extends Activity {
         scroller.setClipToPadding(false);
         content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(3), dp(11), dp(3), dp(22));
+        content.setPadding(dp(compact ? 1 : 3), dp(compact ? 8 : 11),
+                dp(compact ? 1 : 3), dp(22));
         scroller.addView(content);
-        mainColumn.addView(scroller, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        mainColumn.addView(scroller, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 
         setContentView(appRoot);
         refreshNav();
-        renderTab("home");
+        renderTab(activeTab == null ? "home" : activeTab);
+    }
+
+    private void addCompactNavItem(LinearLayout target, String key, String icon, String label) {
+        LinearLayout item = new LinearLayout(this);
+        item.setGravity(Gravity.CENTER);
+        item.setOrientation(LinearLayout.HORIZONTAL);
+        item.setPadding(dp(10), dp(6), dp(10), dp(6));
+        item.setBackground(gradient(PANEL, PANEL, Color.TRANSPARENT, dp(9)));
+        TextView glyph = text(icon, 14, MUTED, true);
+        glyph.setGravity(Gravity.CENTER);
+        TextView name = text(label, 7, MUTED, true);
+        name.setGravity(Gravity.CENTER);
+        name.setLetterSpacing(0.02f);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nameParams.leftMargin = dp(5);
+        item.addView(glyph);
+        item.addView(name, nameParams);
+        item.setOnClickListener(v -> renderTab(key));
+        LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(36));
+        itemParams.rightMargin = dp(5);
+        target.addView(item, itemParams);
+        navLabels.put(key, name);
     }
 
     private void addNavItem(LinearLayout target, String key, String icon, String label) {
@@ -2468,7 +2559,7 @@ public final class MainActivity extends Activity {
     private EditText editField(String hint, boolean password) {
         EditText edit = new EditText(this);
         edit.setSingleLine(true);
-        edit.setTextSize(11);
+        edit.setTextSize(isCompactLayout() ? 13 : 11);
         edit.setTextColor(TEXT);
         edit.setHintTextColor(MUTED);
         edit.setHint(hint);
@@ -2500,7 +2591,7 @@ public final class MainActivity extends Activity {
     private TextView text(String value, float size, int color, boolean bold) {
         TextView view = new TextView(this);
         view.setText(value);
-        view.setTextSize(size);
+        view.setTextSize(isCompactLayout() ? size * 1.12f : size);
         view.setTextColor(color);
         view.setTypeface(Typeface.create(bold ? "sans-serif" : "sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
         view.setIncludeFontPadding(true);
@@ -2574,6 +2665,16 @@ public final class MainActivity extends Activity {
         super.onResume();
         if (api != null && me != null && appRoot != null) {
             syncWithSharedBackend(true, false);
+        }
+    }
+
+    @Override
+    public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        if (me != null) {
+            showApp();
+        } else if (!isFinishing()) {
+            showAuth(registering, "");
         }
     }
 

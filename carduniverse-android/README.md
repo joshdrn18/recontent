@@ -3,9 +3,8 @@
 CardUniverse Android is a native Android game client. It does not display the website and does not embed the web game in a WebView.
 
 - Package: `com.carduniverse.game`
-- App name: `CardUniverse`
 - Minimum Android: Android 7.0 (API 24)
-- Landscape-first native interface.
+- Native landscape and portrait layouts, with a compact mobile navigation bar.
 - Native login and registration call the existing CardUniverse authentication API directly.
 - Session credentials are stored encrypted with Android Keystore-backed AES-GCM.
 - The app connects directly to the canonical CardUniverse Cloudflare Worker API.
