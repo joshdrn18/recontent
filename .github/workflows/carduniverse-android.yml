@@ -36,7 +36,28 @@ jobs:
         with:
           gradle-version: "8.9"
 
+      - name: Create temporary APK signing key
+        env:
+          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-ci.keystore
+          CU_KEYSTORE_PASSWORD: carduniverse-preview
+          CU_KEY_ALIAS: carduniverse
+          CU_KEY_PASSWORD: carduniverse-preview
+        run: |
+          keytool -genkeypair -v \
+            -keystore "$CU_KEYSTORE_PATH" \
+            -storepass "$CU_KEYSTORE_PASSWORD" \
+            -alias "$CU_KEY_ALIAS" \
+            -keypass "$CU_KEY_PASSWORD" \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=CardUniverse Preview, OU=Android, O=CardUniverse, L=Kuala Lumpur, ST=Kuala Lumpur, C=MY" \
+            -noprompt
+
       - name: Build release APK
+        env:
+          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-ci.keystore
+          CU_KEYSTORE_PASSWORD: carduniverse-preview
+          CU_KEY_ALIAS: carduniverse
+          CU_KEY_PASSWORD: carduniverse-preview
         run: gradle -p carduniverse-android :app:assembleRelease
 
       - name: Upload APK artifact
@@ -51,8 +72,8 @@ jobs:
         if: github.ref == 'refs/heads/carduniverse-android'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v1.0.0
-          name: CardUniverse Android v1.0.0
+          tag_name: carduniverse-android-v1.0.0-build-${{ github.run_number }}
+          name: CardUniverse Android v1.0.0 (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
           files: carduniverse-android/app/build/outputs/apk/release/app-release.apk
