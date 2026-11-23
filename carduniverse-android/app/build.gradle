@@ -1,0 +1,56 @@
+plugins {
+    id 'com.android.application'
+}
+
+def signingStoreFile = System.getenv('CU_KEYSTORE_PATH')
+def signingStorePassword = System.getenv('CU_KEYSTORE_PASSWORD')
+def signingKeyAlias = System.getenv('CU_KEY_ALIAS')
+def signingKeyPassword = System.getenv('CU_KEY_PASSWORD')
+
+android {
+    namespace 'com.carduniverse.game'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.carduniverse.game'
+        minSdk 24
+        targetSdk 34
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    signingConfigs {
+        release {
+            if (signingStoreFile && signingStorePassword && signingKeyAlias && signingKeyPassword) {
+                storeFile file(signingStoreFile)
+                storePassword signingStorePassword
+                keyAlias signingKeyAlias
+                keyPassword signingKeyPassword
+            } else {
+                initWith signingConfigs.debug
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+            shrinkResources false
+            debuggable false
+        }
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig false
+    }
+}
