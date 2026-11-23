@@ -1,6 +1,7 @@
 package com.carduniverse.game;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -31,6 +32,7 @@ import org.json.JSONObject;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 public final class MainActivity extends Activity {
     private static final int BG = Color.rgb(7, 13, 14);
@@ -503,7 +505,18 @@ public final class MainActivity extends Activity {
                 content.addView(retry, new LinearLayout.LayoutParams(dp(140), dp(38)));
                 return;
             }
-            renderModule(tab, result.data);
+            if ("missions".equals(tab)) {
+                api.get("/api/daily-challenges", dailyResult -> ui.post(() -> {
+                    if (!"missions".equals(activeTab) || content == null) return;
+                    if (dailyResult.ok()) {
+                        try { result.data.put("daily_challenges", dailyResult.data.optJSONArray("challenges")); }
+                        catch (Exception ignored) {}
+                    }
+                    renderModule(tab, result.data);
+                }));
+            } else {
+                renderModule(tab, result.data);
+            }
         }));
     }
 
@@ -554,6 +567,33 @@ public final class MainActivity extends Activity {
         stats.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Available coins"), weightParams(1));
         stats.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Premium currency"), weightParams(1));
         content.addView(stats);
+        addGap(content, 13);
+        LinearLayout dailyReward = sectionPanel();
+        dailyReward.setOrientation(LinearLayout.HORIZONTAL);
+        dailyReward.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout dailyCopy = new LinearLayout(this);
+        dailyCopy.setOrientation(LinearLayout.VERTICAL);
+        dailyCopy.addView(text("DAILY LOGIN REWARD", 8, GOLD, true));
+        dailyCopy.addView(text("Claim one Starter Pack and 20 Gold each day.", 8, MUTED, false));
+        dailyReward.addView(dailyCopy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView dailyClaim = button("CLAIM", true);
+        dailyClaim.setPadding(dp(14), 0, dp(14), 0);
+        dailyClaim.setOnClickListener(v -> confirmAction("Claim daily reward?",
+                "You will receive one Starter Pack and 20 Gold if today's reward is still available.", () -> {
+            dailyClaim.setEnabled(false);
+            api.post("/api/daily/claim", new JSONObject(), result -> ui.post(() -> {
+                dailyClaim.setEnabled(true);
+                if (!result.ok()) {
+                    showResultDialog("Daily reward unavailable", result.error);
+                    return;
+                }
+                showResultDialog("✦ DAILY REWARD CLAIMED", result.data.optString("message",
+                        "One Starter Pack and 20 Gold have been added."));
+                refreshAccount(() -> renderTab("home"));
+            }));
+        }));
+        dailyReward.addView(dailyClaim);
+        content.addView(dailyReward, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         addGap(content, 14);
 
         TextView featureTitle = text("CHOOSE YOUR NEXT ADVENTURE", 8, GOLD, true);
@@ -631,21 +671,85 @@ public final class MainActivity extends Activity {
     private void renderPacks(JSONObject data) {
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
+        boolean unlimited = data.optBoolean("unlimited");
+        content.addView(statCard("AVAILABLE PACK TYPES", String.valueOf(packs.length()),
+                unlimited ? "Master Admin inventory" : "Your current summon inventory"));
+        addGap(content, 10);
         for (int i = 0; i < packs.length(); i++) {
             JSONObject pack = packs.optJSONObject(i);
             if (pack == null) continue;
-            String sub = pack.optInt("cards_per_pack") + " cards per pack  ·  " + pack.optString("currency", "COINS")
-                    + " " + formatNumber(pack.optLong("price"));
-            content.addView(dataRow(pack.optString("name", "Summon pack"),
-                    pack.optString("description", sub), "INVENTORY  " + pack.optInt("quantity")), rowParams());
+            String slug = pack.optString("slug", "");
+            String name = pack.optString("name", "Summon pack");
+            int quantity = pack.optInt("quantity");
+            String currency = pack.optString("currency", "COINS");
+            long price = pack.optLong("price");
+            LinearLayout card = sectionPanel();
+            card.addView(text(name, 13, TEXT, true));
+            card.addView(text(pack.optString("description",
+                    pack.optInt("cards_per_pack") + " cards per pack"), 8, MUTED, false));
+            addGap(card, 5);
+            card.addView(text(pack.optInt("cards_per_pack") + " CARDS  ·  " + currency + " " + formatNumber(price),
+                    8, GOLD_BRIGHT, true));
+            card.addView(text(unlimited ? "MASTER ADMIN · PACKS DO NOT DECREASE"
+                    : "INVENTORY  " + quantity + (pack.has("pity_count") ? "  ·  MYTHIC PITY " + pack.optInt("pity_count") : ""),
+                    8, MUTED, true));
+            LinearLayout actions = new LinearLayout(this);
+            actions.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+            if (quantity > 0 || unlimited) {
+                TextView open = button("OPEN PACK", true);
+                open.setPadding(dp(16), 0, dp(16), 0);
+                open.setOnClickListener(v -> confirmAction("Open " + name + "?",
+                        "This opens one pack and adds its cards to your live collection.", () -> {
+                    JSONObject request = new JSONObject();
+                    try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
+                    open.setEnabled(false);
+                    open.setText("OPENING...");
+                    api.post("/api/packs/" + slug + "/open", request, result -> ui.post(() -> {
+                        open.setEnabled(true);
+                        open.setText("OPEN PACK");
+                        if (!result.ok()) {
+                            showResultDialog("Pack could not be opened", result.error);
+                            return;
+                        }
+                        String message = formatPackReveal(result.data.optJSONArray("cards"));
+                        showResultDialog("✦  PACK REVEAL", message);
+                        refreshAccount(() -> renderTab("summon"));
+                    }));
+                }));
+                actions.addView(open);
+            } else if ("COINS".equalsIgnoreCase(currency) && price > 0) {
+                TextView buy = button("BUY PACK  ·  " + formatNumber(price) + " GOLD", false);
+                buy.setPadding(dp(12), 0, dp(12), 0);
+                buy.setOnClickListener(v -> confirmAction("Purchase " + name + "?",
+                        "Spend " + formatNumber(price) + " Gold to add one pack to your inventory.", () -> {
+                    buy.setEnabled(false);
+                    api.post("/api/packs/" + slug + "/buy", new JSONObject(), result -> ui.post(() -> {
+                        buy.setEnabled(true);
+                        if (!result.ok()) {
+                            showResultDialog("Purchase failed", result.error);
+                            return;
+                        }
+                        showResultDialog("Pack added", "The pack has been added to your inventory.");
+                        refreshAccount(() -> renderTab("summon"));
+                    }));
+                }));
+                actions.addView(buy);
+            } else {
+                actions.addView(text("NO PACKS AVAILABLE", 7, MUTED, true));
+            }
+            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            actionParams.topMargin = dp(8);
+            card.addView(actions, actionParams);
+            content.addView(card, rowParams());
         }
         if (packs.length() == 0) showNotice("No packs are currently available.");
-        else showNotice("Your available pack inventory is shown above. Pack opening and purchase actions will be connected in the native Summon Hall.");
     }
-
     private void renderAdventure(JSONObject data) {
         JSONArray chapters = data.optJSONArray("chapters");
         if (chapters == null) { renderObjectSummary(data, "ADVENTURE PROGRESS"); return; }
+        content.addView(statCard("COLLECTOR POWER", formatNumber(data.optLong("playerPower")), "Current expedition strength"));
+        addGap(content, 9);
         for (int i = 0; i < chapters.length(); i++) {
             JSONObject chapter = chapters.optJSONObject(i);
             if (chapter == null) continue;
@@ -653,63 +757,236 @@ public final class MainActivity extends Activity {
             block.addView(text("CHAPTER " + (i + 1), 7, GOLD, true));
             block.addView(text(chapter.optString("title", "Unknown chapter"), 15, TEXT, true));
             block.addView(text(chapter.optString("description", ""), 9, MUTED, false));
+            addGap(block, 7);
             JSONArray stages = chapter.optJSONArray("stages");
             if (stages != null) {
                 for (int j = 0; j < stages.length(); j++) {
                     JSONObject stage = stages.optJSONObject(j);
                     if (stage == null) continue;
-                    String status = stage.optBoolean("cleared") ? "CLEARED" : (stage.optBoolean("unlocked") ? "UNLOCKED" : "LOCKED");
-                    block.addView(dataRow(stage.optString("title", "Stage"), stage.optString("enemy_name", "Realm encounter"), status));
+                    String slug = stage.optString("slug", "");
+                    String title = stage.optString("title", "Stage");
+                    String enemy = stage.optString("enemy_name", "Realm encounter");
+                    boolean unlocked = stage.optBoolean("unlocked");
+                    boolean cleared = stage.optBoolean("cleared");
+                    String status = cleared ? "CLEARED" : (unlocked ? "READY" : "LOCKED");
+                    String sub = enemy + "  ·  POWER " + formatNumber(stage.optLong("enemy_power"))
+                            + "  ·  REWARD " + formatNumber(stage.optLong("reward_coins")) + " GOLD";
+                    LinearLayout stageCard = dataRow(title, sub, status);
+                    if (unlocked) {
+                        TextView fight = button(cleared ? "REPLAY" : "BATTLE", true);
+                        fight.setPadding(dp(14), 0, dp(14), 0);
+                        fight.setOnClickListener(v -> confirmAction("Enter " + title + "?",
+                                "Challenge " + enemy + ". The server calculates the battle result and awards eligible rewards.", () -> {
+                            JSONObject payload = new JSONObject();
+                            try { payload.put("requestId", newActionId()); } catch (Exception ignored) {}
+                            fight.setEnabled(false);
+                            fight.setText("FIGHTING...");
+                            api.post("/api/adventure/" + slug + "/battle", payload, result -> ui.post(() -> {
+                                fight.setEnabled(true);
+                                fight.setText(cleared ? "REPLAY" : "BATTLE");
+                                if (!result.ok()) {
+                                    showResultDialog("Encounter unavailable", result.error);
+                                    return;
+                                }
+                                JSONObject run = result.data.optJSONObject("run");
+                                String resultName = run == null ? "BATTLE COMPLETE" : run.optString("result", "COMPLETE");
+                                String details = result.data.optString("message", "The encounter has ended.");
+                                if (run != null) {
+                                    details += "\n\nEnemy: " + run.optString("enemy_name", enemy)
+                                            + "\nYour power: " + formatNumber(run.optLong("player_power"))
+                                            + "\nEnemy power: " + formatNumber(run.optLong("enemy_power"))
+                                            + "\nXP: +" + formatNumber(run.optLong("reward_xp"))
+                                            + "\nGold: +" + formatNumber(run.optLong("reward_coins"));
+                                }
+                                showResultDialog("VICTORY".equalsIgnoreCase(resultName) ? "✦ VICTORY" : "ENCOUNTER RESULT", details);
+                                refreshAccount(() -> renderTab("adventure"));
+                            }));
+                        }));
+                        LinearLayout.LayoutParams fightParams = new LinearLayout.LayoutParams(dp(100), dp(34));
+                        fightParams.leftMargin = dp(8);
+                        stageCard.addView(fight, fightParams);
+                    }
+                    LinearLayout.LayoutParams stageParams = rowParams();
+                    block.addView(stageCard, stageParams);
                 }
             }
-            content.addView(block);
-            addGap(content, 8);
+            content.addView(block, rowParams());
         }
     }
-
     private void renderMissions(JSONObject data) {
         JSONArray missions = data.optJSONArray("missions");
-        if (missions == null) { renderObjectSummary(data, "MISSION STATUS"); return; }
-        for (int i = 0; i < missions.length(); i++) {
-            JSONObject mission = missions.optJSONObject(i);
-            if (mission == null) continue;
-            String title = mission.optString("title", mission.optString("name", "Mission"));
-            String sub = mission.optString("description", mission.optString("period_type", "MISSION"));
-            String progressText = mission.optInt("progress") + " / " + mission.optInt("target_count")
-                    + (mission.optBoolean("claimed") || !mission.isNull("claimed_at") ? "  ·  CLAIMED" : "");
-            content.addView(dataRow(title, sub, progressText), rowParams());
-        }
-        if (missions.length() == 0) showNotice("No active missions are available right now.");
-    }
+        JSONArray challenges = data.optJSONArray("daily_challenges");
+        if (missions == null && challenges == null) { renderObjectSummary(data, "MISSION STATUS"); return; }
 
+        if (challenges != null) {
+            content.addView(text("DAILY CHALLENGES", 8, GOLD, true));
+            addGap(content, 5);
+            for (int i = 0; i < challenges.length(); i++) {
+                JSONObject challenge = challenges.optJSONObject(i);
+                if (challenge == null) continue;
+                String title = challenge.optString("title", "Daily challenge");
+                int progress = challenge.optInt("progress");
+                int target = challenge.optInt("target_count");
+                boolean claimed = !challenge.isNull("claimed_at");
+                LinearLayout card = sectionPanel();
+                card.addView(text(title, 11, TEXT, true));
+                card.addView(text(challenge.optString("description", "Daily challenge"), 8, MUTED, false));
+                card.addView(text(progress + " / " + target + "  ·  REWARD "
+                        + formatNumber(challenge.optLong("reward_coins")) + " GOLD  +  "
+                        + formatNumber(challenge.optLong("reward_xp")) + " XP",
+                        8, GOLD_BRIGHT, true));
+                if (claimed) {
+                    card.addView(text("REWARD CLAIMED", 7, GREEN, true));
+                } else if (progress >= target && target > 0) {
+                    TextView claim = button("CLAIM CHALLENGE REWARD", true);
+                    claim.setOnClickListener(v -> claimChallenge(challenge.optString("slug", ""), claim));
+                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(205), dp(34));
+                    cp.topMargin = dp(7);
+                    card.addView(claim, cp);
+                } else {
+                    card.addView(text("KEEP GOING TO UNLOCK THE REWARD", 7, MUTED, true));
+                }
+                content.addView(card, rowParams());
+            }
+            addGap(content, 8);
+        }
+
+        if (missions != null) {
+            content.addView(text("REALM MISSIONS", 8, GOLD, true));
+            addGap(content, 5);
+            for (int i = 0; i < missions.length(); i++) {
+                JSONObject mission = missions.optJSONObject(i);
+                if (mission == null) continue;
+                String slug = mission.optString("slug", "");
+                String title = mission.optString("title", mission.optString("name", "Mission"));
+                String sub = mission.optString("description", mission.optString("period_type", "MISSION"));
+                int progress = mission.optInt("progress");
+                int target = mission.optInt("target_count");
+                boolean claimed = !mission.isNull("claimed_at");
+                LinearLayout card = sectionPanel();
+                card.addView(text(title, 11, TEXT, true));
+                card.addView(text(sub, 8, MUTED, false));
+                String reward = formatNumber(mission.optLong("reward_coins")) + " GOLD  ·  "
+                        + formatNumber(mission.optLong("reward_xp")) + " XP";
+                if (mission.optInt("reward_pack_quantity") > 0) reward += "  ·  +" + mission.optInt("reward_pack_quantity") + " PACK";
+                card.addView(text(progress + " / " + target + "  ·  " + reward, 8, GOLD_BRIGHT, true));
+                if (claimed) card.addView(text("REWARD CLAIMED", 7, GREEN, true));
+                else if (mission.optBoolean("completed") || (target > 0 && progress >= target)) {
+                    TextView claim = button("CLAIM MISSION REWARD", true);
+                    claim.setOnClickListener(v -> claimMission(slug, claim));
+                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(190), dp(34));
+                    cp.topMargin = dp(7);
+                    card.addView(claim, cp);
+                }
+                content.addView(card, rowParams());
+            }
+        }
+        if ((missions == null || missions.length() == 0) && (challenges == null || challenges.length() == 0))
+            showNotice("No active missions or daily challenges are available right now.");
+    }
     private void renderShop(JSONObject data) {
         JSONArray items = data.optJSONArray("items");
+        JSONObject wallet = data.optJSONObject("wallet");
         if (items == null) { renderObjectSummary(data, "SHOP INVENTORY"); return; }
+        if (wallet != null) {
+            content.addView(text("YOUR WALLET  ·  " + formatNumber(wallet.optLong("coins")) + " GOLD  ·  "
+                    + formatNumber(wallet.optLong("gems")) + " GEMS  ·  " + formatNumber(wallet.optLong("shards")) + " SHARDS",
+                    8, GOLD_BRIGHT, true));
+            addGap(content, 8);
+        }
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
             if (item == null) continue;
+            String itemId = item.optString("item_id", "");
+            String title = item.optString("title", item.optString("name", "Realm item"));
             String sub = item.optString("description", item.optString("item_type", "REALM ITEM"));
-            String price = formatNumber(item.optLong("price")) + " " + item.optString("currency", "COINS");
-            content.addView(dataRow(item.optString("name", "Item"), sub, price), rowParams());
+            String currency = item.optString("currency", "COINS");
+            long price = item.optLong("price");
+            String priceLabel = formatNumber(price) + " " + currency;
+            if (!item.isNull("stock_remaining")) priceLabel += "  ·  STOCK " + item.optLong("stock_remaining");
+            LinearLayout card = sectionPanel();
+            card.addView(text(title, 11, TEXT, true));
+            card.addView(text(sub, 8, MUTED, false));
+            card.addView(text(priceLabel, 8, GOLD_BRIGHT, true));
+            long stock = item.isNull("stock_remaining") ? -1 : item.optLong("stock_remaining");
+            boolean alreadyOwned = item.optInt("cosmetic_owned") == 1;
+            boolean canBuy = !alreadyOwned && (stock != 0) && price > 0 && !itemId.isEmpty();
+            if (canBuy) {
+                TextView buy = button("PURCHASE", true);
+                buy.setOnClickListener(v -> confirmAction("Purchase " + title + "?",
+                        "Cost: " + priceLabel + ". The server will validate your wallet, stock and purchase limits.", () -> {
+                    JSONObject payload = new JSONObject();
+                    try {
+                        payload.put("itemId", itemId);
+                        payload.put("requestId", newActionId());
+                        payload.put("quantity", 1);
+                    } catch (Exception ignored) {}
+                    buy.setEnabled(false);
+                    buy.setText("PROCESSING...");
+                    api.post("/api/shop/purchase", payload, result -> ui.post(() -> {
+                        buy.setEnabled(true);
+                        buy.setText("PURCHASE");
+                        if (!result.ok()) {
+                            showResultDialog("Purchase failed", result.error);
+                            return;
+                        }
+                        showResultDialog("✦ PURCHASE COMPLETE", result.data.optString("message", "Your item has been delivered."));
+                        refreshAccount(() -> renderTab("shop"));
+                    }));
+                }));
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(125), dp(34));
+                bp.topMargin = dp(7);
+                card.addView(buy, bp);
+            } else if (alreadyOwned) {
+                card.addView(text("ALREADY OWNED", 7, GREEN, true));
+            } else if (stock == 0) {
+                card.addView(text("OUT OF STOCK", 7, RED, true));
+            }
+            content.addView(card, rowParams());
         }
         if (items.length() == 0) showNotice("The shop has no active items right now.");
-        else showNotice("Prices and stock are live. Purchase actions are being moved into the native shop experience.");
     }
-
     private void renderInbox(JSONObject data) {
         JSONArray items = data.optJSONArray("items");
         if (items == null) { showNotice("Your inbox is clear."); return; }
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
             if (item == null) continue;
-            String sub = item.optString("body", "");
-            String status = item.optBoolean("is_read") ? "READ" : "NEW";
-            if (item.optBoolean("is_claimed")) status += "  ·  CLAIMED";
-            content.addView(dataRow(item.optString("subject", "Realm message"), sub, status), rowParams());
+            String mailId = item.optString("mail_id", "");
+            String subject = item.optString("subject", "Realm message");
+            String body = item.optString("body", "");
+            JSONObject reward = item.optJSONObject("reward");
+            boolean claimed = item.optBoolean("is_claimed");
+            boolean hasReward = hasReward(reward);
+            LinearLayout card = sectionPanel();
+            card.addView(text(subject, 11, TEXT, true));
+            TextView bodyText = text(body, 8, MUTED, false);
+            bodyText.setMaxLines(4);
+            card.addView(bodyText);
+            if (hasReward) {
+                card.addView(text("REWARD  ·  " + rewardSummary(reward), 8, GOLD_BRIGHT, true));
+            }
+            if (claimed) {
+                card.addView(text("REWARD CLAIMED", 7, GREEN, true));
+            } else if (hasReward) {
+                TextView claim = button("CLAIM REWARD", true);
+                claim.setOnClickListener(v -> claimMail(mailId, claim));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(135), dp(34));
+                cp.topMargin = dp(7);
+                card.addView(claim, cp);
+            } else if (!item.optBoolean("is_read")) {
+                TextView markRead = button("MARK AS READ", false);
+                markRead.setOnClickListener(v -> markMailRead(mailId, markRead));
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(130), dp(34));
+                rp.topMargin = dp(7);
+                card.addView(markRead, rp);
+            } else {
+                card.addView(text("READ", 7, MUTED, true));
+            }
+            content.addView(card, rowParams());
         }
         if (items.length() == 0) showNotice("Your inbox is clear. New messages will appear here.");
     }
-
     private void renderGuild(JSONObject data) {
         JSONObject guild = data.optJSONObject("guild");
         if (guild != null) {
@@ -837,6 +1114,141 @@ public final class MainActivity extends Activity {
         addGap(box, 5);
         box.addView(body);
         content.addView(box);
+    }
+
+    private String newActionId() {
+        return UUID.randomUUID().toString();
+    }
+
+    private void confirmAction(String title, String message, Runnable action) {
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setNegativeButton("CANCEL", (dialog, which) -> dialog.dismiss())
+                .setPositiveButton("CONTINUE", (dialog, which) -> action.run())
+                .show();
+    }
+
+    private void showResultDialog(String title, String message) {
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setMessage(message == null || message.trim().isEmpty() ? "Action completed." : message)
+                .setPositiveButton("CONTINUE", (dialog, which) -> dialog.dismiss())
+                .show();
+    }
+
+    private String formatPackReveal(JSONArray cards) {
+        if (cards == null || cards.length() == 0) return "The pack was opened and your collection has been updated.";
+        StringBuilder message = new StringBuilder("Your new cards have been added to the archive.\n\n");
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card == null) continue;
+            message.append(String.format(java.util.Locale.US, "%02d", i + 1))
+                    .append("  ").append(card.optString("name", "Unknown card"))
+                    .append("\n     ").append(card.optString("rarity", "COMMON"))
+                    .append("  ·  ").append(card.optString("element", "UNKNOWN"))
+                    .append("\n");
+        }
+        return message.toString();
+    }
+
+    private boolean hasReward(JSONObject reward) {
+        if (reward == null) return false;
+        return reward.optLong("coins") > 0 || reward.optLong("gems") > 0
+                || reward.optLong("shards") > 0 || reward.optLong("xp") > 0
+                || (reward.optString("pack_id", "").length() > 0 && reward.optLong("pack_quantity") > 0);
+    }
+
+    private String rewardSummary(JSONObject reward) {
+        if (reward == null) return "No reward";
+        StringBuilder value = new StringBuilder();
+        if (reward.optLong("coins") > 0) value.append(formatNumber(reward.optLong("coins"))).append(" Gold  ");
+        if (reward.optLong("gems") > 0) value.append(formatNumber(reward.optLong("gems"))).append(" Gems  ");
+        if (reward.optLong("shards") > 0) value.append(formatNumber(reward.optLong("shards"))).append(" Shards  ");
+        if (reward.optLong("xp") > 0) value.append(formatNumber(reward.optLong("xp"))).append(" XP  ");
+        if (reward.optLong("pack_quantity") > 0) value.append(reward.optLong("pack_quantity")).append(" Pack");
+        return value.toString().trim();
+    }
+
+    private void refreshAccount(Runnable after) {
+        api.get("/api/me", result -> ui.post(() -> {
+            if (result.ok()) {
+                acceptMe(result.data);
+                if (accountLabel != null) accountLabel.setText(me.optString("display_name", "Collector"));
+                if (currencyLabel != null) currencyLabel.setText(walletLine());
+            }
+            if (after != null) after.run();
+        }));
+    }
+
+    private void claimMission(String slug, TextView button) {
+        if (slug == null || slug.isEmpty()) return;
+        button.setEnabled(false);
+        button.setText("CLAIMING...");
+        api.post("/api/missions/" + slug + "/claim", new JSONObject(), result -> ui.post(() -> {
+            if (!result.ok()) {
+                button.setEnabled(true);
+                button.setText("CLAIM MISSION REWARD");
+                showResultDialog("Reward unavailable", result.error);
+                return;
+            }
+            JSONObject reward = result.data.optJSONObject("reward");
+            String summary = reward == null ? result.data.optString("message", "Mission reward claimed.")
+                    : formatNumber(reward.optLong("coins")) + " Gold  ·  "
+                    + formatNumber(reward.optLong("xp")) + " XP  ·  "
+                    + reward.optInt("pack") + " Pack";
+            showResultDialog("✦ MISSION REWARD", summary);
+            refreshAccount(() -> renderTab("missions"));
+        }));
+    }
+
+    private void claimChallenge(String slug, TextView button) {
+        if (slug == null || slug.isEmpty()) return;
+        button.setEnabled(false);
+        button.setText("CLAIMING...");
+        api.post("/api/daily-challenges/" + slug + "/claim", new JSONObject(), result -> ui.post(() -> {
+            if (!result.ok()) {
+                button.setEnabled(true);
+                button.setText("CLAIM CHALLENGE REWARD");
+                showResultDialog("Challenge reward unavailable", result.error);
+                return;
+            }
+            JSONObject reward = result.data.optJSONObject("reward");
+            String summary = reward == null ? "Daily challenge reward claimed."
+                    : formatNumber(reward.optLong("coins")) + " Gold  ·  "
+                    + formatNumber(reward.optLong("xp")) + " XP";
+            showResultDialog("✦ DAILY CHALLENGE", summary);
+            refreshAccount(() -> renderTab("missions"));
+        }));
+    }
+
+    private void claimMail(String mailId, TextView button) {
+        if (mailId == null || mailId.isEmpty()) return;
+        button.setEnabled(false);
+        button.setText("CLAIMING...");
+        api.post("/api/mail/" + Uri.encode(mailId) + "/claim", new JSONObject(), result -> ui.post(() -> {
+            if (!result.ok()) {
+                button.setEnabled(true);
+                button.setText("CLAIM REWARD");
+                showResultDialog("Reward unavailable", result.error);
+                return;
+            }
+            showResultDialog("✦ INBOX REWARD", rewardSummary(result.data.optJSONObject("reward")));
+            refreshAccount(() -> renderTab("inbox"));
+        }));
+    }
+
+    private void markMailRead(String mailId, TextView button) {
+        if (mailId == null || mailId.isEmpty()) return;
+        button.setEnabled(false);
+        api.post("/api/mail/" + Uri.encode(mailId) + "/read", new JSONObject(), result -> ui.post(() -> {
+            if (!result.ok()) {
+                button.setEnabled(true);
+                showResultDialog("Unable to update message", result.error);
+                return;
+            }
+            renderTab("inbox");
+        }));
     }
 
     private String endpointFor(String tab) {
