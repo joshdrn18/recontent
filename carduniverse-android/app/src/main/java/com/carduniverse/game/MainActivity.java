@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.content.res.Configuration;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.widget.AdapterView;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -1372,35 +1375,239 @@ public final class MainActivity extends Activity {
     }
 
     private void renderCollection(JSONObject data) {
-        JSONArray cards=data.optJSONArray("cards");
-        if(cards==null){showNotice("No card data was returned.");return;}
-        int owned=0,copies=0;
-        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null&&c.optInt("owned_count")>0){owned++;copies+=c.optInt("owned_count");}}
-        LinearLayout stats=new LinearLayout(this);
-        stats.addView(statCard("OWNED TYPES",String.valueOf(owned),"Unique cards"),weightParams(1));
-        stats.addView(statCard("TOTAL COPIES",String.valueOf(copies),"Available archive"),weightParams(1));
-        content.addView(stats);addGap(content,10);content.addView(text("YOUR CARD ARCHIVE",8,GOLD,true));
-        for(int i=0;i<cards.length();i++){
-            JSONObject c=cards.optJSONObject(i);if(c==null||c.optInt("owned_count")<=0)continue;
-            LinearLayout row=dataRow(c.optString("name","Unknown card"),c.optString("rarity","COMMON")+" · "+c.optString("element","AETHER")+" · ×"+c.optInt("owned_count"),c.optString("card_code",""));
-            row.setOnClickListener(v->showCardDetails(c));content.addView(row,rowParams());
+        JSONArray cards = data.optJSONArray("cards");
+        if (cards == null) {
+            showNotice("No card data was returned.");
+            return;
         }
-        addGap(content,12);content.addView(text("CARD CATALOGUE",8,GOLD,true));
-        for(int i=0;i<cards.length();i++){
-            JSONObject c=cards.optJSONObject(i);if(c==null||c.optInt("owned_count")>0)continue;
-            LinearLayout row=dataRow(c.optString("name","Unknown card"),c.optString("rarity","COMMON")+" · "+c.optString("element","AETHER")+" · Not owned",c.optString("card_code",""));
-            row.setOnClickListener(v->showCardDetails(c));content.addView(row,rowParams());
+
+        int ownedTypes = 0;
+        int totalCopies = 0;
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card != null && card.optInt("owned_count") > 0) {
+                ownedTypes++;
+                totalCopies += card.optInt("owned_count");
+            }
         }
-        if(owned==0)showNotice("Your archive is waiting for its first card. Visit Summon Hall to collect.");
-        loadDuplicateConversionPanel();
+
+        LinearLayout summary = new LinearLayout(this);
+        summary.setOrientation(LinearLayout.HORIZONTAL);
+        summary.addView(statCard("UNIQUE CARDS", String.valueOf(ownedTypes), "In your collection"),
+                weightParams(1));
+        summary.addView(statCard("TOTAL COPIES", formatNumber(totalCopies), "Owned card copies"),
+                weightParams(1));
+        summary.addView(statCard("CATALOGUE", String.valueOf(cards.length()), "Available card designs"),
+                weightParams(1));
+        content.addView(summary);
+        addGap(content, 10);
+
+        LinearLayout filters = sectionPanel();
+        filters.addView(text("SEARCH THE ARCHIVE", 8, GOLD, true));
+        EditText search = editField("Card name, element or card code", false);
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        filters.addView(search, fieldParams());
+
+        LinearLayout filterRow = new LinearLayout(this);
+        filterRow.setOrientation(LinearLayout.HORIZONTAL);
+        Spinner ownership = new Spinner(this);
+        String[] ownershipOptions = {"ALL CARDS", "OWNED ONLY", "NOT OWNED"};
+        ArrayAdapter<String> ownershipAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, ownershipOptions);
+        ownershipAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        ownership.setAdapter(ownershipAdapter);
+        Spinner rarity = new Spinner(this);
+        String[] rarityOptions = {"ALL RARITIES", "COMMON", "UNCOMMON", "RARE",
+                "EPIC", "LEGENDARY", "MYTHIC"};
+        ArrayAdapter<String> rarityAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, rarityOptions);
+        rarityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        rarity.setAdapter(rarityAdapter);
+        filterRow.addView(ownership, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        LinearLayout.LayoutParams rarityParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        rarityParams.leftMargin = dp(7);
+        filterRow.addView(rarity, rarityParams);
+        filters.addView(filterRow);
+        content.addView(filters, rowParams());
+
+        TextView resultCount = text("LOADING CARDS", 8, GOLD_BRIGHT, true);
+        resultCount.setPadding(dp(2), dp(9), dp(2), dp(5));
+        content.addView(resultCount);
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        content.addView(grid);
+
+        Runnable updateGrid = () -> {
+            if (grid.getParent() == null) return;
+            grid.removeAllViews();
+            String query = search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            int scope = ownership.getSelectedItemPosition();
+            String selectedRarity = rarityOptions[Math.max(0, rarity.getSelectedItemPosition())];
+            java.util.ArrayList<JSONObject> filtered = new java.util.ArrayList<>();
+            int ownedInFilter = 0;
+            for (int i = 0; i < cards.length(); i++) {
+                JSONObject card = cards.optJSONObject(i);
+                if (card == null) continue;
+                int copies = card.optInt("owned_count");
+                if (scope == 1 && copies <= 0) continue;
+                if (scope == 2 && copies > 0) continue;
+                String cardRarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+                if (!"ALL RARITIES".equals(selectedRarity) && !selectedRarity.equals(cardRarity)) continue;
+                String searchable = (card.optString("name") + " " + card.optString("element")
+                        + " " + card.optString("card_code") + " " + cardRarity)
+                        .toLowerCase(java.util.Locale.ROOT);
+                if (!query.isEmpty() && !searchable.contains(query)) continue;
+                filtered.add(card);
+                if (copies > 0) ownedInFilter++;
+            }
+
+            resultCount.setText(filtered.size() + " CARDS FOUND  ·  " + ownedInFilter + " OWNED");
+            if (filtered.isEmpty()) {
+                TextView empty = text("No cards match these filters. Try another search or rarity.",
+                        9, MUTED, false);
+                empty.setPadding(dp(8), dp(18), dp(8), dp(18));
+                grid.addView(empty);
+                return;
+            }
+
+            int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
+                    / getResources().getDisplayMetrics().density);
+            int columns = widthDp >= 1100 ? 4 : widthDp >= 800 ? 3 : 2;
+            LinearLayout currentRow = null;
+            for (int i = 0; i < filtered.size(); i++) {
+                if (i % columns == 0) {
+                    currentRow = new LinearLayout(this);
+                    currentRow.setOrientation(LinearLayout.HORIZONTAL);
+                    grid.addView(currentRow, new LinearLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                }
+                JSONObject card = filtered.get(i);
+                LinearLayout tile = createCardTile(card);
+                LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(
+                        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                tileParams.setMargins(dp(3), dp(3), dp(3), dp(6));
+                currentRow.addView(tile, tileParams);
+            }
+            int remainder = filtered.size() % columns;
+            if (remainder != 0 && currentRow != null) {
+                for (int i = remainder; i < columns; i++) {
+                    currentRow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+                }
+            }
+        };
+
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                updateGrid.run();
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        AdapterView.OnItemSelectedListener filterListener = new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                updateGrid.run();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        };
+        ownership.setOnItemSelectedListener(filterListener);
+        rarity.setOnItemSelectedListener(filterListener);
+        updateGrid.run();
+        addGap(content, 10);
+        TextView duplicates = button("OPEN DUPLICATE CONVERTER", false);
+        duplicates.setOnClickListener(v -> loadDuplicateConversionPanel());
+        content.addView(duplicates, new LinearLayout.LayoutParams(dp(220), dp(36)));
+    }
+
+    private LinearLayout createCardTile(JSONObject card) {
+        String name = card.optString("name", "Unknown Card");
+        String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+        String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
+        int copies = card.optInt("owned_count");
+        int accent = cardRarityColor(rarity);
+
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setPadding(dp(8), dp(8), dp(8), dp(8));
+        tile.setBackground(gradient(PANEL_LIGHT, PANEL, accent, dp(12)));
+        tile.setMinimumHeight(dp(184));
+
+        FrameLayout art = new FrameLayout(this);
+        art.setBackground(gradient(
+                Color.rgb(Color.red(accent) / 3 + 8, Color.green(accent) / 3 + 12,
+                        Color.blue(accent) / 3 + 14),
+                Color.rgb(12, 21, 19), accent, dp(9)));
+        TextView sigil = text(elementSigil(element), 34, accent, true);
+        sigil.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams sigilParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        art.addView(sigil, sigilParams);
+        TextView elementLabel = text(element, 7, GOLD_BRIGHT, true);
+        elementLabel.setGravity(Gravity.RIGHT | Gravity.BOTTOM);
+        FrameLayout.LayoutParams elementParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.RIGHT);
+        elementParams.setMargins(0, 0, dp(7), dp(5));
+        art.addView(elementLabel, elementParams);
+        tile.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(82)));
+
+        TextView rarityLabel = text(rarity, 7, accent, true);
+        rarityLabel.setPadding(0, dp(6), 0, dp(2));
+        tile.addView(rarityLabel);
+        TextView title = text(name, 11, TEXT, true);
+        title.setMaxLines(2);
+        tile.addView(title);
+        TextView code = text(card.optString("card_code", "CARD"), 7, MUTED, false);
+        code.setPadding(0, dp(2), 0, dp(5));
+        tile.addView(code);
+
+        TextView ownership = text(copies > 0 ? "OWNED  ×" + copies : "NOT COLLECTED",
+                7, copies > 0 ? GREEN : MUTED, true);
+        ownership.setPadding(dp(7), dp(5), dp(7), dp(5));
+        ownership.setBackground(gradient(Color.rgb(10, 20, 16), Color.rgb(10, 20, 16),
+                copies > 0 ? GREEN : Color.rgb(67, 78, 69), dp(6)));
+        tile.addView(ownership);
+        tile.setOnClickListener(v -> showCardDetails(card));
+        return tile;
+    }
+
+    private int cardRarityColor(String rarity) {
+        switch (rarity) {
+            case "UNCOMMON": return Color.rgb(106, 183, 137);
+            case "RARE": return Color.rgb(100, 157, 216);
+            case "EPIC": return Color.rgb(172, 132, 220);
+            case "LEGENDARY": return Color.rgb(222, 179, 91);
+            case "MYTHIC": return Color.rgb(222, 116, 145);
+            default: return Color.rgb(151, 166, 153);
+        }
+    }
+
+    private String elementSigil(String element) {
+        switch (element) {
+            case "FIRE": return "炎";
+            case "WATER": return "≈";
+            case "EARTH": return "◆";
+            case "WIND": return "〰";
+            case "LIGHT": return "☼";
+            case "SHADOW": return "◐";
+            case "VOID": return "◈";
+            default: return "✧";
+        }
     }
 
     private void showCardDetails(JSONObject c) {
-        new AlertDialog.Builder(this).setTitle(c.optString("name","Card Details"))
-            .setMessage(c.optString("card_code","CARD")+"\\n"+c.optString("rarity","COMMON")+" · "+c.optString("element","AETHER")
-                +"\\n\\n"+c.optString("description","A collectible from the Firstlight Realm.")
-                +"\\n\\nOwned copies: "+c.optInt("owned_count"))
-            .setPositiveButton("CLOSE",null).show();
+        String rarity = c.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+        String name = c.optString("name", "Card Details");
+        String message = c.optString("card_code", "CARD")
+                + "\\n" + rarity + "  ·  " + c.optString("element", "AETHER")
+                + "\\n\\n" + c.optString("description", "A collectible from the Firstlight Realm.")
+                + "\\n\\nOwned copies: " + c.optInt("owned_count")
+                + "\\n\\nCard catalogue details are shared with the website.";
+        new AlertDialog.Builder(this)
+                .setTitle(name)
+                .setMessage(message)
+                .setPositiveButton("CLOSE", null)
+                .show();
     }
 
     private void loadDuplicateConversionPanel() {
