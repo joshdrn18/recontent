@@ -43,6 +43,7 @@ public final class ApiClient {
 
     public void get(String path, Callback callback) { request("GET", path, null, callback); }
     public void post(String path, JSONObject body, Callback callback) { request("POST", path, body, callback); }
+    public void delete(String path, Callback callback) { request("DELETE", path, null, callback); }
 
     public void clearSession() {
         session = null;
