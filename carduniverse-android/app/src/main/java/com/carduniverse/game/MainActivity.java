@@ -1750,6 +1750,13 @@ public final class MainActivity extends Activity {
         }));
     }
 
+    private TextView sectionHeading(String label) {
+        TextView heading=text(label,8,GOLD,true);
+        heading.setLetterSpacing(0.12f);
+        heading.setPadding(0,dp(6),0,dp(5));
+        return heading;
+    }
+
     private void renderEvents(JSONObject data) {
         JSONObject login=data.optJSONObject("login_event");
         if(login==null)login=new JSONObject();
