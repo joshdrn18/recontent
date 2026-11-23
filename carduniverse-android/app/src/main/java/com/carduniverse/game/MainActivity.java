@@ -836,7 +836,6 @@ public final class MainActivity extends Activity {
                             return;
                         }
                         showPackRevealDialog(result.data.optJSONArray("cards"));
-                        refreshAccount(() -> renderTab("summon"));
                     }));
                 }));
                 actions.addView(open);
@@ -1953,6 +1952,8 @@ public final class MainActivity extends Activity {
         ids[0] = "";
         Map<String, JSONObject> cardsById = new LinkedHashMap<>();
         for (int i = 0; i < cards.length(); i++) {
+            labels[i + 1] = "Unknown card";
+            ids[i + 1] = "";
             JSONObject card = cards.optJSONObject(i);
             if (card == null) continue;
             String id = card.optString("card_id", "");
