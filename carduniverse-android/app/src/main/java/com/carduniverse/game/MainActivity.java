@@ -835,8 +835,7 @@ public final class MainActivity extends Activity {
                             showResultDialog("Pack could not be opened", result.error);
                             return;
                         }
-                        String message = formatPackReveal(result.data.optJSONArray("cards"));
-                        showResultDialog("✦  PACK REVEAL", message);
+                        showPackRevealDialog(result.data.optJSONArray("cards"));
                         refreshAccount(() -> renderTab("summon"));
                     }));
                 }));
@@ -873,96 +872,222 @@ public final class MainActivity extends Activity {
         JSONObject rating = data.optJSONObject("rating");
         JSONObject season = data.optJSONObject("season");
         if (rating != null) {
-            LinearLayout rated = sectionPanel();
-            rated.addView(text("RANKED SEASON  ·  " + (season == null ? "ACTIVE" : season.optString("name", "ACTIVE")), 7, GOLD, true));
-            rated.addView(text(rating.optString("tier", "BRONZE") + "  ·  " + rating.optInt("rating") + " RATING", 17, TEXT, true));
-            rated.addView(text("W " + rating.optInt("wins") + "  ·  L " + rating.optInt("losses")
-                    + "  ·  D " + rating.optInt("draws") + "  ·  STREAK " + rating.optInt("win_streak")
-                    + "  ·  POSITION #" + rating.optInt("position"), 8, MUTED, true));
-            content.addView(rated, rowParams());
+            LinearLayout ranked = sectionPanel();
+            ranked.setOrientation(LinearLayout.HORIZONTAL);
+            ranked.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout rankedCopy = new LinearLayout(this);
+            rankedCopy.setOrientation(LinearLayout.VERTICAL);
+            rankedCopy.addView(text("RANKED SEASON · "
+                    + (season == null ? "ACTIVE" : season.optString("name", "ACTIVE")), 7, GOLD, true));
+            rankedCopy.addView(text(rating.optString("tier", "BRONZE")
+                    + " · " + rating.optInt("rating") + " RATING", 17, TEXT, true));
+            ranked.addView(rankedCopy, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            ranked.addView(text("#" + rating.optInt("position") + " LADDER", 8, GOLD_BRIGHT, true));
+            content.addView(ranked, rowParams());
         } else if (data.optBoolean("rankedHidden")) {
             showNotice("Ranked matchmaking and the public ranked ladder are disabled for administrator accounts.");
         } else if (data.optBoolean("rankedBanned")) {
-            showNotice("Ranked access is restricted: " + data.optString("rankedBanReason", "moderator action"));
+            showNotice("Ranked access is restricted: "
+                    + data.optString("rankedBanReason", "moderator action"));
         }
 
         JSONObject active = data.optJSONObject("activeMatch");
         JSONObject queue = data.optJSONObject("queue");
         if (active != null) {
-            LinearLayout match = sectionPanel();
-            match.addView(text("LIVE ARENA MATCH  ·  " + active.optString("mode", "CASUAL"), 8, GOLD, true));
-            match.addView(text("VS  " + active.optString("opponentName", "Opponent"), 19, TEXT, true));
-            match.addView(text("TURN " + active.optInt("current_turn")
-                    + "  ·  YOU " + active.optLong("myHp") + " HP"
-                    + "  ·  OPPONENT " + active.optLong("opponentHp") + " HP", 9, GOLD_BRIGHT, true));
-            content.addView(match, rowParams());
-            if (active.optString("myMove", "").isEmpty()) {
-                content.addView(text("CHOOSE YOUR MOVE", 8, GOLD, true));
+            LinearLayout matchHeader = sectionPanel();
+            matchHeader.setOrientation(LinearLayout.HORIZONTAL);
+            matchHeader.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout matchTitle = new LinearLayout(this);
+            matchTitle.setOrientation(LinearLayout.VERTICAL);
+            matchTitle.addView(text("LIVE ARENA", 8, GOLD, true));
+            matchTitle.addView(text(active.optString("mode", "CASUAL") + " · TURN "
+                    + active.optInt("current_turn"), 16, TEXT, true));
+            matchHeader.addView(matchTitle, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            matchHeader.addView(text("⚔  VS  ⚔", 13, GOLD_BRIGHT, true));
+            content.addView(matchHeader, rowParams());
+
+            LinearLayout fighters = new LinearLayout(this);
+            fighters.setOrientation(LinearLayout.HORIZONTAL);
+            fighters.addView(createArenaFighterPanel("YOU",
+                    me == null ? "COLLECTOR" : me.optString("display_name", "COLLECTOR"),
+                    active.optLong("myHp"), active.optLong("myMaxHp"),
+                    Color.rgb(115, 184, 139)), new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            fighters.addView(createArenaFighterPanel("OPPONENT",
+                    active.optString("opponentName", "Opponent"),
+                    active.optLong("opponentHp"), active.optLong("opponentMaxHp"),
+                    Color.rgb(210, 122, 105)), new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            content.addView(fighters, rowParams());
+
+            String myMove = active.optString("myMove", "");
+            if (myMove.isEmpty()) {
+                content.addView(text("CHOOSE YOUR ACTION", 8, GOLD, true));
+                addGap(content, 5);
                 LinearLayout moves = new LinearLayout(this);
                 moves.setOrientation(LinearLayout.HORIZONTAL);
-                String[][] choices = {{"STRIKE", "⚔ STRIKE"}, {"GUARD", "◈ GUARD"}, {"FOCUS", "✦ FOCUS"}};
+                String[][] choices = {
+                        {"STRIKE", "⚔", "Deal damage to the opponent"},
+                        {"GUARD", "◈", "Reduce incoming damage"},
+                        {"FOCUS", "✦", "Charge your next action"}
+                };
                 for (String[] choice : choices) {
-                    TextView move = button(choice[1], "STRIKE".equals(choice[0]));
-                    move.setOnClickListener(v -> confirmAction("Use " + choice[0] + "?",
+                    LinearLayout moveCard = new LinearLayout(this);
+                    moveCard.setOrientation(LinearLayout.VERTICAL);
+                    moveCard.setGravity(Gravity.CENTER);
+                    moveCard.setPadding(dp(8), dp(8), dp(8), dp(8));
+                    int tint = "STRIKE".equals(choice[0]) ? GOLD_BRIGHT
+                            : "GUARD".equals(choice[0]) ? GREEN : Color.rgb(115, 165, 218);
+                    moveCard.setBackground(gradient(PANEL_LIGHT, PANEL, tint, dp(10)));
+                    TextView icon = text(choice[1], 23, tint, true);
+                    icon.setGravity(Gravity.CENTER);
+                    moveCard.addView(icon);
+                    TextView label = text(choice[0], 10, TEXT, true);
+                    label.setGravity(Gravity.CENTER);
+                    moveCard.addView(label);
+                    TextView explanation = text(choice[2], 7, MUTED, false);
+                    explanation.setGravity(Gravity.CENTER);
+                    explanation.setMaxLines(2);
+                    moveCard.addView(explanation);
+                    moveCard.setOnClickListener(v -> confirmAction("Use " + choice[0] + "?",
                             "Your move is locked for this turn once submitted.",
                             () -> submitArenaMove(active.optString("match_id"), choice[0])));
-                    LinearLayout.LayoutParams mp = new LinearLayout.LayoutParams(0, dp(40), 1f);
-                    mp.rightMargin = dp(6);
-                    moves.addView(move, mp);
+                    LinearLayout.LayoutParams moveParams = new LinearLayout.LayoutParams(0,
+                            dp(90), 1f);
+                    moveParams.setMargins(dp(3), 0, dp(3), 0);
+                    moves.addView(moveCard, moveParams);
                 }
                 content.addView(moves);
             } else {
-                content.addView(text("YOUR MOVE: " + active.optString("myMove")
-                        + (active.optBoolean("opponentSubmitted") ? "  ·  RESOLVING" : "  ·  WAITING FOR OPPONENT"),
-                        9, GOLD_BRIGHT, true));
+                LinearLayout status = sectionPanel();
+                status.setOrientation(LinearLayout.HORIZONTAL);
+                status.setGravity(Gravity.CENTER_VERTICAL);
+                status.addView(text("YOUR MOVE", 8, GOLD, true));
+                TextView move = text(myMove.toUpperCase(java.util.Locale.ROOT), 12, GOLD_BRIGHT, true);
+                move.setPadding(dp(8), dp(4), dp(8), dp(4));
+                move.setBackground(gradient(Color.rgb(36, 46, 31), Color.rgb(23, 34, 27),
+                        GOLD, dp(7)));
+                LinearLayout.LayoutParams moveParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                moveParams.leftMargin = dp(10);
+                status.addView(move, moveParams);
+                TextView wait = text(active.optBoolean("opponentSubmitted")
+                        ? "OPPONENT MOVE RECEIVED · RESOLVING"
+                        : "WAITING FOR OPPONENT", 8, MUTED, true);
+                wait.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                status.addView(wait, new LinearLayout.LayoutParams(0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+                content.addView(status, rowParams());
             }
-            TextView refresh = button("REFRESH MATCH STATUS", false);
+            TextView refresh = button("↻ REFRESH MATCH", false);
             refresh.setOnClickListener(v -> renderTab("arena"));
-            LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(dp(180), dp(34));
-            rp.topMargin = dp(8);
-            content.addView(refresh, rp);
+            content.addView(refresh, new LinearLayout.LayoutParams(dp(170), dp(35)));
         } else if (queue != null) {
             LinearLayout waiting = sectionPanel();
-            waiting.addView(text("MATCHMAKING IN PROGRESS", 9, GOLD, true));
-            waiting.addView(text(queue.optString("mode", "CASUAL") + " QUEUE  ·  POWER "
-                    + formatNumber(queue.optLong("power")), 13, TEXT, true));
-            waiting.addView(text("Refresh the Arena screen to check whether an opponent has joined.", 8, MUTED, false));
+            waiting.setGravity(Gravity.CENTER);
+            TextView icon = text("◌", 30, GOLD_BRIGHT, true);
+            icon.setGravity(Gravity.CENTER);
+            waiting.addView(icon);
+            TextView headline = text("MATCHMAKING IN PROGRESS", 12, GOLD, true);
+            headline.setGravity(Gravity.CENTER);
+            waiting.addView(headline);
+            TextView details = text(queue.optString("mode", "CASUAL") + " QUEUE · POWER "
+                    + formatNumber(queue.optLong("power")), 15, TEXT, true);
+            details.setGravity(Gravity.CENTER);
+            waiting.addView(details);
+            TextView hint = text("Refresh to check whether an opponent has joined.",
+                    8, MUTED, false);
+            hint.setGravity(Gravity.CENTER);
+            waiting.addView(hint);
+            LinearLayout actions = new LinearLayout(this);
+            actions.setGravity(Gravity.CENTER);
+            TextView refresh = button("REFRESH QUEUE", true);
+            refresh.setOnClickListener(v -> renderTab("arena"));
             TextView cancel = button("CANCEL SEARCH", false);
-            cancel.setOnClickListener(v -> confirmAction("Cancel matchmaking?", "You will leave the current arena queue.", this::cancelArenaQueue));
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(150), dp(34));
-            cp.topMargin = dp(8);
-            waiting.addView(cancel, cp);
+            cancel.setOnClickListener(v -> confirmAction("Cancel matchmaking?",
+                    "You will leave the current arena queue.", this::cancelArenaQueue));
+            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(dp(140), dp(36));
+            actionParams.setMargins(dp(4), dp(8), dp(4), 0);
+            actions.addView(refresh, actionParams);
+            LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(dp(140), dp(36));
+            cancelParams.setMargins(dp(4), dp(8), dp(4), 0);
+            actions.addView(cancel, cancelParams);
+            waiting.addView(actions);
             content.addView(waiting, rowParams());
         } else {
-            content.addView(text("FIND AN OPPONENT", 8, GOLD, true));
-            addGap(content, 6);
-            TextView casual = button("CASUAL MATCH  ·  FIND OPPONENT", true);
+            LinearLayout hero = sectionPanel();
+            hero.setOrientation(LinearLayout.HORIZONTAL);
+            hero.setGravity(Gravity.CENTER_VERTICAL);
+            TextView crest = text("⚔", 42, GOLD_BRIGHT, true);
+            hero.addView(crest, new LinearLayout.LayoutParams(dp(74),
+                    ViewGroup.LayoutParams.WRAP_CONTENT));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.addView(text("ENTER THE ARENA", 15, TEXT, true));
+            copy.addView(text("Choose a queue and challenge another collector.", 8, MUTED, false));
+            hero.addView(copy, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            content.addView(hero, rowParams());
+            TextView casual = button("CASUAL MATCH · FIND OPPONENT", true);
             casual.setOnClickListener(v -> joinArenaQueue("CASUAL"));
-            content.addView(casual, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+            content.addView(casual, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
             if (!data.optBoolean("rankedHidden") && !data.optBoolean("rankedBanned")) {
-                TextView ranked = button("RANKED MATCH  ·  SEASON LADDER", false);
-                ranked.setOnClickListener(v -> joinArenaQueue("RANKED"));
-                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
-                rp.topMargin = dp(7);
-                content.addView(ranked, rp);
+                TextView rankedMatch = button("RANKED MATCH · SEASON LADDER", false);
+                rankedMatch.setOnClickListener(v -> joinArenaQueue("RANKED"));
+                LinearLayout.LayoutParams rankedParams = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
+                rankedParams.topMargin = dp(7);
+                content.addView(rankedMatch, rankedParams);
             }
             showNotice("Strike deals damage, Guard reduces incoming damage, and Focus charges your next action.");
         }
 
         JSONArray recent = data.optJSONArray("recent");
         if (recent != null && recent.length() > 0) {
-            addGap(content, 8);
+            addGap(content, 9);
             content.addView(text("RECENT MATCHES", 8, GOLD, true));
             for (int i = 0; i < recent.length(); i++) {
                 JSONObject match = recent.optJSONObject(i);
                 if (match == null) continue;
-                boolean winner = me != null && me.optString("user_id").equals(match.optString("winner_id"));
-                String opponent = me != null && me.optString("user_id").equals(match.optString("player_one_id"))
+                boolean winner = me != null && me.optString("user_id")
+                        .equals(match.optString("winner_id"));
+                String opponent = me != null && me.optString("user_id")
+                        .equals(match.optString("player_one_id"))
                         ? match.optString("player_two_name") : match.optString("player_one_name");
-                content.addView(dataRow(opponent, match.optString("mode", "CASUAL")
-                        + "  ·  " + match.optString("completed_at", ""), winner ? "VICTORY" : "COMPLETED"), rowParams());
+                content.addView(dataRow(opponent, match.optString("mode", "CASUAL") + " · "
+                        + match.optString("completed_at", ""),
+                        winner ? "VICTORY" : "COMPLETED"), rowParams());
             }
         }
+    }
+
+    private LinearLayout createArenaFighterPanel(String role, String name,
+                                                  long hp, long maxHp, int accent) {
+        LinearLayout panel = sectionPanel();
+        panel.setPadding(dp(12), dp(12), dp(12), dp(12));
+        panel.addView(text(role, 7, accent, true));
+        TextView fighter = text(name, 13, TEXT, true);
+        fighter.setMaxLines(1);
+        panel.addView(fighter);
+        TextView health = text(formatNumber(hp) + " HP"
+                + (maxHp > 0 ? " / " + formatNumber(maxHp) : ""), 16, accent, true);
+        health.setPadding(0, dp(6), 0, dp(5));
+        panel.addView(health);
+        if (maxHp > 0) {
+            ProgressBar bar = new ProgressBar(this, null,
+                    android.R.attr.progressBarStyleHorizontal);
+            bar.setMax(100);
+            bar.setProgress((int) Math.max(0, Math.min(100, Math.round(hp * 100d / maxHp))));
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+            panel.addView(bar, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(8)));
+        } else {
+            panel.addView(text("LIVE HEALTH", 7, MUTED, false));
+        }
+        return panel;
     }
 
     private void renderAdventure(JSONObject data) {
@@ -1807,58 +1932,186 @@ public final class MainActivity extends Activity {
     }
 
     private void renderFormation(JSONObject data) {
-        JSONArray cards=data.optJSONArray("cards"),saved=data.optJSONArray("formation");if(cards==null)cards=new JSONArray();if(saved==null)saved=new JSONArray();
-        if(cards.length()==0){showNotice("Collect at least one card before building a formation.");return;}
-        Map<Integer,String> savedSlots=new LinkedHashMap<>();for(int i=0;i<saved.length();i++){JSONObject s=saved.optJSONObject(i);if(s!=null)savedSlots.put(s.optInt("slot_no"),s.optString("card_id"));}
-        String[] labels=new String[cards.length()+1],ids=new String[cards.length()+1];labels[0]="Empty slot";ids[0]="";
-        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);ids[i+1]=c==null?"":c.optString("card_id");labels[i+1]=c==null?"Unknown card":c.optString("name")+" · "+c.optString("element")+" · "+c.optString("rarity")+" ×"+c.optInt("owned_count");}
-        content.addView(text("YOUR EFFECTIVE POWER · "+formatNumber(data.optLong("power")),10,GOLD_BRIGHT,true));
-        LinearLayout grid=new LinearLayout(this);grid.setOrientation(LinearLayout.HORIZONTAL);Spinner[] slots=new Spinner[5];
-        for(int i=0;i<5;i++){
-            LinearLayout col=new LinearLayout(this);col.setOrientation(LinearLayout.VERTICAL);col.setPadding(dp(4),dp(4),dp(4),dp(4));col.setBackground(gradient(PANEL_LIGHT,PANEL,Color.rgb(72,88,67),dp(8)));
-            col.addView(text("POSITION 0"+(i+1),7,GOLD,true));Spinner spinner=new Spinner(this);
-            ArrayAdapter<String> adapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,labels);adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);spinner.setAdapter(adapter);
-            String sid=savedSlots.get(i+1);for(int j=0;j<ids.length;j++)if(ids[j].equals(sid))spinner.setSelection(j);slots[i]=spinner;col.addView(spinner);
-            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,ViewGroup.LayoutParams.WRAP_CONTENT,1f);cp.setMargins(dp(3),dp(5),dp(3),dp(5));grid.addView(col,cp);
+        JSONArray cards = data.optJSONArray("cards");
+        JSONArray saved = data.optJSONArray("formation");
+        if (cards == null) cards = new JSONArray();
+        if (saved == null) saved = new JSONArray();
+        if (cards.length() == 0) {
+            showNotice("Collect at least one card before building a formation.");
+            return;
         }
-        content.addView(grid);JSONObject synergy=data.optJSONObject("synergy");
-        if(synergy!=null)content.addView(text("RESONANCE · "+synergy.optString("title","No active resonance")+" · +"+synergy.optInt("bonus_pct")+"%",9,GOLD_BRIGHT,true));
-        TextView save=button("SAVE FORMATION",true);save.setOnClickListener(v->{
-            JSONArray chosen=new JSONArray();java.util.HashSet<String> unique=new java.util.HashSet<>();
-            for(Spinner sp:slots){int index=sp.getSelectedItemPosition();String id=index>=0&&index<ids.length?ids[index]:"";if(id.isEmpty())continue;if(!unique.add(id)){showResultDialog("Duplicate selection","Each card can only occupy one formation slot.");return;}chosen.put(id);}
-            save.setEnabled(false);api.post("/api/formation",payload("cards",chosen),r->ui.post(()->{save.setEnabled(true);if(!r.ok())showResultDialog("Formation not saved",r.error);else{showResultDialog("FORMATION SAVED","Effective power: "+formatNumber(r.data.optLong("power")));refreshAccount(()->renderTab("formation"));}}));
+
+        Map<Integer, String> savedSlots = new LinkedHashMap<>();
+        for (int i = 0; i < saved.length(); i++) {
+            JSONObject slot = saved.optJSONObject(i);
+            if (slot != null) savedSlots.put(slot.optInt("slot_no"), slot.optString("card_id"));
+        }
+
+        String[] labels = new String[cards.length() + 1];
+        String[] ids = new String[cards.length() + 1];
+        labels[0] = "Empty slot";
+        ids[0] = "";
+        Map<String, JSONObject> cardsById = new LinkedHashMap<>();
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card == null) continue;
+            String id = card.optString("card_id", "");
+            ids[i + 1] = id;
+            labels[i + 1] = card.optString("name", "Unknown card") + " · "
+                    + card.optString("element", "AETHER") + " · "
+                    + card.optString("rarity", "COMMON") + " ×" + card.optInt("owned_count");
+            if (!id.isEmpty()) cardsById.put(id, card);
+        }
+
+        LinearLayout power = sectionPanel();
+        power.setOrientation(LinearLayout.HORIZONTAL);
+        power.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout powerCopy = new LinearLayout(this);
+        powerCopy.setOrientation(LinearLayout.VERTICAL);
+        powerCopy.addView(text("FORMATION POWER", 8, GOLD, true));
+        powerCopy.addView(text(formatNumber(data.optLong("power")), 20, TEXT, true));
+        power.addView(powerCopy, new LinearLayout.LayoutParams(0,
+                ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        JSONObject synergy = data.optJSONObject("synergy");
+        if (synergy != null) {
+            LinearLayout resonance = sectionPanel();
+            resonance.addView(text("RESONANCE", 7, GOLD, true));
+            resonance.addView(text(synergy.optString("title", "No active resonance"), 9, TEXT, true));
+            resonance.addView(text("+" + synergy.optInt("bonus_pct") + "% BONUS", 8, GREEN, true));
+            power.addView(resonance);
+        }
+        content.addView(power, rowParams());
+        addGap(content, 8);
+        content.addView(text("YOUR FIVE-CARD LINEUP", 8, GOLD, true));
+        content.addView(text("Choose a card for each position. Each card can only be used once.",
+                8, MUTED, false));
+        addGap(content, 5);
+
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.HORIZONTAL);
+        Spinner[] slots = new Spinner[5];
+
+        for (int i = 0; i < 5; i++) {
+            LinearLayout panel = new LinearLayout(this);
+            panel.setOrientation(LinearLayout.VERTICAL);
+            panel.setPadding(dp(6), dp(7), dp(6), dp(7));
+            panel.setBackground(gradient(PANEL_LIGHT, PANEL, Color.rgb(72, 88, 67), dp(10)));
+            panel.addView(text("POSITION 0" + (i + 1), 7, GOLD, true));
+
+            FrameLayout art = new FrameLayout(this);
+            art.setBackground(gradient(Color.rgb(26, 45, 37), Color.rgb(10, 19, 16),
+                    Color.rgb(82, 104, 77), dp(8)));
+            TextView sigil = text("＋", 29, MUTED, true);
+            sigil.setGravity(Gravity.CENTER);
+            art.addView(sigil, new FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            LinearLayout.LayoutParams artParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(74));
+            artParams.topMargin = dp(6);
+            panel.addView(art, artParams);
+
+            TextView cardName = text("EMPTY SLOT", 9, TEXT, true);
+            cardName.setMaxLines(2);
+            cardName.setGravity(Gravity.CENTER);
+            cardName.setPadding(0, dp(5), 0, dp(2));
+            panel.addView(cardName);
+            TextView cardMeta = text("Choose a card", 7, MUTED, false);
+            cardMeta.setGravity(Gravity.CENTER);
+            cardMeta.setMaxLines(2);
+            panel.addView(cardMeta);
+
+            Spinner spinner = new Spinner(this);
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                    this, android.R.layout.simple_spinner_item, labels);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            spinner.setAdapter(adapter);
+            String savedId = savedSlots.get(i + 1);
+            for (int j = 0; j < ids.length; j++) {
+                if (savedId != null && savedId.equals(ids[j])) {
+                    spinner.setSelection(j);
+                    break;
+                }
+            }
+            final int slotIndex = i;
+            spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                @Override
+                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    String selectedId = position >= 0 && position < ids.length ? ids[position] : "";
+                    updateFormationCardPreview(cardsById.get(selectedId), art, sigil, cardName, cardMeta);
+                }
+                @Override public void onNothingSelected(AdapterView<?> parent) {}
+            });
+            slots[i] = spinner;
+            panel.addView(spinner, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
+            LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            colParams.setMargins(dp(3), dp(5), dp(3), dp(5));
+            grid.addView(panel, colParams);
+            String initialId = spinner.getSelectedItemPosition() >= 0
+                    && spinner.getSelectedItemPosition() < ids.length
+                    ? ids[spinner.getSelectedItemPosition()] : "";
+            updateFormationCardPreview(cardsById.get(initialId), art, sigil, cardName, cardMeta);
+        }
+
+        content.addView(grid);
+        TextView save = button("SAVE FORMATION", true);
+        save.setOnClickListener(v -> {
+            JSONArray chosen = new JSONArray();
+            java.util.HashSet<String> unique = new java.util.HashSet<>();
+            for (Spinner spinner : slots) {
+                int index = spinner.getSelectedItemPosition();
+                String id = index >= 0 && index < ids.length ? ids[index] : "";
+                if (id.isEmpty()) continue;
+                if (!unique.add(id)) {
+                    showResultDialog("Duplicate selection",
+                            "Each card can only occupy one formation slot.");
+                    return;
+                }
+                chosen.put(id);
+            }
+            save.setEnabled(false);
+            save.setText("SAVING...");
+            api.post("/api/formation", payload("cards", chosen), result -> ui.post(() -> {
+                save.setEnabled(true);
+                save.setText("SAVE FORMATION");
+                if (!result.ok()) {
+                    showResultDialog("Formation not saved", result.error);
+                } else {
+                    showResultDialog("FORMATION SAVED",
+                            "Effective power: " + formatNumber(result.data.optLong("power")));
+                    refreshAccount(() -> renderTab("formation"));
+                }
+            }));
         });
-        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(dp(190),dp(40));sp.topMargin=dp(12);content.addView(save,sp);
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(dp(190), dp(40));
+        saveParams.topMargin = dp(10);
+        content.addView(save, saveParams);
     }
 
-    private void renderBinders(JSONObject data) {
-        JSONArray binders=data.optJSONArray("binders"),cards=data.optJSONArray("cards");JSONObject active=data.optJSONObject("activeBinder");
-        if(binders==null)binders=new JSONArray();if(cards==null)cards=new JSONArray();
-        LinearLayout p=sectionPanel();p.addView(text("PERSONAL CARD BINDERS",8,GOLD,true));
-        p.addView(text(active==null?"Genesis Archive":active.optString("name","Genesis Archive"),18,TEXT,true));
-        p.addView(text("Create up to 12 binders. Select a binder below to switch, rename, change its cover or manage its cards.",8,MUTED,false));
-        TextView create=button("CREATE NEW BINDER",true);create.setOnClickListener(v->showCreateBinderDialog());
-        p.addView(create,new LinearLayout.LayoutParams(dp(180),dp(38)));content.addView(p,rowParams());
-        content.addView(text("YOUR BINDERS",8,GOLD,true));
-        for(int i=0;i<binders.length();i++){
-            JSONObject b=binders.optJSONObject(i);if(b==null)continue;
-            String label=b.optString("name")+(b.optInt("is_active")==1?" · ACTIVE":"")+(b.optInt("is_default")==1?" · DEFAULT":"");
-            LinearLayout row=dataRow(label,b.optString("theme_key")+" theme · "+b.optInt("card_count")+" unique cards","MANAGE");
-            row.setOnClickListener(v->showBinderActions(b));content.addView(row,rowParams());
+    private void updateFormationCardPreview(JSONObject card, FrameLayout art,
+                                            TextView sigil, TextView name, TextView meta) {
+        if (card == null) {
+            art.setBackground(gradient(Color.rgb(26, 45, 37), Color.rgb(10, 19, 16),
+                    Color.rgb(82, 104, 77), dp(8)));
+            sigil.setText("＋");
+            sigil.setTextColor(MUTED);
+            name.setText("EMPTY SLOT");
+            name.setTextColor(TEXT);
+            meta.setText("Choose a card");
+            meta.setTextColor(MUTED);
+            return;
         }
-        content.addView(text("CARDS IN ACTIVE BINDER",8,GOLD,true));
-        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · "+c.optString("element")+" · ×"+c.optInt("owned_count"),c.optString("card_code")),rowParams());}
-        if(cards.length()==0)showNotice("This binder is empty. Your full archive remains safe under Cards.");
-    }
-
-    private void showCreateBinderDialog() {
-        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
-        EditText name=editField("Binder name",false);Spinner theme=new Spinner(this);String[] themes={"verdant","ember","tide","astral","void","gold"};
-        theme.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,themes));form.addView(name,fieldParams());form.addView(text("COVER THEME",8,GOLD,true));form.addView(theme);
-        new AlertDialog.Builder(this).setTitle("Create binder").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("CREATE",(d,w)->{
-            String value=name.getText().toString().trim();if(value.length()<2){showResultDialog("Name required","Binder names need at least two characters.");return;}
-            api.post("/api/binders",payload("name",value,"theme_key",themes[theme.getSelectedItemPosition()]),r->ui.post(()->{if(!r.ok())showResultDialog("Binder not created",r.error);else renderTab("binders");}));
-        }).show();
+        String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
+        String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+        int accent = cardRarityColor(rarity);
+        art.setBackground(gradient(Color.rgb(31, 50, 39), Color.rgb(10, 19, 16), accent, dp(8)));
+        sigil.setText(elementSigil(element));
+        sigil.setTextColor(accent);
+        name.setText(card.optString("name", "Unknown Card"));
+        name.setTextColor(TEXT);
+        meta.setText(rarity + " · " + element + " · ×" + card.optInt("owned_count"));
+        meta.setTextColor(accent);
     }
 
     private void renderAchievements(JSONObject data) {
@@ -2258,6 +2511,103 @@ public final class MainActivity extends Activity {
                 .setMessage(message == null || message.trim().isEmpty() ? "Action completed." : message)
                 .setPositiveButton("CONTINUE", (dialog, which) -> dialog.dismiss())
                 .show();
+    }
+
+    private void showPackRevealDialog(JSONArray cards) {
+        if (cards == null || cards.length() == 0) {
+            showResultDialog("PACK OPENED", "Your collection has been updated.");
+            return;
+        }
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(dp(12), dp(10), dp(12), dp(10));
+        scroll.addView(layout);
+
+        LinearLayout hero = sectionPanel();
+        hero.setGravity(Gravity.CENTER);
+        TextView seal = text("✦", 40, GOLD_BRIGHT, true);
+        seal.setGravity(Gravity.CENTER);
+        hero.addView(seal);
+        TextView headline = text("SUMMON COMPLETE", 13, GOLD_BRIGHT, true);
+        headline.setGravity(Gravity.CENTER);
+        headline.setLetterSpacing(0.12f);
+        hero.addView(headline);
+        TextView subline = text(cards.length() + " CARD" + (cards.length() == 1 ? "" : "S")
+                + " ADDED TO YOUR ARCHIVE", 8, MUTED, true);
+        subline.setGravity(Gravity.CENTER);
+        hero.addView(subline);
+        layout.addView(hero, rowParams());
+        addGap(layout, 8);
+        layout.addView(text("YOUR NEWLY SUMMONED CARDS", 8, GOLD, true));
+        addGap(layout, 5);
+
+        int columns = cards.length() >= 3 ? 3 : Math.max(1, cards.length());
+        LinearLayout row = null;
+        int visible = 0;
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card == null) continue;
+            if (visible % columns == 0) {
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                layout.addView(row, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            }
+            LinearLayout tile = createSummonRevealTile(card, visible + 1);
+            tile.setAlpha(0f);
+            tile.setTranslationY(dp(12));
+            LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(
+                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            tileParams.setMargins(dp(3), dp(3), dp(3), dp(6));
+            row.addView(tile, tileParams);
+            tile.animate().alpha(1f).translationY(0f)
+                    .setStartDelay(Math.min(visible, 8) * 75L).setDuration(240).start();
+            visible++;
+        }
+        if (row != null) {
+            int remainder = visible % columns;
+            if (remainder != 0) {
+                for (int i = remainder; i < columns; i++) {
+                    row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+                }
+            }
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("✦  PACK REVEAL")
+                .setView(scroll)
+                .setPositiveButton("BACK TO SUMMON",
+                        (dialog, which) -> refreshAccount(() -> renderTab("summon")))
+                .setOnCancelListener(dialog -> refreshAccount(null))
+                .show();
+    }
+
+    private LinearLayout createSummonRevealTile(JSONObject card, int order) {
+        String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+        String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
+        int accent = cardRarityColor(rarity);
+        LinearLayout tile = sectionPanel();
+        tile.setPadding(dp(7), dp(7), dp(7), dp(8));
+        FrameLayout art = new FrameLayout(this);
+        art.setBackground(gradient(Color.rgb(30, 48, 39), Color.rgb(10, 18, 16), accent, dp(9)));
+        TextView glyph = text(elementSigil(element), 34, accent, true);
+        glyph.setGravity(Gravity.CENTER);
+        art.addView(glyph, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        tile.addView(art, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(83)));
+        TextView number = text(String.format(java.util.Locale.US, "CARD %02d", order),
+                7, MUTED, true);
+        number.setPadding(0, dp(5), 0, 0);
+        tile.addView(number);
+        TextView title = text(card.optString("name", "Unknown Card"), 10, TEXT, true);
+        title.setMaxLines(2);
+        tile.addView(title);
+        TextView badge = text(rarity, 7, accent, true);
+        badge.setPadding(0, dp(3), 0, 0);
+        tile.addView(badge);
+        tile.addView(text(element, 7, MUTED, false));
+        return tile;
     }
 
     private String formatPackReveal(JSONArray cards) {
