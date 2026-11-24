@@ -62,6 +62,8 @@ public final class MainActivity extends Activity {
     private TextView accountLabel;
     private TextView currencyLabel;
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
+    private JSONObject arenaLeaderCard;
+    private JSONObject arenaOpponentCard;
     private JSONObject me;
     private JSONObject progression;
     private String activeTab = "home";
@@ -907,6 +909,9 @@ public final class MainActivity extends Activity {
             matchHeader.addView(text("⚔  VS  ⚔", 13, GOLD_BRIGHT, true));
             content.addView(matchHeader, rowParams());
 
+            FrameLayout battleStage = createArenaBattleStage(active);
+            content.addView(battleStage, rowParams());
+
             LinearLayout fighters = new LinearLayout(this);
             fighters.setOrientation(LinearLayout.HORIZONTAL);
             fighters.addView(createArenaFighterPanel("YOU",
@@ -1066,6 +1071,194 @@ public final class MainActivity extends Activity {
                         winner ? "VICTORY" : "COMPLETED"), rowParams());
             }
         }
+    }
+
+    private final class ArenaCardFace {
+        final LinearLayout root;
+        final CardArtView artwork;
+        final TextView sigil;
+        final TextView title;
+        final TextView meta;
+        final int accent;
+
+        ArenaCardFace(String role, int accent) {
+            this.accent = accent;
+            root = new LinearLayout(MainActivity.this);
+            root.setOrientation(LinearLayout.VERTICAL);
+            root.setPadding(dp(7), dp(7), dp(7), dp(7));
+            root.setBackground(gradient(PANEL_LIGHT, PANEL, accent, dp(11)));
+
+            TextView roleLabel = text(role, 7, accent, true);
+            roleLabel.setGravity(Gravity.CENTER);
+            roleLabel.setPadding(0, 0, 0, dp(4));
+            root.addView(roleLabel);
+
+            FrameLayout portrait = new FrameLayout(MainActivity.this);
+            portrait.setBackground(gradient(Color.rgb(27, 43, 39),
+                    Color.rgb(8, 15, 18), accent, dp(8)));
+            sigil = text("✦", 38, accent, true);
+            sigil.setGravity(Gravity.CENTER);
+            sigil.setAlpha(0.9f);
+            portrait.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
+
+            artwork = new CardArtView(MainActivity.this);
+            FrameLayout.LayoutParams artworkParams = new FrameLayout.LayoutParams(-1, -1);
+            artworkParams.setMargins(dp(4), dp(2), dp(4), dp(2));
+            portrait.addView(artwork, artworkParams);
+            root.addView(portrait, new LinearLayout.LayoutParams(-1, dp(116)));
+
+            title = text("NO ACTIVE CARD", 9, TEXT, true);
+            title.setGravity(Gravity.CENTER);
+            title.setMaxLines(1);
+            title.setPadding(0, dp(4), 0, 0);
+            root.addView(title);
+
+            meta = text("Assign a card in Formation", 7, MUTED, false);
+            meta.setGravity(Gravity.CENTER);
+            meta.setMaxLines(1);
+            root.addView(meta);
+        }
+
+        void bind(JSONObject card, String emptyTitle, String emptyMeta) {
+            if (card == null) {
+                artwork.clearArtwork();
+                sigil.setText("?");
+                sigil.setTextColor(MUTED);
+                sigil.setAlpha(0.9f);
+                title.setText(emptyTitle);
+                meta.setText(emptyMeta);
+                return;
+            }
+            String element = card.optString("element", "AETHER")
+                    .toUpperCase(java.util.Locale.ROOT);
+            String rarity = card.optString("rarity", "COMMON")
+                    .toUpperCase(java.util.Locale.ROOT);
+            String path = cardArtworkPath(card);
+            artwork.loadArtwork(path);
+            sigil.setText(elementSigil(element));
+            sigil.setTextColor(accent);
+            sigil.setAlpha(path.isEmpty() ? 0.72f : 0.16f);
+            title.setText(card.optString("name", "Unknown Card"));
+            meta.setText(rarity + " · " + element);
+        }
+    }
+
+    private FrameLayout createArenaBattleStage(JSONObject active) {
+        FrameLayout stage = new FrameLayout(this);
+        stage.setPadding(dp(5), dp(5), dp(5), dp(5));
+        stage.setBackground(gradient(Color.rgb(23, 39, 38),
+                Color.rgb(7, 13, 18), GOLD, dp(14)));
+
+        LinearLayout duel = new LinearLayout(this);
+        duel.setOrientation(LinearLayout.HORIZONTAL);
+        duel.setGravity(Gravity.CENTER_VERTICAL);
+
+        ArenaCardFace playerFace = new ArenaCardFace("YOUR ACTIVE CARD", GREEN);
+        ArenaCardFace opponentFace = new ArenaCardFace("RIVAL CARD", RED);
+        JSONObject playerCard = firstArenaMatchCard(active, true);
+        JSONObject opponentCard = firstArenaMatchCard(active, false);
+        arenaLeaderCard = playerCard;
+        arenaOpponentCard = opponentCard;
+        playerFace.bind(playerCard, "NO ACTIVE CARD", "Assign a card in Formation");
+        opponentFace.bind(opponentCard, "RIVAL LOADOUT", "Opponent artwork not shared");
+
+        LinearLayout.LayoutParams sideParams = new LinearLayout.LayoutParams(0, -1, 1f);
+        sideParams.setMargins(dp(3), 0, dp(3), 0);
+        duel.addView(playerFace.root, sideParams);
+        LinearLayout.LayoutParams rivalParams = new LinearLayout.LayoutParams(0, -1, 1f);
+        rivalParams.setMargins(dp(3), 0, dp(3), 0);
+        duel.addView(opponentFace.root, rivalParams);
+        stage.addView(duel, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView versus = text("VS", 8, GOLD_BRIGHT, true);
+        versus.setGravity(Gravity.CENTER);
+        versus.setPadding(dp(5), dp(5), dp(5), dp(5));
+        versus.setBackground(gradient(Color.rgb(24, 33, 30),
+                Color.rgb(12, 20, 24), GOLD, dp(20)));
+        FrameLayout.LayoutParams versusParams = new FrameLayout.LayoutParams(
+                dp(36), dp(30), Gravity.CENTER);
+        stage.addView(versus, versusParams);
+        stage.setMinimumHeight(dp(184));
+
+        if (playerCard == null) {
+            api.get("/api/formation", result -> ui.post(() -> {
+                if (!result.ok() || stage.getParent() == null) return;
+                JSONObject leader = firstFormationCard(result.data);
+                if (leader == null) return;
+                arenaLeaderCard = leader;
+                playerFace.bind(leader, "NO ACTIVE CARD", "Assign a card in Formation");
+            }));
+        }
+        return stage;
+    }
+
+    private JSONObject firstArenaMatchCard(JSONObject match, boolean playerSide) {
+        if (match == null) return null;
+        String[] objectKeys = playerSide
+                ? new String[]{"myCard", "my_card", "myActiveCard", "my_active_card", "playerCard", "player_card"}
+                : new String[]{"opponentCard", "opponent_card", "opponentActiveCard",
+                        "opponent_active_card", "enemyCard", "enemy_card"};
+        String[] arrayKeys = playerSide
+                ? new String[]{"myCards", "my_cards", "myFormation", "my_formation", "playerCards"}
+                : new String[]{"opponentCards", "opponent_cards", "opponentFormation",
+                        "opponent_formation", "enemyCards"};
+        for (String key : objectKeys) {
+            JSONObject card = match.optJSONObject(key);
+            if (card != null) {
+                JSONObject nested = card.optJSONObject("card");
+                return nested == null ? card : nested;
+            }
+        }
+        for (String key : arrayKeys) {
+            JSONArray cards = match.optJSONArray(key);
+            if (cards != null && cards.length() > 0) {
+                JSONObject card = cards.optJSONObject(0);
+                if (card != null) {
+                    JSONObject nested = card.optJSONObject("card");
+                    return nested == null ? card : nested;
+                }
+            }
+        }
+        if (!playerSide) {
+            JSONObject opponent = match.optJSONObject("opponent");
+            if (opponent != null) {
+                JSONObject card = opponent.optJSONObject("card");
+                if (card == null) card = opponent.optJSONObject("activeCard");
+                if (card == null) {
+                    JSONArray cards = opponent.optJSONArray("formation");
+                    if (cards != null && cards.length() > 0) card = cards.optJSONObject(0);
+                }
+                return card;
+            }
+        }
+        return null;
+    }
+
+    private JSONObject firstFormationCard(JSONObject formationData) {
+        if (formationData == null) return null;
+        JSONArray cards = formationData.optJSONArray("cards");
+        JSONArray slots = formationData.optJSONArray("formation");
+        if (cards == null || slots == null) return null;
+        Map<String, JSONObject> byId = new LinkedHashMap<>();
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card == null) continue;
+            String id = card.optString("card_id", "");
+            if (!id.isEmpty()) byId.put(id, card);
+        }
+        JSONObject selected = null;
+        int selectedSlot = Integer.MAX_VALUE;
+        for (int i = 0; i < slots.length(); i++) {
+            JSONObject slot = slots.optJSONObject(i);
+            if (slot == null) continue;
+            int slotNo = slot.optInt("slot_no", i + 1);
+            JSONObject card = byId.get(slot.optString("card_id", ""));
+            if (card != null && slotNo < selectedSlot) {
+                selected = card;
+                selectedSlot = slotNo;
+            }
+        }
+        return selected;
     }
 
     private LinearLayout createArenaFighterPanel(String role, String name,
@@ -2904,11 +3097,26 @@ public final class MainActivity extends Activity {
 
         FrameLayout stage = new FrameLayout(this);
         stage.setBackground(gradient(Color.rgb(31, 47, 50), Color.rgb(10, 19, 26), accent, dp(15)));
+
+        CardArtView attacker = new CardArtView(this);
+        if (arenaLeaderCard != null) attacker.loadArtwork(cardArtworkPath(arenaLeaderCard));
+        FrameLayout.LayoutParams attackerParams = new FrameLayout.LayoutParams(
+                dp(112), dp(118), Gravity.CENTER_VERTICAL | Gravity.LEFT);
+        attackerParams.leftMargin = dp(7);
+        stage.addView(attacker, attackerParams);
+
+        CardArtView defender = new CardArtView(this);
+        if (arenaOpponentCard != null) defender.loadArtwork(cardArtworkPath(arenaOpponentCard));
+        FrameLayout.LayoutParams defenderParams = new FrameLayout.LayoutParams(
+                dp(112), dp(118), Gravity.CENTER_VERTICAL | Gravity.RIGHT);
+        defenderParams.rightMargin = dp(7);
+        stage.addView(defender, defenderParams);
+
         TextView rune = text(glyph, 58, accent, true);
         rune.setGravity(Gravity.CENTER);
         rune.setShadowLayer(dp(18), 0, 0, accent);
         stage.addView(rune, new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout.LayoutParams stageParams = new LinearLayout.LayoutParams(-1, dp(126));
+        LinearLayout.LayoutParams stageParams = new LinearLayout.LayoutParams(-1, dp(136));
         stageParams.bottomMargin = dp(12);
         panel.addView(stage, stageParams);
 
@@ -2934,11 +3142,38 @@ public final class MainActivity extends Activity {
             rune.setScaleX(0.45f);
             rune.setScaleY(0.45f);
             rune.setAlpha(0f);
-            stage.setAlpha(0.6f);
+            stage.setAlpha(0.65f);
+            attacker.setTranslationX(-dp(13));
+            defender.setTranslationX(dp(13));
             rune.animate().scaleX(1.08f).scaleY(1.08f).alpha(1f).setDuration(320)
-                    .withEndAction(() -> rune.animate().scaleX(1f).scaleY(1f).setDuration(150).start())
-                    .start();
+                    .withEndAction(() -> rune.animate().scaleX(1f).scaleY(1f)
+                            .setDuration(150).start()).start();
             stage.animate().alpha(1f).setDuration(300).start();
+
+            if ("STRIKE".equals(action)) {
+                attacker.animate().translationX(dp(24)).scaleX(1.08f).scaleY(1.08f)
+                        .setDuration(210).withEndAction(() ->
+                                attacker.animate().translationX(0).scaleX(1f).scaleY(1f)
+                                        .setDuration(190).start()).start();
+                defender.animate().alpha(0.38f).setStartDelay(160).setDuration(100)
+                        .withEndAction(() -> defender.animate().alpha(1f).setDuration(220).start()).start();
+                rune.animate().rotation(-28f).translationY(-dp(6)).setDuration(170)
+                        .withEndAction(() -> rune.animate().rotation(0f).translationY(0)
+                                .setDuration(200).start()).start();
+            } else if ("GUARD".equals(action)) {
+                attacker.animate().scaleX(1.08f).scaleY(1.08f).setDuration(220)
+                        .withEndAction(() -> attacker.animate().scaleX(1f).scaleY(1f)
+                                .setDuration(220).start()).start();
+                rune.animate().rotation(180f).setDuration(420)
+                        .withEndAction(() -> rune.setRotation(0f)).start();
+            } else {
+                rune.animate().scaleX(1.34f).scaleY(1.34f).alpha(0.65f).setDuration(300)
+                        .withEndAction(() -> rune.animate().scaleX(1f).scaleY(1f).alpha(1f)
+                                .setDuration(300).start()).start();
+                attacker.animate().translationY(-dp(8)).setDuration(300)
+                        .withEndAction(() -> attacker.animate().translationY(0)
+                                .setDuration(260).start()).start();
+            }
         });
         dialog.show();
     }

@@ -16,64 +16,90 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Check permanent release signing secrets
+        id: signing
+        env:
+          CU_RELEASE_KEYSTORE_BASE64: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
+          CU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.CU_RELEASE_KEYSTORE_PASSWORD }}
+          CU_RELEASE_KEY_ALIAS: ${{ secrets.CU_RELEASE_KEY_ALIAS }}
+          CU_RELEASE_KEY_PASSWORD: ${{ secrets.CU_RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$CU_RELEASE_KEYSTORE_BASE64" ] || [ -z "$CU_RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$CU_RELEASE_KEY_ALIAS" ] || [ -z "$CU_RELEASE_KEY_PASSWORD" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::APK build skipped. Add the four CU_RELEASE_* GitHub Actions secrets to enable permanent update signing."
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout source
+        if: steps.signing.outputs.configured == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Java 17
+        if: steps.signing.outputs.configured == 'true'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Verify Android SDK
+        if: steps.signing.outputs.configured == 'true'
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           test -d "$ANDROID_HOME/platforms/android-35"
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
       - name: Set up Gradle
+        if: steps.signing.outputs.configured == 'true'
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.9"
 
-      - name: Create preview signing key
+      - name: Restore permanent signing key
+        if: steps.signing.outputs.configured == 'true'
         env:
-          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-preview.keystore
-          CU_KEYSTORE_PASSWORD: ${{ secrets.CU_PREVIEW_KEYSTORE_PASSWORD || 'cu-preview-only' }}
-          CU_KEY_ALIAS: carduniverse
-          CU_KEY_PASSWORD: ${{ secrets.CU_PREVIEW_KEY_PASSWORD || 'cu-preview-only' }}
+          CU_RELEASE_KEYSTORE_BASE64: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
+          CU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.CU_RELEASE_KEYSTORE_PASSWORD }}
+          CU_RELEASE_KEY_ALIAS: ${{ secrets.CU_RELEASE_KEY_ALIAS }}
         run: |
-          keytool -genkeypair -v \
-            -keystore "$CU_KEYSTORE_PATH" \
-            -storepass "$CU_KEYSTORE_PASSWORD" \
-            -alias "$CU_KEY_ALIAS" \
-            -keypass "$CU_KEY_PASSWORD" \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=CardUniverse Preview, OU=Android, O=CardUniverse, L=Kuala Lumpur, ST=Kuala Lumpur, C=MY" \
-            -noprompt
+          set -euo pipefail
+          export CU_KEYSTORE_PATH="$RUNNER_TEMP/carduniverse-release.jks"
+          export CU_KEYSTORE_PASSWORD="$CU_RELEASE_KEYSTORE_PASSWORD"
+          export CU_KEY_ALIAS="$CU_RELEASE_KEY_ALIAS"
+          printf '%s' "$CU_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$CU_KEYSTORE_PATH"
+          chmod 600 "$CU_KEYSTORE_PATH"
+          keytool -list -keystore "$CU_KEYSTORE_PATH" -storepass "$CU_KEYSTORE_PASSWORD" -alias "$CU_KEY_ALIAS" >/dev/null
+          echo "CU_KEYSTORE_PATH=$CU_KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "CU_KEYSTORE_PASSWORD=$CU_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "CU_KEY_ALIAS=$CU_KEY_ALIAS" >> "$GITHUB_ENV"
 
       - name: Build native release APK
+        if: steps.signing.outputs.configured == 'true'
         env:
-          CU_KEYSTORE_PATH: ${{ runner.temp }}/carduniverse-preview.keystore
-          CU_KEYSTORE_PASSWORD: ${{ secrets.CU_PREVIEW_KEYSTORE_PASSWORD || 'cu-preview-only' }}
-          CU_KEY_ALIAS: carduniverse
-          CU_KEY_PASSWORD: ${{ secrets.CU_PREVIEW_KEY_PASSWORD || 'cu-preview-only' }}
+          CU_KEY_PASSWORD: ${{ secrets.CU_RELEASE_KEY_PASSWORD }}
         run: gradle -p carduniverse-android :app:assembleRelease
 
       - name: Upload APK artifact
+        if: steps.signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: CardUniverse-Native-Android-2.8.0
+          name: CardUniverse-Native-Android-2.9.0
           path: carduniverse-android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
 
       - name: Publish downloadable APK release
-        if: github.ref == 'refs/heads/carduniverse-android'
+        if: github.ref == 'refs/heads/carduniverse-android' && steps.signing.outputs.configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v2.8.0-build-${{ github.run_number }}
-          name: CardUniverse Native Android v2.8.0 (build ${{ github.run_number }})
+          tag_name: carduniverse-android-v2.9.0-build-${{ github.run_number }}
+          name: CardUniverse Native Android v2.9.0 (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
           files: carduniverse-android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Explain skipped APK build
+        if: steps.signing.outputs.configured != 'true'
+        run: |
+          echo "Release build was intentionally skipped because permanent signing secrets are not configured."
+          echo "No APK was uploaded and no GitHub Release was created. Configure secrets and run this workflow again."

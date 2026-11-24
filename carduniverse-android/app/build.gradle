@@ -6,6 +6,8 @@ def signingStoreFile = System.getenv('CU_KEYSTORE_PATH')
 def signingStorePassword = System.getenv('CU_KEYSTORE_PASSWORD')
 def signingKeyAlias = System.getenv('CU_KEY_ALIAS')
 def signingKeyPassword = System.getenv('CU_KEY_PASSWORD')
+def hasPermanentReleaseSigning = [signingStoreFile, signingStorePassword,
+        signingKeyAlias, signingKeyPassword].every { it != null && !it.trim().isEmpty() }
 
 android {
     namespace 'com.carduniverse.game'
@@ -15,19 +17,17 @@ android {
         applicationId 'com.carduniverse.game'
         minSdk 24
         targetSdk 34
-        versionCode 12
-        versionName '2.8.0'
+        versionCode 13
+        versionName '2.9.0'
     }
 
     signingConfigs {
         release {
-            if (signingStoreFile && signingStorePassword && signingKeyAlias && signingKeyPassword) {
+            if (hasPermanentReleaseSigning) {
                 storeFile file(signingStoreFile)
                 storePassword signingStorePassword
                 keyAlias signingKeyAlias
                 keyPassword signingKeyPassword
-            } else {
-                initWith signingConfigs.debug
             }
         }
     }
@@ -57,4 +57,18 @@ android {
 
 dependencies {
     implementation 'com.caverock:androidsvg-aar:1.4'
+}
+
+
+// Fail clearly instead of ever producing an update APK with a temporary debug key.
+gradle.taskGraph.whenReady { graph ->
+    boolean assemblingRelease = graph.allTasks.any {
+        it.path.endsWith(':app:assembleRelease')
+    }
+    if (assemblingRelease && !hasPermanentReleaseSigning) {
+        throw new GradleException(
+                'Permanent CardUniverse release signing is missing. Configure CU_KEYSTORE_PATH, ' +
+                'CU_KEYSTORE_PASSWORD, CU_KEY_ALIAS and CU_KEY_PASSWORD before building a release APK.'
+        )
+    }
 }
