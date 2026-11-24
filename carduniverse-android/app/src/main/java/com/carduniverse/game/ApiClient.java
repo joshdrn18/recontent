@@ -62,7 +62,13 @@ public final class ApiClient {
     }
 
     public void postMultipart(String path, List<UploadFile> files, Callback callback) {
+        postMultipart(path, "artwork", files, callback);
+    }
+
+    public void postMultipart(String path, String fieldName, List<UploadFile> files, Callback callback) {
         executor.execute(() -> {
+            String safeFieldName = fieldName == null ? "artwork" : fieldName.replaceAll("[^A-Za-z0-9_]", "");
+            if (safeFieldName.isEmpty()) safeFieldName = "artwork";
             HttpURLConnection connection = null;
             Result result;
             try {
@@ -75,7 +81,7 @@ public final class ApiClient {
                 connection.setDoOutput(true);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.20.0");
+                connection.setRequestProperty("X-Client-Version", "2.21.0");
                 connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
                 if (session != null && !session.isEmpty()) {
                     connection.setRequestProperty("Cookie", "cu_session=" + session);
@@ -89,7 +95,7 @@ public final class ApiClient {
                         String mime = file.mimeType == null || file.mimeType.isEmpty()
                                 ? "application/octet-stream" : file.mimeType;
                         output.write(("--" + boundary + "\r\n"
-                                + "Content-Disposition: form-data; name=\"artwork\"; filename=\""
+                                + "Content-Disposition: form-data; name=\"" + safeFieldName + "\"; filename=\""
                                 + filename + "\"\r\n"
                                 + "Content-Type: " + mime + "\r\n\r\n")
                                 .getBytes(StandardCharsets.UTF_8));
@@ -105,7 +111,7 @@ public final class ApiClient {
                 String response = stream == null ? "" : readAll(stream);
                 JSONObject json = response.isEmpty() ? new JSONObject() : new JSONObject(response);
                 String error = json.optString("error",
-                        status >= 400 ? "Artwork upload failed (" + status + ")" : "");
+                        status >= 400 ? "File upload failed (" + status + ")" : "");
                 result = new Result(status, json, error);
             } catch (Exception ex) {
                 result = new Result(0, null, ex.getMessage() == null
@@ -136,7 +142,7 @@ public final class ApiClient {
                 connection.setUseCaches(false);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.20.0");
+                connection.setRequestProperty("X-Client-Version", "2.21.0");
                 if (session != null && !session.isEmpty()) {
                     connection.setRequestProperty("Cookie", "cu_session=" + session);
                 }
