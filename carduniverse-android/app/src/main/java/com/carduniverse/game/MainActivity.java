@@ -1308,7 +1308,9 @@ public final class MainActivity extends Activity {
         JSONObject active = data.optJSONObject("activeMatch");
         JSONObject queue = data.optJSONObject("queue");
         boolean observer = isAdminAccount() || data.optBoolean("rankedHidden");
-        int accent = observer ? VIOLET : GOLD_BRIGHT;
+        boolean betaTester = data.optBoolean("betaTesting")
+                || (me != null && me.optBoolean("is_beta_tester"));
+        int accent = observer ? VIOLET : betaTester ? VIOLET : GOLD_BRIGHT;
 
         LinearLayout hero = new LinearLayout(this);
         hero.setOrientation(LinearLayout.VERTICAL);
@@ -1341,6 +1343,7 @@ public final class MainActivity extends Activity {
                 GOLD_BRIGHT, true));
         TextView detail = text(observer
                 ? "Public standings and match records"
+                : betaTester ? "Beta test mode · Ranked uses training bots only"
                 : active != null ? "Your live duel is in progress"
                 : queue != null ? "Searching for a worthy opponent"
                 : "Build your formation. Prove your strategy.",
@@ -1364,15 +1367,17 @@ public final class MainActivity extends Activity {
         footer.setOrientation(LinearLayout.HORIZONTAL);
         footer.setGravity(Gravity.CENTER_VERTICAL);
         String state = observer ? "OBSERVER ACCESS"
+                : betaTester ? "BETA TESTER · BOT ONLY"
                 : active != null ? "LIVE MATCH"
                 : queue != null ? "MATCHMAKING"
                 : "READY TO FIGHT";
-        TextView stateChip = text("●  " + state, 7, observer ? VIOLET : CYAN, true);
+        TextView stateChip = text("●  " + state, 7, (observer || betaTester) ? VIOLET : CYAN, true);
         stateChip.setPadding(dp(9), dp(6), dp(9), dp(6));
         stateChip.setBackground(gradient(Color.rgb(25, 36, 59),
-                Color.rgb(15, 24, 43), observer ? VIOLET : CYAN, dp(20)));
+                Color.rgb(15, 24, 43), (observer || betaTester) ? VIOLET : CYAN, dp(20)));
         footer.addView(stateChip);
-        TextView rank = text(rating == null ? (observer ? "PUBLIC LADDER" : "CASUAL  ·  RANKED")
+        TextView rank = text(betaTester ? "BETA TEST · UNRANKED"
+                : rating == null ? (observer ? "PUBLIC LADDER" : "CASUAL  ·  RANKED")
                 : rating.optString("tier", "BRONZE") + "  ·  "
                 + formatNumber(rating.optLong("rating")) + " RATING",
                 8, GOLD_BRIGHT, true);
@@ -1385,6 +1390,17 @@ public final class MainActivity extends Activity {
 
     private void renderArena(JSONObject data) {
         addArenaHeader(data);
+        boolean betaTester = data.optBoolean("betaTesting")
+                || (me != null && me.optBoolean("is_beta_tester"));
+        if (betaTester) {
+            LinearLayout betaNotice = sectionPanel();
+            betaNotice.setBackground(gradient(Color.rgb(45, 36, 76), Color.rgb(15, 17, 39),
+                    VIOLET, dp(12)));
+            betaNotice.addView(text("BETA TESTER MODE  ·  TRAINING ARENA", 8, VIOLET, true));
+            betaNotice.addView(text("Ranked matches use bot opponents for feature testing. Your results do not affect the public leaderboard.",
+                    8, MUTED, false));
+            content.addView(betaNotice, rowParams());
+        }
 
 if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             JSONArray ladder = data.optJSONArray("ladder");
@@ -1431,6 +1447,20 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         JSONObject active = data.optJSONObject("activeMatch");
         JSONObject queue = data.optJSONObject("queue");
         if (active != null) {
+            boolean opponentIsBot = active.optBoolean("opponentIsBot");
+            if (opponentIsBot) {
+                LinearLayout botNotice = sectionPanel();
+                botNotice.setOrientation(LinearLayout.HORIZONTAL);
+                botNotice.setGravity(Gravity.CENTER_VERTICAL);
+                botNotice.addView(text("◈", 19, CYAN, true));
+                LinearLayout botCopy = new LinearLayout(this);
+                botCopy.setOrientation(LinearLayout.VERTICAL);
+                botCopy.setPadding(dp(9), 0, 0, 0);
+                botCopy.addView(text("TRAINING BOT OPPONENT", 8, CYAN, true));
+                botCopy.addView(text("Practice match · server-controlled bot · not a human player", 7, MUTED, false));
+                botNotice.addView(botCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+                content.addView(botNotice, rowParams());
+            }
             LinearLayout matchHeader = sectionPanel();
             matchHeader.setOrientation(LinearLayout.HORIZONTAL);
             matchHeader.setGravity(Gravity.CENTER_VERTICAL);
@@ -1454,7 +1484,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     active.optLong("myHp"), active.optLong("myMaxHp"),
                     Color.rgb(115, 184, 139)), new LinearLayout.LayoutParams(0,
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            fighters.addView(createArenaFighterPanel("OPPONENT",
+            fighters.addView(createArenaFighterPanel(opponentIsBot ? "TRAINING BOT" : "OPPONENT",
                     active.optString("opponentName", "Opponent"),
                     active.optLong("opponentHp"), active.optLong("opponentMaxHp"),
                     Color.rgb(210, 122, 105)), new LinearLayout.LayoutParams(0,
@@ -1598,9 +1628,13 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 if (match == null) continue;
                 boolean winner = me != null && me.optString("user_id")
                         .equals(match.optString("winner_id"));
-                String opponent = me != null && me.optString("user_id")
-                        .equals(match.optString("player_one_id"))
-                        ? match.optString("player_two_name") : match.optString("player_one_name");
+                boolean playerOne = me != null && me.optString("user_id")
+                        .equals(match.optString("player_one_id"));
+                String opponent = playerOne ? match.optString("player_two_name")
+                        : match.optString("player_one_name");
+                boolean opponentWasBot = match.optInt(playerOne
+                        ? "player_two_is_bot" : "player_one_is_bot", 0) == 1;
+                if (opponentWasBot) opponent += "  ·  TRAINING BOT";
                 content.addView(dataRow(opponent, match.optString("mode", "CASUAL") + " · "
                         + match.optString("completed_at", ""),
                         winner ? "VICTORY" : "COMPLETED"), rowParams());
@@ -7046,8 +7080,11 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     return;
                 }
                 JSONObject active = result.data.optJSONObject("activeMatch");
-                showResultDialog(active != null ? "⚔ MATCH FOUND" : "MATCHMAKING",
+                showResultDialog(active != null
+                                ? (active.optBoolean("opponentIsBot") ? "◈ TRAINING BOT FOUND" : "⚔ MATCH FOUND")
+                                : "MATCHMAKING",
                         active != null ? "Opponent found: " + active.optString("opponentName", "Collector")
+                                + (active.optBoolean("opponentIsBot") ? "\nTraining match · not a human player." : "")
                                 : "You have joined the " + mode + " queue.");
                 renderTab("arena");
             }));
@@ -7361,6 +7398,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         LinearLayout.LayoutParams rankParams = new LinearLayout.LayoutParams(-2, -2);
         rankParams.topMargin = dp(5);
         identityCopy.addView(rank, rankParams);
+        if (me.optBoolean("is_beta_tester")) {
+            TextView betaBadge = text("✦  BETA TESTER · RANKED BOT ONLY", 7, VIOLET, true);
+            betaBadge.setPadding(dp(7), dp(4), dp(7), dp(4));
+            betaBadge.setBackground(gradient(Color.rgb(49, 39, 79), Color.rgb(26, 23, 51), VIOLET, dp(20)));
+            LinearLayout.LayoutParams betaParams = new LinearLayout.LayoutParams(-2, -2);
+            betaParams.topMargin = dp(5);
+            identityCopy.addView(betaBadge, betaParams);
+        }
         banner.addView(identityCopy, new LinearLayout.LayoutParams(0, -2, 1f));
         shell.addView(banner);
 
