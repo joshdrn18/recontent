@@ -528,51 +528,64 @@ public final class MainActivity extends Activity {
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        accountLabel = text(me.optString("display_name", "Collector"), compact ? 8 : 9, GOLD_BRIGHT, true);
+        right.setPadding(dp(compact ? 6 : 9), dp(4), dp(compact ? 6 : 9), dp(4));
+        right.setBackground(gradient(Color.rgb(34, 42, 70), Color.rgb(12, 20, 39),
+                Color.rgb(91, 111, 153), dp(26)));
+        right.setClickable(true);
+        right.setFocusable(true);
+        right.setContentDescription("Open collector profile");
+        right.setOnClickListener(v -> showPlayerProfile());
+
+        String collectorName = me.optString("display_name", "Collector");
+        accountLabel = text(collectorName, compact ? 8 : 9, GOLD_BRIGHT, true);
         accountLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         accountLabel.setSingleLine(true);
-        accountLabel.setMaxWidth(dp(compact ? 70 : 180));
-        currencyLabel = text(walletLine(), compact ? 6 : 8, MUTED, true);
+        accountLabel.setMaxWidth(dp(compact ? 68 : 166));
+        String profileMeta = "LV " + formatNumber(me.optLong("collector_level", 1))
+                + "  ·  " + walletLine();
+        currencyLabel = text(profileMeta, compact ? 6 : 7, MUTED, true);
         currencyLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         currencyLabel.setSingleLine(true);
-        currencyLabel.setMaxWidth(dp(compact ? 116 : 220));
+        currencyLabel.setMaxWidth(dp(compact ? 112 : 196));
         LinearLayout account = new LinearLayout(this);
         account.setOrientation(LinearLayout.VERTICAL);
         account.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         account.addView(accountLabel);
         account.addView(currencyLabel);
-        TextView avatar = text(initials(me.optString("display_name", "CU")), 10, BG, true);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(gradient(GOLD_BRIGHT, GOLD, GOLD, dp(24)));
-        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(
-                dp(compact ? 27 : 32), dp(compact ? 27 : 32));
-        avp.leftMargin = dp(compact ? 6 : 10);
+        TextView profileHint = text("COLLECTOR PROFILE  ↗", 5, CYAN, true);
+        profileHint.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        account.addView(profileHint);
         right.addView(account);
-        account.setClickable(true);
-        account.setFocusable(true);
-        account.setContentDescription("Open collector profile");
-        account.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(Color.argb(55, 255, 255, 255)),
-                gradient(Color.argb(20, 255, 255, 255), Color.argb(20, 255, 255, 255),
-                        Color.TRANSPARENT, dp(8)), null));
-        account.setOnClickListener(v -> showPlayerProfile());
+
+        FrameLayout avatarRing = new FrameLayout(this);
+        avatarRing.setPadding(dp(2), dp(2), dp(2), dp(2));
+        avatarRing.setBackground(gradient(Color.rgb(255, 231, 178), GOLD,
+                Color.rgb(177, 132, 70), dp(24)));
+        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(
+                dp(compact ? 31 : 38), dp(compact ? 31 : 38));
+        avp.leftMargin = dp(compact ? 7 : 10);
+        TextView avatar = text(initials(collectorName), compact ? 9 : 11, BG, true);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(gradient(Color.rgb(249, 231, 190), GOLD_BRIGHT,
+                Color.rgb(185, 133, 66), dp(22)));
+        avatarRing.addView(avatar, new FrameLayout.LayoutParams(-1, -1));
+        right.addView(avatarRing, avp);
+        avatarRing.setClickable(true);
+        avatarRing.setFocusable(true);
+        avatarRing.setContentDescription("Open collector profile");
+        avatarRing.setOnClickListener(v -> showPlayerProfile());
 
         if ("admin".equalsIgnoreCase(me.optString("role", ""))) {
-            TextView adminPill = text("GOD MODE", 7, Color.rgb(220, 207, 255), true);
+            TextView adminPill = text("GOD MODE", 6, Color.rgb(220, 207, 255), true);
             adminPill.setGravity(Gravity.CENTER);
-            adminPill.setPadding(dp(8), dp(5), dp(8), dp(5));
+            adminPill.setPadding(dp(6), dp(4), dp(6), dp(4));
             adminPill.setBackground(gradient(Color.rgb(52, 39, 91),
                     Color.rgb(28, 24, 58), Color.rgb(149, 117, 255), dp(20)));
             LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(27));
-            pillParams.leftMargin = dp(8);
-            right.addView(adminPill, pillParams);
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(25));
+            pillParams.leftMargin = dp(6);
+            right.addView(adminPill, 0);
         }
-        right.addView(avatar, avp);
-        avatar.setClickable(true);
-        avatar.setFocusable(true);
-        avatar.setContentDescription("Open collector profile");
-        avatar.setOnClickListener(v -> showPlayerProfile());
         top.addView(right);
         mainColumn.addView(top, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(compact ? 39 : 44)));
@@ -1793,6 +1806,11 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 node.addView(stone,new LinearLayout.LayoutParams(dp(48),dp(48)));
                 TextView label=text(stageTitle,9,TEXT,true);label.setMaxLines(2);label.setPadding(0,dp(6),0,dp(2));node.addView(label);
                 TextView enemyLabel=text(enemy,7,MUTED,false);enemyLabel.setMaxLines(1);node.addView(enemyLabel);
+                node.addView(text("RECOMMENDED POWER",6,MUTED,true));
+                long recommendedPower=stage.optLong("enemy_power");
+                int powerAccent=data.optLong("playerPower")>=recommendedPower?CYAN:GOLD_BRIGHT;
+                node.addView(text(formatNumber(recommendedPower),10,powerAccent,true));
+                node.addView(text("YOUR POWER  "+formatNumber(data.optLong("playerPower")),6,MUTED,false));
                 node.addView(text(cleared?"CLEARED":unlocked?"ENCOUNTER READY":"LOCKED",6,accent,true));
                 if(unlocked){
                     TextView fight=button(cleared?"REPLAY":"BATTLE",true);
@@ -3490,6 +3508,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         JSONArray claimable = data.optJSONArray("claimableRuns");
         JSONArray history = data.optJSONArray("history");
         JSONObject run = data.optJSONObject("activeRun");
+        JSONObject rotation = data.optJSONObject("rotation");
         int used = data.optInt("dailyRuns");
         int limit = data.optInt("dailyLimit", 3);
         int remaining = Math.max(0, limit - used);
@@ -3503,8 +3522,17 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         dungeonOverview.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(15)));
         dungeonOverview.addView(text("THE DEEP VAULT · EXPEDITION DIRECTORY", 8, VIOLET, true));
         dungeonOverview.addView(text((dungeons == null ? 0 : dungeons.length())
-                + " GATES AVAILABLE  ·  " + remaining + " DAILY ENTRY(IES) LEFT",
+                + " OF " + (rotation == null ? 8 : rotation.optInt("total_count", 8))
+                + " DUNGEONS OPEN TODAY  ·  " + remaining + " ENTRIES LEFT",
                 13, TEXT, true));
+        if (rotation != null) {
+            dungeonOverview.addView(text("DAILY ROTATION  ·  " + rotation.optString("day", "")
+                    + "  ·  RESTING: " + rotation.optString("excluded_dungeon", "One rotating gate"),
+                    7, GOLD_BRIGHT, true));
+            dungeonOverview.addView(text("The closed gate changes at " + rotation.optString(
+                    "resets_at", "00:00 Asia/Kuala_Lumpur") + ". Seven other dungeons remain open.",
+                    7, MUTED, false));
+        }
         dungeonOverview.addView(text("Each gate has its own difficulty, floor count and reward tier. Your run and rewards are stored on the server.",
                 8, MUTED, false));
         content.addView(dungeonOverview, rowParams());
@@ -3587,7 +3615,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }
 
         if (dungeons != null) {
-            content.addView(text("DUNGEON GATES · SELECT AN EXPEDITION", 8, GOLD_BRIGHT, true));
+            content.addView(text("TODAY'S SEVEN DUNGEON GATES", 8, GOLD_BRIGHT, true));
+            content.addView(text("Each gate has its own reward profile and challenge. The resting gate rotates at Malaysia midnight.",
+                    7, MUTED, false));
             HorizontalScrollView gateScroll = new HorizontalScrollView(this);
             gateScroll.setHorizontalScrollBarEnabled(false);
             LinearLayout gateShelf = new LinearLayout(this);
@@ -3611,6 +3641,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 LinearLayout details = new LinearLayout(this);
                 details.setOrientation(LinearLayout.VERTICAL);
                 details.setPadding(dp(10), 0, dp(7), 0);
+                details.addView(text("TODAY'S ROTATION · GATE " + (i + 1) + "/7", 6, CYAN, true));
                 details.addView(text("DIFFICULTY " + dungeon.optInt("difficulty") + " · "
                         + reward.optInt("max_floors", 6) + " FLOORS", 7, accent, true));
                 details.addView(text(dungeon.optString("name", "Dungeon"), 13, TEXT, true));
@@ -6657,14 +6688,14 @@ private void showTradeCreateDialog(JSONArray inventory) {
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
         shell.setPadding(dp(18), dp(17), dp(18), dp(15));
-        shell.setBackground(gradient(Color.rgb(34, 45, 72), Color.rgb(7, 13, 27),
-                Color.rgb(157, 128, 219), dp(19)));
+        shell.setBackground(gradient(Color.rgb(43, 49, 83), Color.rgb(7, 13, 27),
+                Color.rgb(177, 146, 238), dp(20)));
 
         LinearLayout banner = new LinearLayout(this);
         banner.setGravity(Gravity.CENTER_VERTICAL);
         banner.setPadding(dp(12), dp(12), dp(12), dp(12));
-        banner.setBackground(gradient(Color.rgb(62, 53, 89), Color.rgb(17, 25, 46),
-                GOLD, dp(14)));
+        banner.setBackground(gradient(Color.rgb(66, 61, 105), Color.rgb(15, 25, 48),
+                Color.rgb(177, 146, 238), dp(15)));
         FrameLayout crest = new FrameLayout(this);
         crest.setBackground(gradient(Color.rgb(245, 219, 159), Color.rgb(141, 98, 56),
                 GOLD_BRIGHT, dp(36)));
@@ -6684,9 +6715,14 @@ private void showTradeCreateDialog(JSONArray inventory) {
         TextView email = text(me.optString("email", "Account email unavailable"), 8, MUTED, false);
         email.setMaxLines(1);
         identityCopy.addView(email);
-        identityCopy.addView(text("LEVEL " + formatNumber(me.optLong("collector_level", 1))
+        TextView rank = text("LEVEL " + formatNumber(me.optLong("collector_level", 1))
                 + "  ·  " + me.optString("role", "collector").toUpperCase(java.util.Locale.ROOT),
-                7, CYAN, true));
+                7, CYAN, true);
+        rank.setPadding(dp(7), dp(4), dp(7), dp(4));
+        rank.setBackground(gradient(Color.rgb(28, 57, 75), Color.rgb(14, 34, 52), CYAN, dp(20)));
+        LinearLayout.LayoutParams rankParams = new LinearLayout.LayoutParams(-2, -2);
+        rankParams.topMargin = dp(5);
+        identityCopy.addView(rank, rankParams);
         banner.addView(identityCopy, new LinearLayout.LayoutParams(0, -2, 1f));
         shell.addView(banner);
 

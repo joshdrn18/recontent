@@ -75,7 +75,7 @@ public final class ApiClient {
                 connection.setDoOutput(true);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.17.0");
+                connection.setRequestProperty("X-Client-Version", "2.18.0");
                 connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
                 if (session != null && !session.isEmpty()) {
                     connection.setRequestProperty("Cookie", "cu_session=" + session);
@@ -136,7 +136,7 @@ public final class ApiClient {
                 connection.setUseCaches(false);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.17.0");
+                connection.setRequestProperty("X-Client-Version", "2.18.0");
                 if (session != null && !session.isEmpty()) {
                     connection.setRequestProperty("Cookie", "cu_session=" + session);
                 }
