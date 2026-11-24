@@ -2400,7 +2400,7 @@ addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", 
             TextView ascend = button("ASCEND", true);
             ascend.setOnClickListener(v -> showEvolutionCardDialog(card, walletSnapshot));
             row.addView(ascend, new LinearLayout.LayoutParams(dp(86), dp(37)));
-            row.setOnClickListener(v -> showEvolutionCardDialog(card, wallet));
+            row.setOnClickListener(v -> showEvolutionCardDialog(card, walletSnapshot));
             content.addView(row, rowParams());
         }
     }
