@@ -2910,7 +2910,6 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (pending && incoming) {
                 LinearLayout actions = new LinearLayout(this);
                 actions.setOrientation(LinearLayout.HORIZONTAL);
-                JSONObject publicListing = trade.optJSONObject("publicListing");
                 TextView accept = button(publicListing == null ? "ACCEPT DEAL" : "ACCEPT LISTED TRADE", true);
                 accept.setOnClickListener(v -> {
                     if (publicListing == null) {
@@ -3069,6 +3068,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         content.addView(composer, rowParams());
 
         renderChatMessages(data);
+        if (chatScroll != null) chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
         ui.removeCallbacks(chatRefreshTick);
         ui.postDelayed(chatRefreshTick, 5000L);
     }
