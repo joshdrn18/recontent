@@ -1982,8 +1982,18 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     }
     private void renderGuild(JSONObject data) {
         JSONObject guild = data.optJSONObject("guild");
-        addRealmScene("guild", guild == null ? "GUILD FRONTIER" : guild.optString("name", "GUILD HALL"), guild == null ? "Find your banner or found a new guild." : "Your community headquarters · build a shared legacy.", guild == null ? 0 : guild.optInt("member_count"), guild == null ? 1 : Math.max(1, guild.optInt("member_limit")));
-        if (guild == null) {
+        boolean inGuild = guild != null;
+        String role = inGuild ? guild.optString("my_role", "MEMBER").toUpperCase(java.util.Locale.ROOT) : "";
+        boolean leader = "LEADER".equals(role);
+
+        addRealmScene("guild", inGuild ? guild.optString("name", "GUILD HALL")
+                : "GUILD FRONTIER",
+                inGuild ? "Your community headquarters · build a shared legacy."
+                        : "Find your banner or found a new guild.",
+                inGuild ? guild.optInt("member_count") : 0,
+                inGuild ? Math.max(1, guild.optInt("member_limit")) : 1);
+
+        if (!inGuild) {
             LinearLayout create = sectionPanel();
             create.setGravity(Gravity.CENTER);
             FrameLayout crest = new FrameLayout(this);
@@ -1994,61 +2004,140 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             create.addView(crest, new LinearLayout.LayoutParams(dp(86), dp(86)));
             addGap(create, 6);
             create.addView(text("NO GUILD BANNER YET", 9, CYAN, true));
-            create.addView(text("Create a guild or join a recruiting banner to enter the community.", 8, MUTED, false));
+            create.addView(text("Create a guild or join a recruiting banner to enter the community.",
+                    8, MUTED, false));
             TextView createButton = button("CREATE YOUR GUILD", true);
             createButton.setOnClickListener(v -> showCreateGuildDialog());
             create.addView(createButton, new LinearLayout.LayoutParams(dp(185), dp(40)));
             content.addView(create, rowParams());
         } else {
             LinearLayout home = sectionPanel();
-            home.setBackground(gradient(Color.rgb(26, 76, 68), Color.rgb(9, 24, 34), Color.rgb(103, 222, 170), dp(18)));
+            home.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    new int[]{Color.rgb(37, 91, 76), Color.rgb(9, 24, 34), Color.rgb(11, 19, 36)}));
+            GradientDrawable homeStroke = new GradientDrawable();
+            homeStroke.setColor(Color.TRANSPARENT);
+            homeStroke.setCornerRadius(dp(18));
+            homeStroke.setStroke(dp(1), Color.rgb(103, 222, 170));
+            home.setBackground(new android.graphics.drawable.LayerDrawable(
+                    new android.graphics.drawable.Drawable[]{
+                            new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                                    new int[]{Color.rgb(37, 91, 76), Color.rgb(9, 24, 34), Color.rgb(11, 19, 36)}),
+                            homeStroke
+                    }));
             LinearLayout header = new LinearLayout(this);
             header.setOrientation(LinearLayout.HORIZONTAL);
             header.setGravity(Gravity.CENTER_VERTICAL);
             FrameLayout crest = new FrameLayout(this);
             crest.setBackground(gradient(Color.rgb(73, 131, 105), Color.rgb(15, 43, 43),
-                    Color.rgb(125, 244, 187), dp(16)));
-            TextView emblem = text(guild.optString("emblem", "✦"), 42, Color.rgb(210, 255, 230), true);
+                    Color.rgb(125, 244, 187), dp(13)));
+            TextView emblem = text(guild.optString("emblem", "✦"), 42,
+                    Color.rgb(210, 255, 230), true);
             emblem.setGravity(Gravity.CENTER);
             crest.addView(emblem, new FrameLayout.LayoutParams(-1, -1));
-            header.addView(crest, new LinearLayout.LayoutParams(dp(86), dp(86)));
+            header.addView(crest, new LinearLayout.LayoutParams(dp(76), dp(82)));
+
             LinearLayout copy = new LinearLayout(this);
             copy.setOrientation(LinearLayout.VERTICAL);
             copy.setPadding(dp(12), 0, 0, 0);
-            copy.addView(text("[" + guild.optString("tag", "GUILD") + "] · GUILD BANNER",
-                    8, CYAN, true));
-            copy.addView(text(guild.optString("name", "Guild"), 20, TEXT, true));
+            copy.addView(text("[" + guild.optString("tag", "GUILD") + "]  ·  "
+                    + role + " MEMBER", 8, CYAN, true));
+            TextView guildName = text(guild.optString("name", "Guild"), 20, TEXT, true);
+            guildName.setMaxLines(2);
+            copy.addView(guildName);
             TextView description = text(guild.optString("description", "Guild headquarters"),
                     8, MUTED, false);
-            description.setMaxLines(2);
+            description.setMaxLines(3);
             copy.addView(description);
             header.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
             home.addView(header);
+
             LinearLayout stats = new LinearLayout(this);
             stats.setOrientation(LinearLayout.HORIZONTAL);
-            stats.addView(statCard("GUILD LEVEL", String.valueOf(guild.optInt("guild_level")), "Progress"), weightParams(1));
-            stats.addView(statCard("MEMBERS", guild.optInt("member_count") + "/" + guild.optInt("member_limit"), "Roster"), weightParams(1));
-            stats.addView(statCard("TREASURY", formatNumber(guild.optLong("bank_coins")), "Gold"), weightParams(1));
+            stats.addView(statCard("GUILD LEVEL", String.valueOf(guild.optInt("guild_level")),
+                    "Progress"), weightParams(1));
+            stats.addView(statCard("MEMBERS", guild.optInt("member_count") + "/"
+                    + guild.optInt("member_limit"), "Roster"), weightParams(1));
+            stats.addView(statCard("TREASURY", formatNumber(guild.optLong("bank_coins")),
+                    "Gold"), weightParams(1));
             home.addView(stats);
+
+            LinearLayout state = new LinearLayout(this);
+            state.setGravity(Gravity.CENTER_VERTICAL);
+            TextView recruiting = text(guild.optInt("is_recruiting", 1) == 1
+                    ? "●  RECRUITMENT OPEN" : "●  RECRUITMENT CLOSED",
+                    7, guild.optInt("is_recruiting", 1) == 1 ? GREEN : MUTED, true);
+            state.addView(recruiting, new LinearLayout.LayoutParams(0, -2, 1f));
+            state.addView(text("YOUR ROLE  ·  " + role, 7, GOLD_BRIGHT, true));
+            home.addView(state);
+
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
             TextView contribute = button("CONTRIBUTE GOLD", true);
             contribute.setOnClickListener(v -> chooseGuildContribution());
-            home.addView(contribute, new LinearLayout.LayoutParams(dp(180), dp(40)));
+            actions.addView(contribute, new LinearLayout.LayoutParams(0, dp(40), 1f));
+            if (leader) {
+                TextView settings = button("GUILD SETTINGS", false);
+                settings.setOnClickListener(v -> showGuildSettingsDialog(guild));
+                LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0, dp(40), 1f);
+                settingsParams.leftMargin = dp(7);
+                actions.addView(settings, settingsParams);
+            }
+            home.addView(actions);
             content.addView(home, rowParams());
+
+            String announcement = guild.optString("announcement", "").trim();
+            if (!announcement.isEmpty()) {
+                LinearLayout notice = sectionPanel();
+                notice.setBackground(gradient(Color.rgb(49, 47, 83), Color.rgb(13, 19, 38),
+                        VIOLET, dp(13)));
+                notice.addView(text("GUILD NOTICE BOARD  ·  FROM THE LEADER", 7, GOLD_BRIGHT, true));
+                TextView noticeText = text(announcement, 9, TEXT, false);
+                noticeText.setLineSpacing(dp(2), 1.04f);
+                noticeText.setMaxLines(5);
+                notice.addView(noticeText);
+                content.addView(notice, rowParams());
+            }
 
             JSONArray members = guild.optJSONArray("members");
             if (members != null) {
-                content.addView(text("GUILD ROSTER · " + members.length() + " MEMBERS", 8, GOLD_BRIGHT, true));
+                content.addView(text("GUILD ROSTER  ·  " + members.length() + " MEMBERS",
+                        8, GOLD_BRIGHT, true));
                 for (int i = 0; i < members.length(); i++) {
                     JSONObject member = members.optJSONObject(i);
                     if (member == null) continue;
+                    String memberRole = member.optString("role", "MEMBER")
+                            .toUpperCase(java.util.Locale.ROOT);
                     LinearLayout row = dataRow(member.optString("display_name", "Collector"),
-                            member.optString("role", "MEMBER").toUpperCase(java.util.Locale.ROOT)
-                                    + " · LEVEL " + member.optInt("collector_level")
-                                    + " · CONTRIBUTION " + formatNumber(member.optLong("contribution")),
-                            member.optString("role", "MEMBER"));
+                            memberRole + "  ·  LEVEL " + member.optInt("collector_level")
+                                    + "  ·  CONTRIBUTION "
+                                    + formatNumber(member.optLong("contribution")),
+                            memberRole);
+                    if (leader && !"LEADER".equals(memberRole)) {
+                        TextView manage = button("MANAGE", false);
+                        manage.setOnClickListener(v -> showGuildMemberRoleDialog(member));
+                        row.addView(manage, new LinearLayout.LayoutParams(dp(86), dp(34)));
+                    }
                     content.addView(row, rowParams());
                 }
             }
+
+            if (!leader) {
+                TextView leave = button("LEAVE GUILD", false);
+                leave.setOnClickListener(v -> confirmAction("Leave ["
+                                + guild.optString("tag", "GUILD") + "]?",
+                        "Your contribution record remains in guild activity, but you will leave this roster.",
+                        () -> api.post("/api/guilds/leave", new JSONObject(), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Unable to leave guild", result.error);
+                            else {
+                                showResultDialog("GUILD LEFT", "You have left the guild.");
+                                refreshAccount(() -> renderTab("guild"));
+                            }
+                        }))));
+                LinearLayout.LayoutParams leaveParams = new LinearLayout.LayoutParams(dp(150), dp(38));
+                leaveParams.topMargin = dp(5);
+                content.addView(leave, leaveParams);
+            }
+
             JSONArray activity = guild.optJSONArray("activity");
             if (activity != null && activity.length() > 0) {
                 addGap(content, 8);
@@ -2058,15 +2147,16 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     if (event == null) continue;
                     LinearLayout item = dataRow(humanize(event.optString("event_type", "GUILD EVENT")),
                             event.optString("display_name", "Guild member")
-                                    + " · " + event.optString("created_at", ""), "ACTIVITY");
+                                    + "  ·  " + event.optString("created_at", ""), "ACTIVITY");
                     content.addView(item, rowParams());
                 }
             }
         }
+
         JSONArray directory = data.optJSONArray("directory");
         if (directory != null && directory.length() > 0) {
             addGap(content, 10);
-            content.addView(text(guild == null ? "RECRUITING GUILDS" : "OTHER RECRUITING GUILDS",
+            content.addView(text(inGuild ? "OTHER RECRUITING GUILDS" : "RECRUITING GUILDS",
                     8, GOLD_BRIGHT, true));
             for (int i = 0; i < directory.length(); i++) {
                 JSONObject entry = directory.optJSONObject(i);
@@ -2077,29 +2167,128 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 FrameLayout crest = new FrameLayout(this);
                 crest.setBackground(gradient(Color.rgb(41, 74, 66), Color.rgb(12, 28, 36),
                         Color.rgb(104, 215, 164), dp(12)));
-                TextView symbol = text("[" + entry.optString("tag", "??") + "]", 9, CYAN, true);
+                TextView symbol = text("[" + entry.optString("tag", "??") + "]", 8, CYAN, true);
                 symbol.setGravity(Gravity.CENTER);
                 crest.addView(symbol, new FrameLayout.LayoutParams(-1, -1));
-                card.addView(crest, new LinearLayout.LayoutParams(dp(60), dp(58)));
+                card.addView(crest, new LinearLayout.LayoutParams(dp(62), dp(58)));
                 LinearLayout copy = new LinearLayout(this);
                 copy.setOrientation(LinearLayout.VERTICAL);
                 copy.setPadding(dp(10), 0, dp(7), 0);
                 copy.addView(text(entry.optString("name", "Guild"), 12, TEXT, true));
                 copy.addView(text("LEADER " + entry.optString("leader_name", "Unknown")
-                        + " · " + entry.optInt("member_count") + "/" + entry.optInt("member_limit") + " MEMBERS",
-                        7, MUTED, false));
+                        + "  ·  " + entry.optInt("member_count") + "/"
+                        + entry.optInt("member_limit") + " MEMBERS", 7, MUTED, false));
                 copy.addView(text("LEVEL " + entry.optInt("guild_level"), 7, GOLD_BRIGHT, true));
                 card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
                 TextView join = button("JOIN", false);
                 join.setOnClickListener(v -> confirmAction("Join [" + entry.optString("tag") + "]?",
-                        "You can only belong to one guild at a time.", () -> joinGuild(entry.optString("tag"))));
+                        "You can only belong to one guild at a time.",
+                        () -> joinGuild(entry.optString("tag"))));
                 card.addView(join, new LinearLayout.LayoutParams(dp(72), dp(36)));
                 content.addView(card, rowParams());
             }
-        } else if (guild == null) {
+        } else if (!inGuild) {
             showNotice("There are no recruiting guilds right now. You can create the first one.");
         }
     }
+
+    private void showGuildSettingsDialog(JSONObject guild) {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(12), dp(8), dp(12), dp(2));
+
+        EditText description = editField("Guild description (max 240 characters)", false);
+        description.setSingleLine(false);
+        description.setMinLines(2);
+        description.setMaxLines(3);
+        description.setText(guild.optString("description", ""));
+        description.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(240)
+        });
+        EditText announcement = editField("Guild announcement (max 240 characters)", false);
+        announcement.setSingleLine(false);
+        announcement.setMinLines(2);
+        announcement.setMaxLines(4);
+        announcement.setText(guild.optString("announcement", ""));
+        announcement.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(240)
+        });
+        form.addView(text("PUBLIC GUILD DESCRIPTION", 7, GOLD_BRIGHT, true));
+        form.addView(description, new LinearLayout.LayoutParams(-1, dp(70)));
+        addGap(form, 7);
+        form.addView(text("NOTICE SHOWN TO ALL GUILD MEMBERS", 7, GOLD_BRIGHT, true));
+        form.addView(announcement, new LinearLayout.LayoutParams(-1, dp(82)));
+
+        android.widget.CheckBox recruiting = new android.widget.CheckBox(this);
+        recruiting.setText("Allow new collectors to find and join this guild");
+        recruiting.setTextColor(TEXT);
+        recruiting.setTextSize(9);
+        recruiting.setButtonTintList(android.content.res.ColorStateList.valueOf(GREEN));
+        recruiting.setChecked(guild.optInt("is_recruiting", 1) == 1);
+        form.addView(recruiting);
+
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(form);
+        new AlertDialog.Builder(this).setTitle("Guild settings")
+                .setMessage("Only the guild leader can change these settings.")
+                .setView(scroll)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("SAVE SETTINGS", (dialog, which) -> {
+                    JSONObject body = payload(
+                            "description", description.getText().toString().trim(),
+                            "announcement", announcement.getText().toString().trim(),
+                            "is_recruiting", recruiting.isChecked() ? 1 : 0);
+                    api.patch("/api/guilds/settings", body, result -> ui.post(() -> {
+                        if (!result.ok()) {
+                            showResultDialog("Guild settings not saved", result.error);
+                        } else {
+                            showResultDialog("GUILD SETTINGS SAVED",
+                                    "Your description, notice and recruitment status have been updated.");
+                            refreshAccount(() -> renderTab("guild"));
+                        }
+                    }));
+                }).show();
+    }
+
+    private void showGuildMemberRoleDialog(JSONObject member) {
+        if (member == null) return;
+        String currentRole = member.optString("role", "MEMBER")
+                .toUpperCase(java.util.Locale.ROOT);
+        java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+        java.util.ArrayList<String> roles = new java.util.ArrayList<>();
+        if ("OFFICER".equals(currentRole)) {
+            labels.add("Demote to Member");
+            roles.add("MEMBER");
+        } else {
+            labels.add("Promote to Officer");
+            roles.add("OFFICER");
+        }
+        labels.add("Transfer Guild Leadership");
+        roles.add("LEADER");
+        new AlertDialog.Builder(this)
+                .setTitle("Manage " + member.optString("display_name", "Collector"))
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    String nextRole = roles.get(which);
+                    String title = "LEADER".equals(nextRole)
+                            ? "Transfer guild leadership?" : "Change member role?";
+                    String message = "LEADER".equals(nextRole)
+                            ? "Leadership will transfer to this collector. Your role will become Officer."
+                            : "Their guild role will change to " + nextRole + ".";
+                    confirmAction(title, message, () -> api.patch(
+                            "/api/guilds/members/" + member.optString("user_id"),
+                            payload("role", nextRole), result -> ui.post(() -> {
+                                if (!result.ok()) {
+                                    showResultDialog("Guild role not changed", result.error);
+                                } else {
+                                    showResultDialog("GUILD ROSTER UPDATED",
+                                            "The member's role has been updated.");
+                                    refreshAccount(() -> renderTab("guild"));
+                                }
+                            })));
+                }).setNegativeButton("CANCEL", null).show();
+    }
+
     private void renderSettings(JSONObject data) {
 addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 "Tune the soundtrack, interface feedback and your player account preferences.",
@@ -2203,7 +2392,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         return body;
     }
 
-    private void renderCollection(JSONObject data) {JSONArray cards = data.optJSONArray("cards");
+    private void renderCollection(JSONObject data) {
+        JSONArray cards = data.optJSONArray("cards");
         if (cards == null) {
             showNotice("No card data was returned.");
             return;
@@ -2211,56 +2401,154 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
         int ownedTypes = 0;
         int totalCopies = 0;
+        JSONObject featured = null;
+        java.util.LinkedHashSet<String> elementSet = new java.util.LinkedHashSet<>();
         for (int i = 0; i < cards.length(); i++) {
             JSONObject card = cards.optJSONObject(i);
-            if (card != null && card.optInt("owned_count") > 0) {
+            if (card == null) continue;
+            String element = card.optString("element", "AETHER")
+                    .toUpperCase(java.util.Locale.ROOT);
+            if (!element.isEmpty()) elementSet.add(element);
+            int copies = card.optInt("owned_count");
+            if (copies > 0) {
                 ownedTypes++;
-                totalCopies += card.optInt("owned_count");
+                totalCopies += copies;
+                if (featured == null) featured = card;
             }
         }
 
-        addRealmScene("archive", "THE CARD ARCHIVE", "Every card you discover becomes part of your legend.", ownedTypes, cards.length());
-        LinearLayout summary = new LinearLayout(this);
-        summary.setOrientation(LinearLayout.HORIZONTAL);
-        summary.addView(statCard("UNIQUE CARDS", String.valueOf(ownedTypes), "In your collection"),
-                weightParams(1));
-        summary.addView(statCard("TOTAL COPIES", formatNumber(totalCopies), "Owned card copies"),
-                weightParams(1));
-        summary.addView(statCard("CATALOGUE", String.valueOf(cards.length()), "Available card designs"),
-                weightParams(1));
-        content.addView(summary);
-        addGap(content, 10);
+        addRealmScene("archive", "THE CARD ARCHIVE",
+                "Every discovery is catalogued in the Firstlight collection.", ownedTypes,
+                Math.max(1, cards.length()));
+
+        LinearLayout showcase = sectionPanel();
+        showcase.setOrientation(LinearLayout.HORIZONTAL);
+        showcase.setGravity(Gravity.CENTER_VERTICAL);
+        showcase.setPadding(dp(12), dp(11), dp(12), dp(11));
+        showcase.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(59, 48, 85), Color.rgb(15, 24, 44), Color.rgb(8, 15, 29)}));
+
+        FrameLayout featuredFrame = new FrameLayout(this);
+        featuredFrame.setBackground(gradient(Color.rgb(36, 43, 75), Color.rgb(7, 12, 25),
+                featured == null ? VIOLET : cardRarityColor(featured.optString("rarity", "COMMON")),
+                dp(9)));
+        featuredFrame.setClipToOutline(true);
+        if (featured != null) {
+            CardArtView featuredArt = new CardArtView(this);
+            featuredArt.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            featuredArt.loadArtwork(cardArtworkPath(featured));
+            featuredFrame.addView(featuredArt, new FrameLayout.LayoutParams(-1, -1));
+            View featuredShade = new View(this);
+            featuredShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{Color.TRANSPARENT, Color.argb(190, 2, 6, 17)}));
+            featuredFrame.addView(featuredShade, new FrameLayout.LayoutParams(-1, -1));
+            TextView featuredTag = text("OWNED", 6, Color.WHITE, true);
+            featuredTag.setPadding(dp(5), dp(3), dp(5), dp(3));
+            featuredTag.setBackground(gradient(Color.argb(220, 8, 16, 30),
+                    Color.argb(220, 8, 16, 30), GREEN, dp(4)));
+            FrameLayout.LayoutParams tagParams = new FrameLayout.LayoutParams(-2, -2,
+                    Gravity.TOP | Gravity.LEFT);
+            tagParams.setMargins(dp(5), dp(5), 0, 0);
+            featuredFrame.addView(featuredTag, tagParams);
+            TextView featuredName = text(featured.optString("name", "Featured card"),
+                    7, Color.WHITE, true);
+            featuredName.setMaxLines(2);
+            featuredName.setPadding(dp(5), 0, dp(5), dp(5));
+            featuredFrame.addView(featuredName, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        } else {
+            TextView mark = text("◇", 38, GOLD_BRIGHT, true);
+            mark.setGravity(Gravity.CENTER);
+            featuredFrame.addView(mark, new FrameLayout.LayoutParams(-1, -1));
+        }
+        showcase.addView(featuredFrame, new LinearLayout.LayoutParams(dp(88), dp(120)));
+
+        LinearLayout heroCopy = new LinearLayout(this);
+        heroCopy.setOrientation(LinearLayout.VERTICAL);
+        heroCopy.setPadding(dp(12), 0, 0, 0);
+        heroCopy.addView(text("FIRSTLIGHT RECORDS  ·  COLLECTOR INDEX", 7, VIOLET, true));
+        TextView heroTitle = text("THE CARD ARCHIVE", 18, TEXT, true);
+        heroTitle.setMaxLines(1);
+        heroCopy.addView(heroTitle);
+        heroCopy.addView(text(ownedTypes + " OF " + cards.length() + " UNIQUE DESIGNS COLLECTED",
+                8, GOLD_BRIGHT, true));
+        ProgressBar collectionProgress = new ProgressBar(this, null,
+                android.R.attr.progressBarStyleHorizontal);
+        collectionProgress.setMax(Math.max(1, cards.length()));
+        collectionProgress.setProgress(Math.min(cards.length(), ownedTypes));
+        collectionProgress.setProgressTintList(
+                android.content.res.ColorStateList.valueOf(CYAN));
+        LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(-1, dp(7));
+        progressParams.topMargin = dp(8);
+        heroCopy.addView(collectionProgress, progressParams);
+        heroCopy.addView(text(cards.length() == 0 ? "CATALOGUE NOT RELEASED"
+                        : Math.round(ownedTypes * 100f / cards.length()) + "% COMPLETE"
+                        + "  ·  " + formatNumber(totalCopies) + " TOTAL COPIES",
+                7, MUTED, true));
+        heroCopy.addView(text(featured == null ? "Your first discovery is waiting."
+                        : "Featured relic  ·  " + featured.optString("name", "Collector card"),
+                7, TEXT, false));
+        showcase.addView(heroCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+        content.addView(showcase, rowParams());
+
+        LinearLayout totals = new LinearLayout(this);
+        totals.setOrientation(LinearLayout.HORIZONTAL);
+        totals.addView(statCard("UNIQUE OWNED", formatNumber(ownedTypes),
+                "Different designs"), weightParams(1));
+        totals.addView(statCard("TOTAL COPIES", formatNumber(totalCopies),
+                "In your collection"), weightParams(1));
+        totals.addView(statCard("CATALOGUE", formatNumber(cards.length()),
+                "Released designs"), weightParams(1));
+        content.addView(totals);
+        addGap(content, 9);
 
         LinearLayout filters = sectionPanel();
         filters.addView(text("SEARCH THE ARCHIVE", 8, GOLD, true));
-        EditText search = editField("Card name, element or card code", false);
+        EditText search = editField("Name, element, rarity or card code", false);
         search.setInputType(android.text.InputType.TYPE_CLASS_TEXT
                 | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
         filters.addView(search, fieldParams());
 
-        LinearLayout filterRow = new LinearLayout(this);
-        filterRow.setOrientation(LinearLayout.HORIZONTAL);
-        Spinner ownership = new Spinner(this);
         String[] ownershipOptions = {"ALL CARDS", "OWNED ONLY", "NOT OWNED"};
-        ArrayAdapter<String> ownershipAdapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, ownershipOptions);
-        ownershipAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        ownership.setAdapter(ownershipAdapter);
-        Spinner rarity = new Spinner(this);
         String[] rarityOptions = {"ALL RARITIES", "COMMON", "UNCOMMON", "RARE",
                 "EPIC", "LEGENDARY", "MYTHIC"};
-        ArrayAdapter<String> rarityAdapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, rarityOptions);
-        rarityAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        rarity.setAdapter(rarityAdapter);
-        filterRow.addView(ownership, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        LinearLayout.LayoutParams rarityParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
-        rarityParams.leftMargin = dp(7);
-        filterRow.addView(rarity, rarityParams);
-        filters.addView(filterRow);
+        java.util.ArrayList<String> elementValues = new java.util.ArrayList<>();
+        elementValues.add("ALL ELEMENTS");
+        elementValues.addAll(elementSet);
+        String[] elementOptions = elementValues.toArray(new String[0]);
+        String[] sortOptions = {"CARD CODE", "NAME A–Z", "MOST COPIES", "RARITY"};
+
+        Spinner ownership = new Spinner(this);
+        Spinner rarity = new Spinner(this);
+        Spinner element = new Spinner(this);
+        Spinner sort = new Spinner(this);
+        Spinner[] selectors = {ownership, rarity, element, sort};
+        String[][] selectorOptions = {ownershipOptions, rarityOptions, elementOptions, sortOptions};
+        for (int i = 0; i < selectors.length; i++) {
+            ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                    android.R.layout.simple_spinner_item, selectorOptions[i]);
+            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            selectors[i].setAdapter(adapter);
+        }
+
+        HorizontalScrollView filterScroll = new HorizontalScrollView(this);
+        filterScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout filterRow = new LinearLayout(this);
+        filterRow.setOrientation(LinearLayout.HORIZONTAL);
+        filterRow.setGravity(Gravity.CENTER_VERTICAL);
+        int[] filterWidths = {dp(124), dp(132), dp(126), dp(126)};
+        for (int i = 0; i < selectors.length; i++) {
+            LinearLayout.LayoutParams selectorParams = new LinearLayout.LayoutParams(
+                    filterWidths[i], dp(42));
+            selectorParams.rightMargin = dp(6);
+            filterRow.addView(selectors[i], selectorParams);
+        }
+        filterScroll.addView(filterRow);
+        LinearLayout.LayoutParams filterScrollParams = new LinearLayout.LayoutParams(-1, dp(45));
+        filterScrollParams.topMargin = dp(3);
+        filters.addView(filterScroll, filterScrollParams);
         content.addView(filters, rowParams());
 
-        TextView resultCount = text("LOADING CARDS", 8, GOLD_BRIGHT, true);
+        TextView resultCount = text("INDEXING CARDS…", 8, GOLD_BRIGHT, true);
         resultCount.setPadding(dp(2), dp(9), dp(2), dp(5));
         content.addView(resultCount);
         LinearLayout grid = new LinearLayout(this);
@@ -2270,9 +2558,15 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         Runnable updateGrid = () -> {
             if (grid.getParent() == null) return;
             grid.removeAllViews();
-            String query = search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            String query = search.getText().toString().trim()
+                    .toLowerCase(java.util.Locale.ROOT);
             int scope = ownership.getSelectedItemPosition();
-            String selectedRarity = rarityOptions[Math.max(0, rarity.getSelectedItemPosition())];
+            String selectedRarity = rarityOptions[Math.max(0,
+                    Math.min(rarityOptions.length - 1, rarity.getSelectedItemPosition()))];
+            String selectedElement = elementOptions[Math.max(0,
+                    Math.min(elementOptions.length - 1, element.getSelectedItemPosition()))];
+            int sortMode = sort.getSelectedItemPosition();
+
             java.util.ArrayList<JSONObject> filtered = new java.util.ArrayList<>();
             int ownedInFilter = 0;
             for (int i = 0; i < cards.length(); i++) {
@@ -2281,28 +2575,60 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 int copies = card.optInt("owned_count");
                 if (scope == 1 && copies <= 0) continue;
                 if (scope == 2 && copies > 0) continue;
-                String cardRarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
-                if (!"ALL RARITIES".equals(selectedRarity) && !selectedRarity.equals(cardRarity)) continue;
-                String searchable = (card.optString("name") + " " + card.optString("element")
-                        + " " + card.optString("card_code") + " " + cardRarity)
+                String cardRarity = card.optString("rarity", "COMMON")
+                        .toUpperCase(java.util.Locale.ROOT);
+                if (!"ALL RARITIES".equals(selectedRarity)
+                        && !selectedRarity.equals(cardRarity)) continue;
+                String cardElement = card.optString("element", "AETHER")
+                        .toUpperCase(java.util.Locale.ROOT);
+                if (!"ALL ELEMENTS".equals(selectedElement)
+                        && !selectedElement.equals(cardElement)) continue;
+                String searchable = (card.optString("name") + " "
+                        + card.optString("element") + " " + card.optString("card_code") + " "
+                        + cardRarity + " " + card.optString("set_name"))
                         .toLowerCase(java.util.Locale.ROOT);
                 if (!query.isEmpty() && !searchable.contains(query)) continue;
                 filtered.add(card);
                 if (copies > 0) ownedInFilter++;
             }
 
-            resultCount.setText(filtered.size() + " CARDS FOUND  ·  " + ownedInFilter + " OWNED");
+            java.util.Collections.sort(filtered, (left, right) -> {
+                if (sortMode == 1) {
+                    return left.optString("name").compareToIgnoreCase(right.optString("name"));
+                }
+                if (sortMode == 2) {
+                    int copiesOrder = Integer.compare(right.optInt("owned_count"),
+                            left.optInt("owned_count"));
+                    if (copiesOrder != 0) return copiesOrder;
+                } else if (sortMode == 3) {
+                    int rarityOrder = Integer.compare(
+                            cardRarityRank(right.optString("rarity")),
+                            cardRarityRank(left.optString("rarity")));
+                    if (rarityOrder != 0) return rarityOrder;
+                }
+                return left.optString("card_code").compareToIgnoreCase(
+                        right.optString("card_code"));
+            });
+
+            resultCount.setText(filtered.size() + " CARDS FOUND  ·  "
+                    + ownedInFilter + " OWNED  ·  "
+                    + (filtered.size() - ownedInFilter) + " TO DISCOVER");
             if (filtered.isEmpty()) {
-                TextView empty = text("No cards match these filters. Try another search or rarity.",
-                        9, MUTED, false);
-                empty.setPadding(dp(8), dp(18), dp(8), dp(18));
-                grid.addView(empty);
+                LinearLayout empty = sectionPanel();
+                empty.setGravity(Gravity.CENTER);
+                TextView mark = text("◇", 28, VIOLET, true);
+                mark.setGravity(Gravity.CENTER);
+                empty.addView(mark);
+                empty.addView(text("NO RELICS MATCH THIS SEARCH", 9, TEXT, true));
+                empty.addView(text("Change the filters or try a different card name.", 8, MUTED, false));
+                grid.addView(empty, rowParams());
                 return;
             }
 
             int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
                     / getResources().getDisplayMetrics().density);
-            int columns = widthDp >= 1400 ? 6 : widthDp >= 1050 ? 5 : widthDp >= 680 ? 4 : 3;
+            int columns = widthDp >= 1400 ? 6 : widthDp >= 1050 ? 5
+                    : widthDp >= 680 ? 4 : 3;
             LinearLayout currentRow = null;
             for (int i = 0; i < filtered.size(); i++) {
                 if (i % columns == 0) {
@@ -2311,11 +2637,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     grid.addView(currentRow, new LinearLayout.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
                 }
-                JSONObject card = filtered.get(i);
-                LinearLayout tile = createCardTile(card);
+                LinearLayout tile = createCardTile(filtered.get(i));
                 LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(
                         0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-                tileParams.setMargins(dp(3), dp(3), dp(3), dp(6));
+                tileParams.setMargins(dp(3), dp(4), dp(3), dp(7));
                 currentRow.addView(tile, tileParams);
             }
             int remainder = filtered.size() % columns;
@@ -2339,10 +2664,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         };
-        ownership.setOnItemSelectedListener(filterListener);
-        rarity.setOnItemSelectedListener(filterListener);
+        for (Spinner selector : selectors) selector.setOnItemSelectedListener(filterListener);
         updateGrid.run();
-        addGap(content, 10);
+
+        addGap(content, 9);
         TextView duplicates = button("OPEN DUPLICATE CONVERTER", false);
         duplicates.setOnClickListener(v -> loadDuplicateConversionPanel());
         content.addView(duplicates, new LinearLayout.LayoutParams(dp(220), dp(36)));
@@ -2445,6 +2770,18 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
 
+
+    private int cardRarityRank(String rarity) {
+        switch (String.valueOf(rarity).toUpperCase(java.util.Locale.ROOT)) {
+            case "COMMON": return 1;
+            case "UNCOMMON": return 2;
+            case "RARE": return 3;
+            case "EPIC": return 4;
+            case "LEGENDARY": return 5;
+            case "MYTHIC": return 6;
+            default: return 0;
+        }
+    }
 
     private int cardRarityColor(String rarity) {
         switch (rarity) {

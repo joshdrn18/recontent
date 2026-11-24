@@ -453,31 +453,166 @@ public final class RealmSceneView extends View {
     }
 
     private void drawArchive(Canvas c, float t) {
-        // Grand archive interior, card frames displayed as illuminated exhibits.
-        p.setShader(new LinearGradient(0,0,0,300,new int[]{Color.rgb(35,45,78),Color.rgb(14,21,39),Color.rgb(7,11,21)},null,Shader.TileMode.CLAMP));
-        c.drawRect(0,0,960,300,p);p.setShader(null);
-        for(int row=0;row<2;row++)for(int i=0;i<8;i++){
-            float x=55+i*122,y=74+row*105;
-            RectF frame=new RectF(x,y,x+77,y+91);
-            p.setColor(Color.rgb(70,59,74));c.drawRoundRect(frame,6,6,p);
-            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);p.setColor(Color.rgb(182,150,100));c.drawRoundRect(frame,6,6,p);p.setStyle(Paint.Style.FILL);
-            glow(c,x+38,y+42,31,new int[]{GOLD,CYAN,PURPLE,RED}[i%4],0.22f);
-            p.setColor(new int[]{GOLD,CYAN,PURPLE,RED}[i%4]);
-            c.drawCircle(x+38,y+39,13,p);
-            p.setColor(Color.rgb(218,221,239));c.drawRect(x+17,y+63,x+60,y+66,p);
+        // A collector's gallery: framed card folios, not circular placeholders.
+        p.setShader(new LinearGradient(0, 0, 0, 300,
+                new int[]{Color.rgb(38, 43, 73), Color.rgb(16, 24, 43), Color.rgb(6, 10, 21)},
+                null, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, 960, 300, p);
+        p.setShader(null);
+
+        // Tall gallery pilasters and long horizontal display rails.
+        for (int x : new int[]{38, 246, 714, 922}) {
+            p.setColor(Color.rgb(47, 55, 79));
+            c.drawRect(x, 76, x + 13, 257, p);
+            p.setColor(Color.rgb(150, 122, 86));
+            c.drawRect(x + 4, 82, x + 7, 252, p);
+            p.setColor(Color.rgb(73, 72, 101));
+            c.drawRect(x - 5, 76, x + 18, 83, p);
+            c.drawRect(x - 5, 251, x + 18, 258, p);
         }
-        drawFloorRays(c,t,GOLD);
+        p.setColor(Color.rgb(75, 67, 73));
+        c.drawRect(34, 165, 926, 174, p);
+        p.setColor(Color.rgb(175, 137, 88));
+        c.drawRect(34, 165, 926, 167, p);
+        c.drawRect(34, 172, 926, 174, p);
+
+        int[] accents = {GOLD, CYAN, PURPLE, RED};
+        for (int row = 0; row < 2; row++) {
+            for (int i = 0; i < 7; i++) {
+                float x = 67 + i * 123;
+                float y = row == 0 ? 83 : 178;
+                int accent = accents[(i + row * 2) % accents.length];
+                RectF frame = new RectF(x, y, x + 72, y + 78);
+                p.setColor(Color.rgb(35, 42, 65));
+                c.drawRoundRect(frame, 5, 5, p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(2.2f);
+                p.setColor(Color.rgb(175, 143, 99));
+                c.drawRoundRect(frame, 5, 5, p);
+                p.setStrokeWidth(1);
+                p.setColor(Color.argb(120, Color.red(accent), Color.green(accent), Color.blue(accent)));
+                c.drawRect(x + 6, y + 6, x + 66, y + 71, p);
+                p.setStyle(Paint.Style.FILL);
+
+                glow(c, x + 36, y + 34, 30, accent, 0.15f);
+                Path crest = new Path();
+                crest.moveTo(x + 36, y + 16);
+                crest.lineTo(x + 52, y + 34);
+                crest.lineTo(x + 36, y + 53);
+                crest.lineTo(x + 20, y + 34);
+                crest.close();
+                fill(c, crest, Color.rgb(Color.red(accent) / 2 + 35,
+                        Color.green(accent) / 2 + 31, Color.blue(accent) / 2 + 31));
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1.5f);
+                p.setColor(accent);
+                c.drawPath(crest, p);
+                p.setStyle(Paint.Style.FILL);
+
+                p.setColor(Color.rgb(225, 218, 197));
+                c.drawRect(x + 14, y + 59, x + 58, y + 61, p);
+                p.setColor(Color.rgb(113, 124, 151));
+                c.drawRect(x + 20, y + 65, x + 52, y + 67, p);
+                p.setColor(accent);
+                c.drawRect(x + 30, y + 70, x + 42, y + 72, p);
+            }
+        }
+        glow(c, 480, 116, 155, GOLD, 0.13f);
+        drawFloorRays(c, t, GOLD);
     }
 
     private void drawBinder(Canvas c, float t) {
-        drawArchive(c,t);
-        glow(c,480,150,185,CYAN,0.2f);
-        // Open book spread in the foreground.
-        Path left=new Path();left.moveTo(260,186);left.quadTo(375,140,478,192);left.lineTo(478,274);left.quadTo(375,236,260,270);left.close();
-        Path right=new Path();right.moveTo(482,192);right.quadTo(600,140,700,186);right.lineTo(700,270);right.quadTo(596,237,482,274);right.close();
-        fill(c,left,Color.rgb(53,61,83));fill(c,right,Color.rgb(43,54,78));
-        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);p.setColor(Color.rgb(183,158,119));c.drawPath(left,p);c.drawPath(right,p);p.setStyle(Paint.Style.FILL);
-        p.setColor(Color.argb(95,230,222,192));for(int i=0;i<4;i++){c.drawLine(290,206+i*13,450,207+i*13,p);c.drawLine(510,207+i*13,670,206+i*13,p);}
+        // The Binder Vault is an illuminated folio library with upright rectangular albums.
+        p.setShader(new LinearGradient(0, 0, 0, 300,
+                new int[]{Color.rgb(27, 43, 70), Color.rgb(12, 23, 42), Color.rgb(5, 10, 21)},
+                null, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, 960, 300, p);
+        p.setShader(null);
+
+        // Vault arch and stone ribs frame the library without circular medallions.
+        Path arch = new Path();
+        arch.moveTo(245, 262);
+        arch.lineTo(245, 150);
+        arch.cubicTo(245, 57, 338, 40, 495, 40);
+        arch.cubicTo(652, 40, 745, 57, 745, 150);
+        arch.lineTo(745, 262);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(13);
+        p.setColor(Color.rgb(48, 66, 91));
+        c.drawPath(arch, p);
+        p.setStrokeWidth(2);
+        p.setColor(Color.rgb(178, 144, 97));
+        c.drawPath(arch, p);
+        p.setStyle(Paint.Style.FILL);
+
+        for (int x : new int[]{56, 222, 752, 918}) {
+            p.setColor(Color.rgb(43, 57, 82));
+            c.drawRect(x, 68, x + 15, 263, p);
+            p.setColor(Color.rgb(148, 119, 81));
+            c.drawRect(x + 6, 78, x + 9, 253, p);
+            p.setColor(Color.rgb(72, 76, 102));
+            c.drawRect(x - 5, 68, x + 20, 77, p);
+            c.drawRect(x - 5, 253, x + 20, 263, p);
+        }
+
+        int[] folioColors = {GOLD, CYAN, PURPLE, RED, Color.rgb(119, 176, 235)};
+        for (int row = 0; row < 2; row++) {
+            float shelfY = row == 0 ? 105 : 205;
+            p.setColor(Color.rgb(60, 55, 72));
+            c.drawRect(255, shelfY + 71, 735, shelfY + 79, p);
+            p.setColor(Color.rgb(165, 132, 89));
+            c.drawRect(255, shelfY + 71, 735, shelfY + 73, p);
+            for (int i = 0; i < 8; i++) {
+                float x = 265 + i * 58;
+                float y = shelfY - 12;
+                int accent = folioColors[(i + row * 3) % folioColors.length];
+                RectF folio = new RectF(x, y, x + 49, shelfY + 69);
+                p.setColor(Color.rgb(26 + i % 3 * 5, 31 + row * 4, 51 + i % 2 * 5));
+                c.drawRoundRect(folio, 4, 4, p);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(2);
+                p.setColor(Color.rgb(151, 122, 87));
+                c.drawRoundRect(folio, 4, 4, p);
+                p.setStrokeWidth(1);
+                p.setColor(Color.argb(145, Color.red(accent), Color.green(accent), Color.blue(accent)));
+                c.drawRect(x + 5, y + 5, x + 44, shelfY + 64, p);
+                p.setStyle(Paint.Style.FILL);
+
+                // Folio spine and title band.
+                p.setColor(Color.rgb(Color.red(accent) / 2 + 25,
+                        Color.green(accent) / 2 + 23, Color.blue(accent) / 2 + 25));
+                c.drawRect(x + 5, y + 5, x + 13, shelfY + 64, p);
+                p.setColor(accent);
+                c.drawRect(x + 17, y + 15, x + 40, y + 17, p);
+                c.drawRect(x + 17, y + 53, x + 40, y + 55, p);
+
+                Path crest = new Path();
+                crest.moveTo(x + 29, y + 24);
+                crest.lineTo(x + 38, y + 34);
+                crest.lineTo(x + 29, y + 45);
+                crest.lineTo(x + 20, y + 34);
+                crest.close();
+                fill(c, crest, accent);
+                p.setStyle(Paint.Style.STROKE);
+                p.setStrokeWidth(1);
+                p.setColor(Color.rgb(245, 228, 188));
+                c.drawPath(crest, p);
+                p.setStyle(Paint.Style.FILL);
+            }
+        }
+
+        // A broad illuminated reading desk anchors the lower foreground.
+        Path desk = new Path();
+        desk.moveTo(40, 277);
+        desk.lineTo(920, 277);
+        desk.lineTo(827, 300);
+        desk.lineTo(132, 300);
+        desk.close();
+        fill(c, desk, Color.rgb(15, 24, 39));
+        p.setColor(Color.rgb(153, 119, 79));
+        c.drawRect(105, 276, 855, 279, p);
+        glow(c, 492, 145, 180, CYAN, 0.13f + 0.03f * (float)Math.sin(t * 6.28f));
+        drawFloorRays(c, t, CYAN);
     }
 
     private void drawRecords(Canvas c, float t) {
