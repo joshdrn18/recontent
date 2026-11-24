@@ -118,6 +118,11 @@ jobs:
           for value in (store_password, key_password):
               print("::add-mask::" + value)
           PY
+
+      - name: Verify permanent signing key
+        if: steps.signing.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
           keytool -list -keystore "$CU_KEYSTORE_PATH" -storepass "$CU_KEYSTORE_PASSWORD" -alias "$CU_KEY_ALIAS" >/dev/null
 
       - name: Build native release APK
