@@ -520,7 +520,8 @@ public final class MainActivity extends Activity {
         account.setContentDescription("Open collector profile");
         account.setBackground(new android.graphics.drawable.RippleDrawable(
                 android.content.res.ColorStateList.valueOf(Color.argb(55, 255, 255, 255)),
-                rounded(Color.argb(20, 255, 255, 255), dp(8)), null));
+                gradient(Color.argb(20, 255, 255, 255), Color.argb(20, 255, 255, 255),
+                        Color.TRANSPARENT, dp(8)), null));
         account.setOnClickListener(v -> showPlayerProfile());
 
         if ("admin".equalsIgnoreCase(me.optString("role", ""))) {
