@@ -713,7 +713,7 @@ public final class MainActivity extends Activity {
 
     private void addAudioSetting(LinearLayout parent, String title, String description, int kind) {
         boolean enabled = kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled : hapticsEnabled;
-        LinearLayout row = dataRow(title, description, enabled ? "ON" : "OFF");
+        LinearLayout row = dataRow(title, description, "");
         TextView toggle = button(enabled ? "ON" : "OFF", enabled);
         toggle.setOnClickListener(v -> {
             boolean next = !(kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled : hapticsEnabled);
@@ -961,78 +961,109 @@ public final class MainActivity extends Activity {
 
     
     private void renderPacks(JSONObject data) {
-addModeSpotlight("SUMMON HALL · THE ASTRAL GATE", "Break the seal. Meet your next legend.", "Every opening adds its revealed cards to your permanent collection.", "✧", VIOLET);
-
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
         boolean unlimited = data.optBoolean("unlimited") || isGodModeEnabled();
-        content.addView(statCard("AVAILABLE PACK TYPES", String.valueOf(packs.length()),
-                unlimited ? "Master Admin inventory" : "Your current summon inventory"));
-        addGap(content, 10);
+        addModeSpotlight("SUMMON HALL · THE ASTRAL GATE", "Break the seal. Meet your next legend.",
+                "Choose a pack, open the seal and reveal the cards added to your collection.",
+                "✧", VIOLET);
+        int totalQuantity = 0;
+        for (int i = 0; i < packs.length(); i++) {
+            JSONObject p = packs.optJSONObject(i);
+            if (p != null) totalQuantity += Math.max(0, p.optInt("quantity"));
+        }
+        LinearLayout inventory = new LinearLayout(this);
+        inventory.setOrientation(LinearLayout.HORIZONTAL);
+        inventory.addView(statCard("PACK TYPES", String.valueOf(packs.length()), "Available seals"), weightParams(1));
+        inventory.addView(statCard("INVENTORY", unlimited ? "∞" : formatNumber(totalQuantity),
+                unlimited ? "Master access" : "Pack entries"), weightParams(1));
+        inventory.addView(statCard("SUMMON ACCESS", unlimited ? "UNLIMITED" : "PLAYER",
+                unlimited ? "God Mode" : "Standard"), weightParams(1));
+        content.addView(inventory);
+        addGap(content, 9);
         for (int i = 0; i < packs.length(); i++) {
             JSONObject pack = packs.optJSONObject(i);
             if (pack == null) continue;
+            final JSONObject selectedPack = pack;
             String slug = pack.optString("slug", "");
             String name = pack.optString("name", "Summon pack");
             int quantity = pack.optInt("quantity");
             String currency = pack.optString("currency", "COINS");
             long price = pack.optLong("price");
+            int accent = i % 3 == 0 ? VIOLET : i % 3 == 1 ? CYAN : GOLD_BRIGHT;
             LinearLayout card = sectionPanel();
-            card.addView(text(name, 13, TEXT, true));
-            card.addView(text(pack.optString("description",
-                    pack.optInt("cards_per_pack") + " cards per pack"), 8, MUTED, false));
-            addGap(card, 5);
-            card.addView(text(pack.optInt("cards_per_pack") + " CARDS  ·  " + currency + " " + formatNumber(price),
+            card.setPadding(dp(12), dp(12), dp(12), dp(12));
+            card.setBackground(gradient(
+                    Color.rgb(Color.red(accent) / 4 + 35, Color.green(accent) / 4 + 30, Color.blue(accent) / 4 + 40),
+                    Color.rgb(10, 16, 34), accent, dp(17)));
+            LinearLayout top = new LinearLayout(this);
+            top.setOrientation(LinearLayout.HORIZONTAL);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout seal = new FrameLayout(this);
+            seal.setBackground(gradient(Color.rgb(72, 51, 128), Color.rgb(19, 26, 54), accent, dp(15)));
+            TextView sigil = text(i % 3 == 0 ? "✧" : i % 3 == 1 ? "✦" : "◇", 39, accent, true);
+            sigil.setGravity(Gravity.CENTER);
+            seal.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
+            top.addView(seal, new LinearLayout.LayoutParams(dp(88), dp(102)));
+            LinearLayout info = new LinearLayout(this);
+            info.setOrientation(LinearLayout.VERTICAL);
+            info.setPadding(dp(12), 0, 0, 0);
+            info.addView(text("ASTRAL SEAL · " + pack.optInt("cards_per_pack") + " CARDS", 7, accent, true));
+            info.addView(text(name, 15, TEXT, true));
+            TextView description = text(pack.optString("description",
+                    "A sealed collection of Firstlight cards."), 8, MUTED, false);
+            description.setMaxLines(2);
+            info.addView(description);
+            info.addView(text(unlimited ? "MASTER ACCESS · UNLIMITED OPENINGS"
+                    : "IN STOCK · " + quantity + " · " + currency + " " + formatNumber(price),
                     8, GOLD_BRIGHT, true));
-            card.addView(text(unlimited ? "MASTER ADMIN · PACKS DO NOT DECREASE"
-                    : "INVENTORY  " + quantity + (pack.has("pity_count") ? "  ·  MYTHIC PITY " + pack.optInt("pity_count") : ""),
-                    8, MUTED, true));
+            if (pack.has("pity_count")) info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count"),
+                    7, PINK, true));
+            top.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+            card.addView(top);
+
             LinearLayout actions = new LinearLayout(this);
-            actions.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-            if (quantity > 0 || unlimited) {
-                TextView open = button("OPEN PACK", true);
-                open.setPadding(dp(16), 0, dp(16), 0);
-                open.setOnClickListener(v -> confirmAction("Open " + name + "?",
-                        "This opens one pack and adds its cards to your live collection.", () -> {
-                    JSONObject request = new JSONObject();
-                    try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
-                    open.setEnabled(false);
-                    open.setText("OPENING...");
-                    api.post("/api/packs/" + slug + "/open", request, result -> ui.post(() -> {
-                        open.setEnabled(true);
-                        open.setText("OPEN PACK");
-                        if (!result.ok()) {
-                            showResultDialog("Pack could not be opened", result.error);
-                            return;
-                        }
-                        showPackRevealDialog(result.data.optJSONArray("cards"));
-                    }));
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            actions.setGravity(Gravity.CENTER_VERTICAL);
+            TextView open = button(quantity > 0 || unlimited ? "✧ OPEN PACK" : "NO STOCK",
+                    quantity > 0 || unlimited);
+            open.setEnabled(quantity > 0 || unlimited);
+            open.setOnClickListener(v -> confirmAction("Open " + name + "?",
+                    "One seal will be opened and all revealed cards will enter your collection.", () -> {
+                JSONObject request = new JSONObject();
+                try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
+                open.setEnabled(false);
+                open.setText("OPENING...");
+                api.post("/api/packs/" + slug + "/open", request, result -> ui.post(() -> {
+                    open.setEnabled(true);
+                    open.setText("✧ OPEN PACK");
+                    if (!result.ok()) {
+                        if (sfxEnabled && gameAudio != null) gameAudio.playError();
+                        showResultDialog("Pack could not be opened", result.error);
+                        return;
+                    }
+                    if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                    showPackRevealDialog(result.data.optJSONArray("cards"));
                 }));
-                actions.addView(open);
-            } else if ("COINS".equalsIgnoreCase(currency) && price > 0) {
-                TextView buy = button("BUY PACK  ·  " + formatNumber(price) + " GOLD", false);
-                buy.setPadding(dp(12), 0, dp(12), 0);
+            }));
+            actions.addView(open, new LinearLayout.LayoutParams(0, dp(40), 1f));
+            if (quantity <= 0 && !unlimited && "COINS".equalsIgnoreCase(currency) && price > 0) {
+                TextView buy = button("BUY · " + formatNumber(price) + " GOLD", false);
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
+                bp.leftMargin = dp(8);
+                actions.addView(buy, bp);
                 buy.setOnClickListener(v -> confirmAction("Purchase " + name + "?",
-                        "Spend " + formatNumber(price) + " Gold to add one pack to your inventory.", () -> {
-                    buy.setEnabled(false);
-                    api.post("/api/packs/" + slug + "/buy", new JSONObject(), result -> ui.post(() -> {
-                        buy.setEnabled(true);
-                        if (!result.ok()) {
-                            showResultDialog("Purchase failed", result.error);
-                            return;
-                        }
-                        showResultDialog("Pack added", "The pack has been added to your inventory.");
-                        refreshAccount(() -> renderTab("summon"));
-                    }));
-                }));
-                actions.addView(buy);
-            } else {
-                actions.addView(text("NO PACKS AVAILABLE", 7, MUTED, true));
+                        "Spend " + formatNumber(price) + " Gold to add one pack to your inventory.", () ->
+                        api.post("/api/packs/" + slug + "/buy", new JSONObject(), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Purchase failed", result.error);
+                            else {
+                                if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                showResultDialog("SEAL ACQUIRED", result.data.optString("message", "Pack added to your inventory."));
+                                refreshAccount(() -> renderTab("summon"));
+                            }
+                        }))));
             }
-            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            actionParams.topMargin = dp(8);
-            card.addView(actions, actionParams);
+            card.addView(actions, new LinearLayout.LayoutParams(-1, -2));
             content.addView(card, rowParams());
         }
         if (packs.length() == 0) showNotice("No packs are currently available.");
@@ -1621,71 +1652,95 @@ addModeSpotlight("DAILY & LONG-TERM OBJECTIVES", "Every action moves you forward
             showNotice("No active missions or daily challenges are available right now.");
     }
     private void renderShop(JSONObject data) {
-addModeSpotlight("FIRSTLIGHT MARKET", "Trade your earnings for something worthy", "A curated catalogue of supplies and cosmetics, with every purchase checked by the server.", "♢", GOLD_BRIGHT);
-
         JSONArray items = data.optJSONArray("items");
         JSONObject wallet = data.optJSONObject("wallet");
         if (items == null) { renderObjectSummary(data, "SHOP INVENTORY"); return; }
-        if (wallet != null) {
-            content.addView(text("YOUR WALLET  ·  " + formatNumber(wallet.optLong("coins")) + " GOLD  ·  "
-                    + formatNumber(wallet.optLong("gems")) + " GEMS  ·  " + formatNumber(wallet.optLong("shards")) + " SHARDS",
-                    8, GOLD_BRIGHT, true));
-            addGap(content, 8);
-        }
+        addModeSpotlight("FIRSTLIGHT MARKET", "A real collector's marketplace",
+                "Browse clearly priced listings, check stock and exchange your earned currencies for useful upgrades and cosmetics.",
+                "♢", GOLD_BRIGHT);
+        if (wallet == null) wallet = new JSONObject();
+        LinearLayout balances = new LinearLayout(this);
+        balances.setOrientation(LinearLayout.HORIZONTAL);
+        balances.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Available"), weightParams(1));
+        balances.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Premium"), weightParams(1));
+        balances.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Upgrade"), weightParams(1));
+        content.addView(balances);
+        addGap(content, 10);
+        content.addView(text("MARKET CATALOGUE · " + items.length() + " LISTINGS", 8, GOLD_BRIGHT, true));
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
             if (item == null) continue;
+            final JSONObject selectedItem = item;
             String itemId = item.optString("item_id", "");
             String title = item.optString("title", item.optString("name", "Realm item"));
-            String sub = item.optString("description", item.optString("item_type", "REALM ITEM"));
-            String currency = item.optString("currency", "COINS");
+            String description = item.optString("description", item.optString("item_type", "REALM ITEM"));
+            String currency = item.optString("currency", "COINS").toUpperCase(java.util.Locale.ROOT);
             long price = item.optLong("price");
-            String priceLabel = formatNumber(price) + " " + currency;
-            if (!item.isNull("stock_remaining")) priceLabel += "  ·  STOCK " + item.optLong("stock_remaining");
-            LinearLayout card = sectionPanel();
-            card.addView(text(title, 11, TEXT, true));
-            card.addView(text(sub, 8, MUTED, false));
-            card.addView(text(priceLabel, 8, GOLD_BRIGHT, true));
             long stock = item.isNull("stock_remaining") ? -1 : item.optLong("stock_remaining");
-            boolean alreadyOwned = item.optInt("cosmetic_owned") == 1;
-            boolean canBuy = !alreadyOwned && (stock != 0) && price > 0 && !itemId.isEmpty();
-            if (canBuy) {
-                TextView buy = button("PURCHASE", true);
-                final String purchaseTitle = title;
-                final String purchasePriceLabel = priceLabel;
-                final String purchaseItemId = itemId;
-                buy.setOnClickListener(v -> confirmAction("Purchase " + purchaseTitle + "?",
-                        "Cost: " + purchasePriceLabel + ". The server will validate your wallet, stock and purchase limits.", () -> {
-                    JSONObject payload = new JSONObject();
+            boolean owned = item.optInt("cosmetic_owned") == 1;
+            boolean canBuy = !owned && stock != 0 && price > 0 && !itemId.isEmpty();
+            int accent = owned ? GREEN : "GEMS".equals(currency) ? VIOLET
+                    : "SHARDS".equals(currency) ? CYAN : GOLD;
+            LinearLayout card = sectionPanel();
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout icon = new FrameLayout(this);
+            icon.setBackground(gradient(Color.rgb(Color.red(accent) / 3 + 22,
+                    Color.green(accent) / 3 + 22, Color.blue(accent) / 3 + 30),
+                    Color.rgb(11, 17, 34), accent, dp(13)));
+            String type = item.optString("item_type", "ITEM").toUpperCase(java.util.Locale.ROOT);
+            TextView glyph = text(type.contains("PACK") ? "✧" : type.contains("CARD") ? "▧"
+                    : type.contains("COSMETIC") ? "✦" : "◇", 31, accent, true);
+            glyph.setGravity(Gravity.CENTER);
+            icon.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
+            card.addView(icon, new LinearLayout.LayoutParams(dp(72), dp(82)));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setPadding(dp(11), 0, dp(7), 0);
+            copy.addView(text(type + " · " + currency, 7, accent, true));
+            copy.addView(text(title, 12, TEXT, true));
+            TextView details = text(description, 8, MUTED, false);
+            details.setMaxLines(2);
+            copy.addView(details);
+            copy.addView(text(formatNumber(price) + " " + currency, 10, GOLD_BRIGHT, true));
+            copy.addView(text(stock < 0 ? "OPEN STOCK" : stock == 0 ? "SOLD OUT" : stock + " UNITS LEFT",
+                    7, stock == 0 ? RED : MUTED, true));
+            card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            if (owned) {
+                TextView status = text("OWNED", 8, GREEN, true);
+                card.addView(status);
+            } else {
+                TextView buy = button(canBuy ? "PURCHASE" : stock == 0 ? "SOLD OUT" : "UNAVAILABLE", true);
+                buy.setEnabled(canBuy);
+                buy.setOnClickListener(v -> confirmAction("Purchase " + title + "?",
+                        "Cost: " + formatNumber(price) + " " + currency
+                                + ". Stock and purchase limits are verified securely by the server.", () -> {
+                    JSONObject request = new JSONObject();
                     try {
-                        payload.put("itemId", purchaseItemId);
-                        payload.put("requestId", newActionId());
-                        payload.put("quantity", 1);
+                        request.put("itemId", itemId);
+                        request.put("requestId", newActionId());
+                        request.put("quantity", 1);
                     } catch (Exception ignored) {}
                     buy.setEnabled(false);
                     buy.setText("PROCESSING...");
-                    api.post("/api/shop/purchase", payload, result -> ui.post(() -> {
+                    api.post("/api/shop/purchase", request, result -> ui.post(() -> {
                         buy.setEnabled(true);
                         buy.setText("PURCHASE");
                         if (!result.ok()) {
+                            if (sfxEnabled && gameAudio != null) gameAudio.playError();
                             showResultDialog("Purchase failed", result.error);
-                            return;
+                        } else {
+                            if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                            showResultDialog("PURCHASE COMPLETE", result.data.optString("message", "Your item has been delivered."));
+                            refreshAccount(() -> renderTab("shop"));
                         }
-                        showResultDialog("✦ PURCHASE COMPLETE", result.data.optString("message", "Your item has been delivered."));
-                        refreshAccount(() -> renderTab("shop"));
                     }));
                 }));
-                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(125), dp(34));
-                bp.topMargin = dp(7);
-                card.addView(buy, bp);
-            } else if (alreadyOwned) {
-                card.addView(text("ALREADY OWNED", 7, GREEN, true));
-            } else if (stock == 0) {
-                card.addView(text("OUT OF STOCK", 7, RED, true));
+                card.addView(buy, new LinearLayout.LayoutParams(dp(104), dp(38)));
             }
             content.addView(card, rowParams());
         }
-        if (items.length() == 0) showNotice("The shop has no active items right now.");
+        if (items.length() == 0) showNotice("The market has no active listings right now.");
     }
     private void renderInbox(JSONObject data) {
         JSONArray items = data.optJSONArray("items");
@@ -2768,52 +2823,134 @@ addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", 
     }
 
     private void renderProgression(JSONObject data) {
-addModeSpotlight("COLLECTOR JOURNEY", "Every level is a milestone", "Track your growth and claim rewards as your account climbs toward the level cap.", "✦", GOLD_BRIGHT);
+        addModeSpotlight("COLLECTOR JOURNEY", "Every level is a milestone",
+                "Track your growth, unlock rewards and claim each milestone you have earned.",
+                "✦", GOLD_BRIGHT);
+        int level = data.optInt("level", 1);
+        int xp = data.optInt("xp");
+        boolean maxLevel = level >= 1000;
+        int need = maxLevel ? Math.max(1, xp) : Math.max(1, data.optInt("xpRequired"));
+        int page = data.optInt("rewardPage");
+        int pageSize = data.optInt("rewardPageSize", 30);
+        int total = data.optInt("rewardTotal");
+        int pages = Math.max(1, (int) Math.ceil(total / (double) Math.max(1, pageSize)));
 
-        int level=data.optInt("level",1),xp=data.optInt("xp");
-        boolean maxLevel=level>=1000;
-        int need=maxLevel?Math.max(1,xp):Math.max(1,data.optInt("xpRequired"));
-        int page=data.optInt("rewardPage"),pageSize=data.optInt("rewardPageSize",30),total=data.optInt("rewardTotal");
-        int pages=Math.max(1,(int)Math.ceil(total/(double)Math.max(1,pageSize)));
-        LinearLayout hero=sectionPanel();hero.addView(text(maxLevel?"✦ MAX COLLECTOR LEVEL":"COLLECTOR LEVEL "+level,9,GOLD,true));
-        hero.addView(text(maxLevel?"LEVEL CAP REACHED · "+formatNumber(xp)+" TOTAL XP":formatNumber(xp)+" / "+formatNumber(need)+" XP TO NEXT LEVEL",13,TEXT,true));
-        ProgressBar xpBar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);xpBar.setMax(100);
-        xpBar.setProgress(maxLevel?100:Math.min(100,Math.round(xp*100f/need)));xpBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
-        hero.addView(xpBar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(8)));
-        hero.addView(text((maxLevel?"MAX RANK · ":"")+data.optInt("claimableCount")+" milestone rewards ready · level cap 1,000",8,MUTED,false));
-        content.addView(hero,rowParams());
-        JSONArray rewards=data.optJSONArray("rewards");if(rewards==null)rewards=new JSONArray();
-        content.addView(text("LEVEL MILESTONES",8,GOLD,true));
-        for(int i=0;i<rewards.length();i++){
-            JSONObject r=rewards.optJSONObject(i);if(r==null)continue;
-            int rewardLevel=r.optInt("level");boolean unlocked=rewardLevel<=level,claimed=r.optInt("claimed")==1;
-            String desc=formatNumber(r.optLong("reward_coins"))+" Gold · "+formatNumber(r.optLong("reward_gems"))+" Gems · "
-                    +formatNumber(r.optLong("reward_shards"))+" Shards";
-            if(r.optInt("reward_pack_quantity")>0)desc+=" · "+r.optInt("reward_pack_quantity")+" × "+r.optString("reward_pack_name","Pack");
-            if(!r.isNull("reward_cosmetic_name"))desc+=" · "+r.optString("reward_cosmetic_name");
-            LinearLayout row=dataRow("LEVEL "+rewardLevel+(r.optString("reward_title").isEmpty()?"":" · "+r.optString("reward_title")),
-                    desc,claimed?"CLAIMED":unlocked?"READY":"LOCKED");
-            if(unlocked&&!claimed){
-                TextView claim=button("CLAIM",true);
-                claim.setOnClickListener(v->confirmAction("Claim level "+rewardLevel+" reward?","This milestone reward can only be claimed once.",()->api.post("/api/progression/claim",payload("level",rewardLevel),x->ui.post(()->{
-                    if(!x.ok())showResultDialog("Reward unavailable",x.error);
-                    else{showResultDialog("LEVEL REWARD CLAIMED",x.data.optString("message","Milestone reward added."));refreshAccount(()->loadProgressionPage(page));}
-                }))));
-                row.addView(claim,new LinearLayout.LayoutParams(dp(82),dp(32)));
+        LinearLayout hero = sectionPanel();
+        hero.setBackground(gradient(Color.rgb(71, 55, 106), Color.rgb(12, 18, 39), GOLD, dp(17)));
+        LinearLayout heading = new LinearLayout(this);
+        heading.setOrientation(LinearLayout.HORIZONTAL);
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout crest = new FrameLayout(this);
+        crest.setBackground(gradient(Color.rgb(118, 88, 166), Color.rgb(40, 35, 76), GOLD_BRIGHT, dp(14)));
+        TextView levelText = text(String.valueOf(level), 22, Color.WHITE, true);
+        levelText.setGravity(Gravity.CENTER);
+        crest.addView(levelText, new FrameLayout.LayoutParams(-1, -1));
+        heading.addView(crest, new LinearLayout.LayoutParams(dp(70), dp(70)));
+        LinearLayout levelCopy = new LinearLayout(this);
+        levelCopy.setOrientation(LinearLayout.VERTICAL);
+        levelCopy.setPadding(dp(12), 0, 0, 0);
+        levelCopy.addView(text(maxLevel ? "LEVEL CAP REACHED" : "COLLECTOR LEVEL", 8, GOLD_BRIGHT, true));
+        levelCopy.addView(text(maxLevel ? "MASTER COLLECTOR" : "LEVEL " + level, 20, TEXT, true));
+        levelCopy.addView(text(maxLevel ? formatNumber(xp) + " TOTAL XP" : formatNumber(xp) + " / " + formatNumber(need) + " XP",
+                8, MUTED, true));
+        heading.addView(levelCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+        hero.addView(heading);
+        addGap(hero, 10);
+        ProgressBar xpBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        xpBar.setMax(100);
+        xpBar.setProgress(maxLevel ? 100 : Math.min(100, Math.round(xp * 100f / need)));
+        xpBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));
+        hero.addView(xpBar, new LinearLayout.LayoutParams(-1, dp(9)));
+        LinearLayout xpLabels = new LinearLayout(this);
+        xpLabels.setGravity(Gravity.CENTER_VERTICAL);
+        xpLabels.addView(text(maxLevel ? "MAX RANK" : "NEXT LEVEL PROGRESS", 7, GOLD_BRIGHT, true),
+                new LinearLayout.LayoutParams(0, -2, 1f));
+        xpLabels.addView(text(data.optInt("claimableCount") + " REWARDS READY", 7, CYAN, true));
+        hero.addView(xpLabels);
+        content.addView(hero, rowParams());
+
+        LinearLayout totals = new LinearLayout(this);
+        totals.setOrientation(LinearLayout.HORIZONTAL);
+        totals.addView(statCard("LEVEL", formatNumber(level), "Collector rank"), weightParams(1));
+        totals.addView(statCard("CLAIMABLE", formatNumber(data.optInt("claimableCount")), "Ready now"), weightParams(1));
+        totals.addView(statCard("MILESTONES", formatNumber(total), "Total rewards"), weightParams(1));
+        content.addView(totals);
+        addGap(content, 10);
+
+        JSONArray rewards = data.optJSONArray("rewards");
+        if (rewards == null) rewards = new JSONArray();
+        content.addView(text("REWARD TRACK  ·  PAGE " + (page + 1) + " / " + pages,
+                8, GOLD_BRIGHT, true));
+        for (int i = 0; i < rewards.length(); i++) {
+            JSONObject reward = rewards.optJSONObject(i);
+            if (reward == null) continue;
+            int rewardLevel = reward.optInt("level");
+            boolean unlocked = rewardLevel <= level;
+            boolean claimed = reward.optInt("claimed") == 1;
+            StringBuilder rewardText = new StringBuilder();
+            rewardText.append(formatNumber(reward.optLong("reward_coins"))).append(" Gold  ·  ")
+                    .append(formatNumber(reward.optLong("reward_gems"))).append(" Gems  ·  ")
+                    .append(formatNumber(reward.optLong("reward_shards"))).append(" Shards");
+            if (reward.optInt("reward_pack_quantity") > 0)
+                rewardText.append("\n").append(reward.optInt("reward_pack_quantity")).append(" × ")
+                        .append(reward.optString("reward_pack_name", "Summon Pack"));
+            if (!reward.isNull("reward_cosmetic_name") && !reward.optString("reward_cosmetic_name").isEmpty())
+                rewardText.append("\n").append(reward.optString("reward_cosmetic_name"));
+            LinearLayout card = sectionPanel();
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+            int accent = claimed ? GREEN : unlocked ? GOLD_BRIGHT : Color.rgb(94, 111, 151);
+            FrameLayout marker = new FrameLayout(this);
+            marker.setBackground(gradient(unlocked ? Color.rgb(89, 65, 111) : Color.rgb(35, 43, 66),
+                    Color.rgb(13, 19, 38), accent, dp(12)));
+            TextView badge = text(claimed ? "✓" : String.valueOf(rewardLevel), 16, accent, true);
+            badge.setGravity(Gravity.CENTER);
+            marker.addView(badge, new FrameLayout.LayoutParams(-1, -1));
+            card.addView(marker, new LinearLayout.LayoutParams(dp(54), dp(54)));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setPadding(dp(10), 0, dp(6), 0);
+            copy.addView(text("LEVEL " + rewardLevel, 7, accent, true));
+            copy.addView(text(reward.optString("reward_title", "Milestone reward"), 11, TEXT, true));
+            TextView details = text(rewardText.toString(), 8, MUTED, false);
+            details.setMaxLines(3);
+            copy.addView(details);
+            card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            if (claimed) {
+                card.addView(text("CLAIMED", 7, GREEN, true));
+            } else if (unlocked) {
+                TextView claim = button("CLAIM", true);
+                claim.setOnClickListener(v -> confirmAction("Claim level " + rewardLevel + " reward?",
+                        "This milestone can only be claimed once.", () ->
+                        api.post("/api/progression/claim", payload("level", rewardLevel), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Reward unavailable", result.error);
+                            else {
+                                if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                showResultDialog("LEVEL REWARD CLAIMED", result.data.optString("message", "Milestone reward added."));
+                                refreshAccount(() -> loadProgressionPage(page));
+                            }
+                        }))));
+                card.addView(claim, new LinearLayout.LayoutParams(dp(78), dp(36)));
+            } else {
+                card.addView(text("LOCKED", 7, MUTED, true));
             }
-            content.addView(row,rowParams());
+            content.addView(card, rowParams());
         }
-        if(total>pageSize){
-            addGap(content,10);
-            LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER);
-            TextView previous=button("← PREVIOUS",false);previous.setEnabled(page>0);
-            previous.setOnClickListener(v->loadProgressionPage(page-1));
-            TextView next=button("NEXT →",false);next.setEnabled(page+1<pages);
-            next.setOnClickListener(v->loadProgressionPage(page+1));
-            pager.addView(previous,new LinearLayout.LayoutParams(dp(120),dp(36)));
-            TextView pageLabel=text("PAGE "+(page+1)+" / "+pages,8,GOLD,true);pageLabel.setGravity(Gravity.CENTER);
-            pager.addView(pageLabel,new LinearLayout.LayoutParams(0,dp(36),1f));
-            pager.addView(next,new LinearLayout.LayoutParams(dp(100),dp(36)));content.addView(pager);
+        if (total > pageSize) {
+            LinearLayout pager = new LinearLayout(this);
+            pager.setGravity(Gravity.CENTER);
+            TextView previous = button("← PREVIOUS", false);
+            previous.setEnabled(page > 0);
+            previous.setOnClickListener(v -> loadProgressionPage(page - 1));
+            TextView next = button("NEXT →", false);
+            next.setEnabled(page + 1 < pages);
+            next.setOnClickListener(v -> loadProgressionPage(page + 1));
+            pager.addView(previous, new LinearLayout.LayoutParams(dp(120), dp(38)));
+            TextView label = text("PAGE " + (page + 1) + " / " + pages, 8, GOLD_BRIGHT, true);
+            label.setGravity(Gravity.CENTER);
+            pager.addView(label, new LinearLayout.LayoutParams(0, dp(38), 1f));
+            pager.addView(next, new LinearLayout.LayoutParams(dp(100), dp(38)));
+            content.addView(pager);
         }
     }
 
@@ -2835,82 +2972,164 @@ addModeSpotlight("COLLECTOR JOURNEY", "Every level is a milestone", "Track your 
     }
 
     private void renderEvents(JSONObject data) {
-addModeSpotlight("LIVE EVENT CIRCUIT", "Limited-time rewards are waiting", "Check today's login journey and browse the current festival exchange before it closes.", "✺", PINK);
-
-        JSONObject login=data.optJSONObject("login_event");
-        if(login==null)login=new JSONObject();
-        JSONObject loginEvent=login.optJSONObject("event");
-        JSONArray rewards=login.optJSONArray("rewards");
-        if(rewards==null)rewards=new JSONArray();
-        if(loginEvent!=null){
-            LinearLayout panel=sectionPanel();
-            panel.addView(text("LIMITED-TIME LOGIN JOURNEY",8,GOLD,true));
-            panel.addView(text(loginEvent.optString("title","Realm Login Event"),18,TEXT,true));
-            panel.addView(text(loginEvent.optString("description","Claim a reward for each active event day."),8,MUTED,false));
-            int day=login.optInt("currentDay");
-            panel.addView(text(login.optBoolean("completed")?"JOURNEY COMPLETE":"CURRENT DAY · "+day,8,GOLD_BRIGHT,true));
-            for(int i=0;i<rewards.length();i++){
-                JSONObject r=rewards.optJSONObject(i);if(r==null)continue;
-                int idx=r.optInt("day_index");boolean claimed=r.optInt("is_claimed")==1;
-                String desc=formatNumber(r.optLong("reward_coins"))+" Gold · "+formatNumber(r.optLong("reward_gems"))+" Gems · "
-                        +formatNumber(r.optLong("reward_shards"))+" Shards · "+formatNumber(r.optLong("reward_xp"))+" EXP";
-                if(r.optInt("reward_pack_quantity")>0)desc+=" · "+r.optInt("reward_pack_quantity")+" × "+r.optString("reward_pack_name","Pack");
-                if(!r.optString("reward_card_name").isEmpty())desc+=" · "+r.optString("reward_card_name");
-                if(!r.optString("reward_cosmetic_name").isEmpty())desc+=" · "+r.optString("reward_cosmetic_name");
-                panel.addView(dataRow("DAY "+idx+" · "+r.optString("title","Event reward"),desc,
-                        claimed?"CLAIMED":idx==day?"TODAY":idx<day?"PASSED":"UPCOMING"),rowParams());
+        addModeSpotlight("LIVE EVENT CIRCUIT", "Limited-time rewards are waiting",
+                "Follow the login journey, collect each day's gift and spend event currency in the festival exchange.",
+                "✺", PINK);
+        JSONObject login = data.optJSONObject("login_event");
+        if (login == null) login = new JSONObject();
+        JSONObject eventDefinition = login.optJSONObject("event");
+        JSONArray rewards = login.optJSONArray("rewards");
+        if (rewards == null) rewards = new JSONArray();
+        if (eventDefinition != null) {
+            int day = login.optInt("currentDay");
+            LinearLayout journey = sectionPanel();
+            journey.setBackground(gradient(Color.rgb(77, 39, 76), Color.rgb(13, 18, 39), PINK, dp(17)));
+            journey.addView(text("LIMITED-TIME LOGIN JOURNEY", 8, PINK, true));
+            journey.addView(text(eventDefinition.optString("title", "Realm Login Event"), 19, TEXT, true));
+            TextView description = text(eventDefinition.optString("description", "Claim a reward for every event day."),
+                    8, MUTED, false);
+            journey.addView(description);
+            ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            bar.setMax(Math.max(1, rewards.length()));
+            bar.setProgress(Math.min(rewards.length(), Math.max(0, day)));
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(PINK));
+            journey.addView(bar, new LinearLayout.LayoutParams(-1, dp(8)));
+            journey.addView(text(login.optBoolean("completed") ? "JOURNEY COMPLETE"
+                    : "DAY " + day + " OF " + rewards.length(), 8, GOLD_BRIGHT, true));
+            LinearLayout track = new LinearLayout(this);
+            track.setOrientation(LinearLayout.HORIZONTAL);
+            for (int i = 0; i < rewards.length(); i++) {
+                JSONObject reward = rewards.optJSONObject(i);
+                if (reward == null) continue;
+                int index = reward.optInt("day_index");
+                boolean claimed = reward.optInt("is_claimed") == 1;
+                boolean today = index == day;
+                int accent = claimed ? CYAN : today ? PINK : Color.rgb(99, 111, 149);
+                LinearLayout tile = new LinearLayout(this);
+                tile.setOrientation(LinearLayout.VERTICAL);
+                tile.setGravity(Gravity.CENTER);
+                tile.setPadding(dp(3), dp(7), dp(3), dp(7));
+                tile.setBackground(gradient(claimed ? Color.rgb(28, 74, 70) : today
+                        ? Color.rgb(92, 46, 82) : Color.rgb(26, 34, 58),
+                        Color.rgb(10, 17, 34), accent, dp(10)));
+                tile.addView(text("DAY " + index, 6, accent, true));
+                tile.addView(text(claimed ? "✓" : today ? "✦" : "◇", 15, accent, true));
+                tile.addView(text(claimed ? "CLAIMED" : today ? "TODAY" : index < day ? "PASSED" : "NEXT",
+                        6, TEXT, true));
+                LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, dp(62), 1f);
+                tp.setMargins(dp(2), dp(4), dp(2), dp(4));
+                track.addView(tile, tp);
             }
-            if(login.optBoolean("canClaim")){
-                TextView claim=button("CLAIM TODAY'S LOGIN REWARD",true);
-                claim.setOnClickListener(v->confirmAction("Claim event login reward?","Today's event reward can only be claimed once.",()->api.post("/api/events/login/claim",new JSONObject(),r->ui.post(()->{
-                    if(!r.ok())showResultDialog("Event reward unavailable",r.error);
-                    else{showResultDialog("EVENT REWARD CLAIMED",r.data.optString("message","Your login reward has been added."));refreshAccount(()->renderTab("events"));}
-                }))));
-                panel.addView(claim,rowParams());
+            journey.addView(track);
+            if (login.optBoolean("canClaim")) {
+                TextView claim = button("CLAIM TODAY'S EVENT REWARD", true);
+                claim.setOnClickListener(v -> confirmAction("Claim event login reward?",
+                        "Today's event reward can only be claimed once.", () ->
+                        api.post("/api/events/login/claim", new JSONObject(), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Event reward unavailable", result.error);
+                            else {
+                                if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                showResultDialog("EVENT REWARD CLAIMED", result.data.optString("message", "Your login reward has been added."));
+                                refreshAccount(() -> renderTab("events"));
+                            }
+                        }))));
+                journey.addView(claim, rowParams());
             }
-            content.addView(panel,rowParams());
-        }else{
-            content.addView(sectionHeading("NO ACTIVE LOGIN EVENT"));
+            content.addView(journey, rowParams());
+            content.addView(text("YOUR LOGIN REWARD SCHEDULE", 8, GOLD_BRIGHT, true));
+            for (int i = 0; i < rewards.length(); i++) {
+                JSONObject reward = rewards.optJSONObject(i);
+                if (reward == null) continue;
+                int index = reward.optInt("day_index");
+                String details = formatNumber(reward.optLong("reward_coins")) + " Gold  ·  "
+                        + formatNumber(reward.optLong("reward_gems")) + " Gems  ·  "
+                        + formatNumber(reward.optLong("reward_shards")) + " Shards  ·  "
+                        + formatNumber(reward.optLong("reward_xp")) + " EXP";
+                if (reward.optInt("reward_pack_quantity") > 0)
+                    details += "  ·  " + reward.optInt("reward_pack_quantity") + " × "
+                            + reward.optString("reward_pack_name", "Pack");
+                if (!reward.optString("reward_card_name").isEmpty())
+                    details += "\n" + reward.optString("reward_card_name");
+                content.addView(dataRow("DAY " + index + " · " + reward.optString("title", "Event reward"),
+                        details, reward.optInt("is_claimed") == 1 ? "CLAIMED"
+                                : index == day ? "TODAY" : index < day ? "PASSED" : "UPCOMING"), rowParams());
+            }
+        } else {
             showNotice("There is no active limited-time login journey right now.");
         }
-        JSONObject event=data.optJSONObject("event");
-        if(event==null){
-            addGap(content,10);content.addView(sectionHeading("FESTIVAL EXCHANGE"));
+
+        JSONObject event = data.optJSONObject("event");
+        if (event == null) {
+            addGap(content, 12);
+            content.addView(sectionHeading("FESTIVAL EXCHANGE"));
             showNotice("No limited-time shop event is currently open.");
             return;
         }
-        addGap(content,12);
-        LinearLayout eventPanel=sectionPanel();
-        eventPanel.addView(text("LIMITED-TIME FESTIVAL",8,GOLD,true));
-        eventPanel.addView(text(event.optString("title","Festival"),20,TEXT,true));
-        eventPanel.addView(text(event.optString("description",""),8,MUTED,false));
-        eventPanel.addView(text("ENDS · "+event.optString("ends_at",""),8,GOLD_BRIGHT,true));
-        JSONObject wallet=data.optJSONObject("wallet");if(wallet==null)wallet=new JSONObject();
-        eventPanel.addView(text("WALLET · "+formatNumber(wallet.optLong("coins"))+" GOLD · "
-                +formatNumber(wallet.optLong("gems"))+" GEMS · "+formatNumber(wallet.optLong("shards"))+" SHARDS",8,MUTED,true));
-        content.addView(eventPanel,rowParams());
-        JSONArray items=data.optJSONArray("items"),history=data.optJSONArray("history");
-        if(items==null)items=new JSONArray();
-        content.addView(text("FESTIVAL EXCHANGE",8,GOLD,true));
-        for(int i=0;i<items.length();i++){
-            JSONObject item=items.optJSONObject(i);if(item==null)continue;
-            String currency=item.optString("currency","COINS").toUpperCase();
-            long balance=wallet.optLong(currency.toLowerCase());
-            boolean noStock=!item.isNull("stock_remaining")&&item.optInt("stock_remaining")<=0;
-            boolean affordable=balance>=item.optLong("price");
-            LinearLayout row=dataRow(item.optString("name","Festival reward"),
-                    item.optString("item_type")+" · "+item.optString("rarity")+" · "+formatNumber(item.optLong("price"))+" "+currency
-                            +" · "+(item.isNull("stock_remaining")?"OPEN STOCK":item.optInt("stock_remaining")+" LEFT"),
-                    noStock?"SOLD OUT":!affordable?"INSUFFICIENT":currency);
-            TextView buy=button("PURCHASE",true);buy.setEnabled(!noStock&&affordable);
-            buy.setOnClickListener(v->confirmAction("Purchase "+item.optString("name")+"?",
-                    "Spend "+formatNumber(item.optLong("price"))+" "+currency+". The server checks price and stock again.",
-                    ()->api.post("/api/events/purchase",payload("itemId",item.optString("item_id")),r->ui.post(()->{
-                        if(!r.ok())showResultDialog("Purchase failed",r.error);
-                        else{showResultDialog("FESTIVAL REWARD ADDED",r.data.optString("message","Purchase completed."));refreshAccount(()->renderTab("events"));}
-                    }))));
-            row.addView(buy,new LinearLayout.LayoutParams(dp(106),dp(34)));content.addView(row,rowParams());
+        addGap(content, 12);
+        JSONObject wallet = data.optJSONObject("wallet");
+        if (wallet == null) wallet = new JSONObject();
+        LinearLayout festival = sectionPanel();
+        festival.setBackground(gradient(Color.rgb(52, 46, 99), Color.rgb(12, 18, 38), VIOLET, dp(17)));
+        festival.addView(text("SEASONAL FESTIVAL · EVENT SHOP", 8, VIOLET, true));
+        festival.addView(text(event.optString("title", "Festival"), 20, TEXT, true));
+        festival.addView(text(event.optString("description", ""), 8, MUTED, false));
+        festival.addView(text("ENDS · " + event.optString("ends_at", ""), 8, GOLD_BRIGHT, true));
+        LinearLayout balances = new LinearLayout(this);
+        balances.setOrientation(LinearLayout.HORIZONTAL);
+        balances.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Balance"), weightParams(1));
+        balances.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Balance"), weightParams(1));
+        balances.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Balance"), weightParams(1));
+        festival.addView(balances);
+        content.addView(festival, rowParams());
+
+        JSONArray items = data.optJSONArray("items");
+        if (items == null) items = new JSONArray();
+        content.addView(text("FESTIVAL MARKET · " + items.length() + " ITEMS", 8, GOLD_BRIGHT, true));
+        for (int i = 0; i < items.length(); i++) {
+            JSONObject item = items.optJSONObject(i);
+            if (item == null) continue;
+            String itemName = item.optString("name", "Festival reward");
+            String currency = item.optString("currency", "COINS").toUpperCase(java.util.Locale.ROOT);
+            long price = item.optLong("price");
+            long balance = wallet.optLong(currency.toLowerCase(java.util.Locale.ROOT));
+            boolean soldOut = !item.isNull("stock_remaining") && item.optLong("stock_remaining") <= 0;
+            boolean affordable = balance >= price;
+            LinearLayout card = sectionPanel();
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout icon = new FrameLayout(this);
+            icon.setBackground(gradient(Color.rgb(69, 42, 92), Color.rgb(15, 20, 41), PINK, dp(12)));
+            TextView glyph = text("✧", 31, PINK, true);
+            glyph.setGravity(Gravity.CENTER);
+            icon.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
+            card.addView(icon, new LinearLayout.LayoutParams(dp(64), dp(70)));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setPadding(dp(10), 0, dp(7), 0);
+            copy.addView(text(item.optString("item_type", "REWARD").toUpperCase() + " · "
+                    + item.optString("rarity", "EVENT"), 7, PINK, true));
+            copy.addView(text(itemName, 11, TEXT, true));
+            copy.addView(text(formatNumber(price) + " " + currency + " · "
+                    + (item.isNull("stock_remaining") ? "OPEN STOCK" : item.optLong("stock_remaining") + " LEFT"),
+                    8, GOLD_BRIGHT, true));
+            card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            TextView buy = button(soldOut ? "SOLD OUT" : !affordable ? "NEED MORE" : "EXCHANGE", true);
+            buy.setEnabled(!soldOut && affordable);
+            buy.setOnClickListener(v -> confirmAction("Purchase " + itemName + "?",
+                    "Spend " + formatNumber(price) + " " + currency + ". Stock and price are checked again by the server.",
+                    () -> api.post("/api/events/purchase", payload("itemId", item.optString("item_id")),
+                            result -> ui.post(() -> {
+                                if (!result.ok()) showResultDialog("Purchase failed", result.error);
+                                else {
+                                    if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                    showResultDialog("FESTIVAL REWARD ADDED", result.data.optString("message", "Purchase completed."));
+                                    refreshAccount(() -> renderTab("events"));
+                                }
+                            }))));
+            card.addView(buy, new LinearLayout.LayoutParams(dp(100), dp(36)));
+            content.addView(card, rowParams());
         }
+        if (items.length() == 0) showNotice("The festival exchange has no active listings.");
     }
 
     private void drawLeaderboard(JSONObject data,String category) {
