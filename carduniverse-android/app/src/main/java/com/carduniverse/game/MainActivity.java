@@ -648,38 +648,41 @@ public final class MainActivity extends Activity {
     private void addScreenHero(String tab) {
         int accent = screenAccent(tab);
         LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.HORIZONTAL);
-        hero.setGravity(Gravity.CENTER_VERTICAL);
-        hero.setPadding(dp(15), dp(12), dp(15), dp(12));
-        hero.setBackground(gradient(
-                Color.rgb(Math.min(255, Color.red(accent) / 3 + 28),
-                        Math.min(255, Color.green(accent) / 4 + 27),
-                        Math.min(255, Color.blue(accent) / 3 + 52)),
-                Color.rgb(9, 15, 32), accent, dp(17)));
-        hero.setElevation(dp(5));
-
+        hero.setOrientation(LinearLayout.VERTICAL);
+        hero.setPadding(dp(3), dp(2), dp(3), dp(10));
+        TextView eyebrow = text("FIRSTLIGHT REALM   /   " + tab.toUpperCase(java.util.Locale.ROOT),
+                7, accent, true);
+        eyebrow.setLetterSpacing(0.17f);
+        hero.addView(eyebrow);
+        LinearLayout titleLine = new LinearLayout(this);
+        titleLine.setOrientation(LinearLayout.HORIZONTAL);
+        titleLine.setGravity(Gravity.CENTER_VERTICAL);
+        TextView heading = text(screenHeading(tab), 23, TEXT, true);
+        heading.setLetterSpacing(-0.015f);
+        titleLine.addView(heading, new LinearLayout.LayoutParams(0, -2, 1f));
         FrameLayout crest = new FrameLayout(this);
-        crest.setBackground(gradient(Color.rgb(35, 39, 78), Color.rgb(14, 20, 42), accent, dp(13)));
-        TextView emblem = text(screenSigil(tab), 31, accent, true);
+        GradientDrawable crestBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(Color.red(accent) / 2 + 18, Color.green(accent) / 2 + 18,
+                        Color.blue(accent) / 2 + 24), Color.rgb(13, 19, 34)});
+        crestBg.setShape(GradientDrawable.OVAL);
+        crestBg.setStroke(dp(1), accent);
+        crest.setBackground(crestBg);
+        TextView emblem = text(screenSigil(tab), 23, accent, true);
         emblem.setGravity(Gravity.CENTER);
         crest.addView(emblem, new FrameLayout.LayoutParams(-1, -1));
-        hero.addView(crest, new LinearLayout.LayoutParams(dp(58), dp(58)));
-
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setPadding(dp(12), 0, 0, 0);
-        TextView eyebrow = text("FIRSTLIGHT REALM  /  LIVE MODULE", 7, accent, true);
-        eyebrow.setLetterSpacing(0.15f);
-        copy.addView(eyebrow);
-        TextView heading = text(screenHeading(tab), 20, TEXT, true);
-        heading.setPadding(0, dp(3), 0, dp(2));
-        copy.addView(heading);
-        TextView description = text(screenDescription(tab), 8, MUTED, false);
+        titleLine.addView(crest, new LinearLayout.LayoutParams(dp(43), dp(43)));
+        hero.addView(titleLine);
+        TextView description = text(screenDescription(tab), 9, MUTED, false);
         description.setMaxLines(2);
-        copy.addView(description);
-        hero.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        description.setPadding(0, dp(3), 0, dp(9));
+        hero.addView(description);
+        View rule = new View(this);
+        rule.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{accent, Color.argb(42, Color.red(accent), Color.green(accent),
+                        Color.blue(accent)), Color.TRANSPARENT}));
+        hero.addView(rule, new LinearLayout.LayoutParams(-1, dp(2)));
         content.addView(hero, rowParams());
-        addGap(content, 11);
+        addGap(content, 7);
     }
 
     private void addModeSpotlight(String eyebrow, String title, String description, String emblem, int accent) {
@@ -960,113 +963,167 @@ public final class MainActivity extends Activity {
     }
 
     
+    private FrameLayout createSummonSeal(int accent, String symbol, int sizeDp) {
+        FrameLayout outer = new FrameLayout(this);
+        GradientDrawable aura = new GradientDrawable();
+        aura.setShape(GradientDrawable.OVAL);
+        aura.setColor(Color.rgb(Color.red(accent) / 5 + 21,
+                Color.green(accent) / 5 + 20, Color.blue(accent) / 5 + 31));
+        aura.setStroke(dp(1), accent);
+        outer.setBackground(aura);
+        FrameLayout ring = new FrameLayout(this);
+        GradientDrawable ringShape = new GradientDrawable();
+        ringShape.setShape(GradientDrawable.OVAL);
+        ringShape.setColor(Color.TRANSPARENT);
+        ringShape.setStroke(dp(2), Color.argb(220, Color.red(accent),
+                Color.green(accent), Color.blue(accent)));
+        ring.setBackground(ringShape);
+        outer.addView(ring, new FrameLayout.LayoutParams(dp(sizeDp - 20),
+                dp(sizeDp - 20), Gravity.CENTER));
+        FrameLayout inner = new FrameLayout(this);
+        GradientDrawable innerBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(55, 48, 91), Color.rgb(12, 20, 39)});
+        innerBg.setShape(GradientDrawable.OVAL);
+        innerBg.setStroke(dp(1), Color.argb(150, 230, 220, 255));
+        inner.setBackground(innerBg);
+        outer.addView(inner, new FrameLayout.LayoutParams(dp(sizeDp - 42),
+                dp(sizeDp - 42), Gravity.CENTER));
+        TextView mark = text(symbol, Math.max(23, sizeDp / 3), accent, true);
+        mark.setGravity(Gravity.CENTER);
+        inner.addView(mark, new FrameLayout.LayoutParams(-1, -1));
+        for (int i = 0; i < 4; i++) {
+            TextView star = text("✦", 7, accent, true);
+            FrameLayout.LayoutParams p = new FrameLayout.LayoutParams(dp(10), dp(10));
+            if (i == 0) p.gravity = Gravity.TOP | Gravity.CENTER_HORIZONTAL;
+            else if (i == 1) p.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
+            else if (i == 2) p.gravity = Gravity.CENTER_VERTICAL | Gravity.LEFT;
+            else p.gravity = Gravity.CENTER_VERTICAL | Gravity.RIGHT;
+            outer.addView(star, p);
+        }
+        return outer;
+    }
+
     private void renderPacks(JSONObject data) {
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
         boolean unlimited = data.optBoolean("unlimited") || isGodModeEnabled();
-        addModeSpotlight("SUMMON HALL · THE ASTRAL GATE", "Break the seal. Meet your next legend.",
-                "Choose a pack, open the seal and reveal the cards added to your collection.",
-                "✧", VIOLET);
         int totalQuantity = 0;
         for (int i = 0; i < packs.length(); i++) {
             JSONObject p = packs.optJSONObject(i);
             if (p != null) totalQuantity += Math.max(0, p.optInt("quantity"));
         }
-        LinearLayout inventory = new LinearLayout(this);
-        inventory.setOrientation(LinearLayout.HORIZONTAL);
-        inventory.addView(statCard("PACK TYPES", String.valueOf(packs.length()), "Available seals"), weightParams(1));
-        inventory.addView(statCard("INVENTORY", unlimited ? "∞" : formatNumber(totalQuantity),
-                unlimited ? "Master access" : "Pack entries"), weightParams(1));
-        inventory.addView(statCard("SUMMON ACCESS", unlimited ? "UNLIMITED" : "PLAYER",
-                unlimited ? "God Mode" : "Standard"), weightParams(1));
-        content.addView(inventory);
-        addGap(content, 9);
+        LinearLayout shrine = sectionPanel();
+        shrine.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(49, 40, 88), Color.rgb(11, 16, 32)}));
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.HORIZONTAL);
+        hero.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout gate = createSummonSeal(VIOLET, "✧", 104);
+        hero.addView(gate, new LinearLayout.LayoutParams(dp(104), dp(104)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(13), 0, 0, 0);
+        copy.addView(text("SUMMON SANCTUM", 8, Color.rgb(199, 175, 255), true));
+        copy.addView(text("The Astral Gate", 21, TEXT, true));
+        copy.addView(text("Break a seal. Discover a new legend.", 8, MUTED, false));
+        copy.addView(text(unlimited ? "GOD MODE · UNLIMITED SUMMONS"
+                : totalQuantity + " PACKS READY TO OPEN", 8, GOLD_BRIGHT, true));
+        hero.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        shrine.addView(hero);
+        LinearLayout metrics = new LinearLayout(this);
+        metrics.setOrientation(LinearLayout.HORIZONTAL);
+        metrics.addView(statCard("PACK TYPES", String.valueOf(packs.length()), "Available"), weightParams(1));
+        metrics.addView(statCard("INVENTORY", unlimited ? "∞" : formatNumber(totalQuantity),
+                unlimited ? "Master access" : "Ready to summon"), weightParams(1));
+        shrine.addView(metrics);
+        content.addView(shrine, rowParams());
+
+        content.addView(text("AVAILABLE SUMMON SEALS", 8, GOLD_BRIGHT, true));
         for (int i = 0; i < packs.length(); i++) {
             JSONObject pack = packs.optJSONObject(i);
             if (pack == null) continue;
-            final JSONObject selectedPack = pack;
             String slug = pack.optString("slug", "");
             String name = pack.optString("name", "Summon pack");
             int quantity = pack.optInt("quantity");
             String currency = pack.optString("currency", "COINS");
             long price = pack.optLong("price");
-            int accent = i % 3 == 0 ? VIOLET : i % 3 == 1 ? CYAN : GOLD_BRIGHT;
+            int perPack = Math.max(1, pack.optInt("cards_per_pack", 1));
+            int accent = i % 4 == 0 ? VIOLET : i % 4 == 1 ? CYAN
+                    : i % 4 == 2 ? GOLD_BRIGHT : PINK;
+            boolean canOpen = quantity > 0 || unlimited;
+
             LinearLayout card = sectionPanel();
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
             card.setPadding(dp(12), dp(12), dp(12), dp(12));
-            card.setBackground(gradient(
-                    Color.rgb(Color.red(accent) / 4 + 35, Color.green(accent) / 4 + 30, Color.blue(accent) / 4 + 40),
-                    Color.rgb(10, 16, 34), accent, dp(17)));
-            LinearLayout top = new LinearLayout(this);
-            top.setOrientation(LinearLayout.HORIZONTAL);
-            top.setGravity(Gravity.CENTER_VERTICAL);
-            FrameLayout seal = new FrameLayout(this);
-            seal.setBackground(gradient(Color.rgb(72, 51, 128), Color.rgb(19, 26, 54), accent, dp(15)));
-            TextView sigil = text(i % 3 == 0 ? "✧" : i % 3 == 1 ? "✦" : "◇", 39, accent, true);
-            sigil.setGravity(Gravity.CENTER);
-            seal.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
-            top.addView(seal, new LinearLayout.LayoutParams(dp(88), dp(102)));
+            card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    new int[]{Color.rgb(Color.red(accent) / 5 + 28, Color.green(accent) / 5 + 26,
+                            Color.blue(accent) / 5 + 35), Color.rgb(11, 17, 31)}));
+            FrameLayout seal = createSummonSeal(accent,
+                    i % 4 == 0 ? "✧" : i % 4 == 1 ? "✦" : i % 4 == 2 ? "◇" : "☼", 112);
+            card.addView(seal, new LinearLayout.LayoutParams(dp(112), dp(112)));
             LinearLayout info = new LinearLayout(this);
             info.setOrientation(LinearLayout.VERTICAL);
-            info.setPadding(dp(12), 0, 0, 0);
-            info.addView(text("ASTRAL SEAL · " + pack.optInt("cards_per_pack") + " CARDS", 7, accent, true));
-            info.addView(text(name, 15, TEXT, true));
+            info.setPadding(dp(13), 0, dp(9), 0);
+            info.addView(text("ASTRAL SEAL · " + perPack + " CARDS", 7, accent, true));
+            TextView title = text(name, 16, TEXT, true);
+            title.setMaxLines(2);
+            info.addView(title);
             TextView description = text(pack.optString("description",
-                    "A sealed collection of Firstlight cards."), 8, MUTED, false);
+                    "A sealed selection from the Firstlight Realm."), 8, MUTED, false);
             description.setMaxLines(2);
             info.addView(description);
-            info.addView(text(unlimited ? "MASTER ACCESS · UNLIMITED OPENINGS"
-                    : "IN STOCK · " + quantity + " · " + currency + " " + formatNumber(price),
-                    8, GOLD_BRIGHT, true));
-            if (pack.has("pity_count")) info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count"),
-                    7, PINK, true));
-            top.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
-            card.addView(top);
+            info.addView(text(canOpen ? (unlimited ? "INFINITE SUMMON ACCESS" : "IN STOCK · " + quantity)
+                    : "OUT OF STOCK", 8, GOLD_BRIGHT, true));
+            if (pack.has("pity_count"))
+                info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count"), 7, PINK, true));
+            info.addView(text("COST · " + formatNumber(price) + " " + currency, 7, MUTED, true));
 
             LinearLayout actions = new LinearLayout(this);
-            actions.setOrientation(LinearLayout.HORIZONTAL);
-            actions.setGravity(Gravity.CENTER_VERTICAL);
-            TextView open = button(quantity > 0 || unlimited ? "✧ OPEN PACK" : "NO STOCK",
-                    quantity > 0 || unlimited);
-            open.setEnabled(quantity > 0 || unlimited);
+            actions.setOrientation(LinearLayout.VERTICAL);
+            actions.setGravity(Gravity.CENTER);
+            TextView open = button(canOpen ? "OPEN SEAL" : "LOCKED", canOpen);
+            open.setEnabled(canOpen);
             open.setOnClickListener(v -> confirmAction("Open " + name + "?",
-                    "One seal will be opened and all revealed cards will enter your collection.", () -> {
-                JSONObject request = new JSONObject();
-                try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
-                open.setEnabled(false);
-                open.setText("OPENING...");
-                api.post("/api/packs/" + slug + "/open", request, result -> ui.post(() -> {
-                    open.setEnabled(true);
-                    open.setText("✧ OPEN PACK");
-                    if (!result.ok()) {
-                        if (sfxEnabled && gameAudio != null) gameAudio.playError();
-                        showResultDialog("Pack could not be opened", result.error);
-                        return;
-                    }
-                    if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
-                    showPackRevealDialog(result.data.optJSONArray("cards"));
-                }));
-            }));
-            actions.addView(open, new LinearLayout.LayoutParams(0, dp(40), 1f));
-            if (quantity <= 0 && !unlimited && "COINS".equalsIgnoreCase(currency) && price > 0) {
-                TextView buy = button("BUY · " + formatNumber(price) + " GOLD", false);
-                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(0, dp(40), 1f);
-                bp.leftMargin = dp(8);
+                    "One seal will reveal " + perPack + " card" + (perPack == 1 ? "" : "s")
+                            + " and add them to your collection.", () -> {
+                        JSONObject request = new JSONObject();
+                        try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
+                        open.setEnabled(false);
+                        open.setText("OPENING...");
+                        api.post("/api/packs/" + slug + "/open", request, result -> ui.post(() -> {
+                            open.setEnabled(true);
+                            open.setText("OPEN SEAL");
+                            if (!result.ok()) {
+                                if (sfxEnabled && gameAudio != null) gameAudio.playError();
+                                showResultDialog("Summon failed", result.error);
+                                return;
+                            }
+                            if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                            showPackRevealDialog(result.data.optJSONArray("cards"));
+                        }));
+                    }));
+            actions.addView(open, new LinearLayout.LayoutParams(dp(112), dp(39)));
+            if (!canOpen && "COINS".equalsIgnoreCase(currency) && price > 0) {
+                TextView buy = button("BUY · " + formatNumber(price) + "G", false);
+                LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(dp(112), dp(35));
+                bp.topMargin = dp(7);
                 actions.addView(buy, bp);
-                buy.setOnClickListener(v -> confirmAction("Purchase " + name + "?",
-                        "Spend " + formatNumber(price) + " Gold to add one pack to your inventory.", () ->
+                buy.setOnClickListener(v -> confirmAction("Acquire " + name + "?",
+                        "Spend " + formatNumber(price) + " Gold for one summon seal.", () ->
                         api.post("/api/packs/" + slug + "/buy", new JSONObject(), result -> ui.post(() -> {
                             if (!result.ok()) showResultDialog("Purchase failed", result.error);
                             else {
-                                if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
-                                showResultDialog("SEAL ACQUIRED", result.data.optString("message", "Pack added to your inventory."));
+                                showResultDialog("SEAL ACQUIRED", result.data.optString("message", "Pack added to inventory."));
                                 refreshAccount(() -> renderTab("summon"));
                             }
                         }))));
             }
-            card.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+            card.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+            card.addView(actions);
             content.addView(card, rowParams());
         }
-        if (packs.length() == 0) showNotice("No packs are currently available.");
+        if (packs.length() == 0) showNotice("No summon seals are available right now.");
     }
     private void renderArena(JSONObject data) {
 if (isAdminAccount() || data.optBoolean("rankedHidden")) {
@@ -2095,10 +2152,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         return body;
     }
 
-    private void renderCollection(JSONObject data) {
-addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catalogue, filter by rarity and inspect each card in a full-art showcase.", "▧", CYAN);
-
-        JSONArray cards = data.optJSONArray("cards");
+    private void renderCollection(JSONObject data) {JSONArray cards = data.optJSONArray("cards");
         if (cards == null) {
             showNotice("No card data was returned.");
             return;
@@ -2196,7 +2250,7 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
 
             int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
                     / getResources().getDisplayMetrics().density);
-            int columns = widthDp >= 1100 ? 4 : widthDp >= 800 ? 3 : 2;
+            int columns = widthDp >= 1350 ? 6 : widthDp >= 1000 ? 5 : widthDp >= 700 ? 4 : 3;
             LinearLayout currentRow = null;
             for (int i = 0; i < filtered.size(); i++) {
                 if (i % columns == 0) {
@@ -2257,55 +2311,71 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         String name = card.optString("name", "Unknown Card");
         String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
         String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
+        String code = card.optString("card_code", "CARD");
         int copies = card.optInt("owned_count");
         int accent = cardRarityColor(rarity);
+
         LinearLayout tile = new LinearLayout(this);
         tile.setOrientation(LinearLayout.VERTICAL);
-        tile.setPadding(dp(7), dp(7), dp(7), dp(8));
-        GradientDrawable frame = gradient(Color.rgb(31, 42, 73), Color.rgb(10, 16, 32), accent, dp(15));
+        tile.setPadding(dp(4), dp(4), dp(4), dp(7));
+        GradientDrawable frame = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(36, 47, 68), Color.rgb(11, 16, 28)});
+        frame.setCornerRadius(dp(12));
         frame.setStroke(dp(1), accent);
         tile.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(Color.argb(55, 255, 255, 255)), frame, null));
-        tile.setMinimumHeight(dp(224));
-        tile.setElevation(dp(4));
-        FrameLayout art = new FrameLayout(this);
-        art.setBackground(gradient(Color.rgb(Color.red(accent) / 3 + 12,
-                Color.green(accent) / 3 + 13, Color.blue(accent) / 3 + 22),
-                Color.rgb(7, 13, 27), accent, dp(11)));
-        TextView sigil = text(elementSigil(element), 39, accent, true);
-        sigil.setGravity(Gravity.CENTER);
-        sigil.setAlpha(0.19f);
-        art.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
+                android.content.res.ColorStateList.valueOf(Color.argb(50, 255, 255, 255)),
+                frame, null));
+        tile.setElevation(dp(2));
+
+        FrameLayout artFrame = new FrameLayout(this);
+        artFrame.setBackgroundColor(Color.rgb(7, 12, 22));
+        artFrame.setClipToOutline(true);
         CardArtView illustration = new CardArtView(this);
+        illustration.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
         illustration.loadArtwork(cardArtworkPath(card));
-        FrameLayout.LayoutParams artParams = new FrameLayout.LayoutParams(-1, -1);
-        artParams.setMargins(dp(3), dp(2), dp(3), dp(2));
-        art.addView(illustration, artParams);
+        artFrame.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
+
+        View shade = new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.TRANSPARENT, Color.argb(220, 4, 8, 16)}));
+        artFrame.addView(shade, new FrameLayout.LayoutParams(-1, dp(58), Gravity.BOTTOM));
+
         TextView rarityTag = text(rarity, 7, Color.WHITE, true);
         rarityTag.setGravity(Gravity.CENTER);
         rarityTag.setPadding(dp(7), dp(5), dp(7), dp(5));
-        rarityTag.setBackground(gradient(accent, Color.rgb(Color.red(accent) / 2,
-                Color.green(accent) / 2, Color.blue(accent) / 2), accent, dp(8)));
+        GradientDrawable rarityBg = new GradientDrawable();
+        rarityBg.setColor(Color.argb(225, Color.red(accent) / 2,
+                Color.green(accent) / 2, Color.blue(accent) / 2));
+        rarityBg.setCornerRadius(dp(6));
+        rarityBg.setStroke(dp(1), accent);
+        rarityTag.setBackground(rarityBg);
         FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
         rp.setMargins(dp(6), dp(6), 0, 0);
-        art.addView(rarityTag, rp);
-        TextView count = text(copies > 0 ? "×" + copies : "NEW", 7,
-                copies > 0 ? Color.WHITE : Color.rgb(220, 230, 255), true);
-        count.setGravity(Gravity.CENTER);
-        count.setPadding(dp(7), dp(5), dp(7), dp(5));
-        count.setBackground(gradient(Color.rgb(16, 25, 47), Color.rgb(10, 16, 30),
-                copies > 0 ? GREEN : Color.rgb(91, 117, 161), dp(8)));
+        artFrame.addView(rarityTag, rp);
+
+        TextView copyTag = text(copies > 0 ? "×" + copies : "NEW", 7, Color.WHITE, true);
+        copyTag.setGravity(Gravity.CENTER);
+        copyTag.setPadding(dp(7), dp(5), dp(7), dp(5));
+        GradientDrawable copyBg = new GradientDrawable();
+        copyBg.setColor(Color.argb(225, 12, 19, 33));
+        copyBg.setCornerRadius(dp(6));
+        copyBg.setStroke(dp(1), copies > 0 ? GREEN : Color.rgb(99, 119, 156));
+        copyTag.setBackground(copyBg);
         FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
         cp.setMargins(0, dp(6), dp(6), 0);
-        art.addView(count, cp);
-        tile.addView(art, new LinearLayout.LayoutParams(-1, dp(144)));
-        TextView title = text(name, 10, TEXT, true);
-        title.setMaxLines(2);
-        title.setPadding(dp(2), dp(7), dp(2), dp(1));
-        tile.addView(title);
-        TextView meta = text(card.optString("card_code", "CARD") + "  ·  " + element, 7, MUTED, false);
-        meta.setMaxLines(1);
-        meta.setPadding(dp(2), 0, dp(2), dp(2));
+        artFrame.addView(copyTag, cp);
+
+        TextView artworkName = text(name, 12, Color.WHITE, true);
+        artworkName.setMaxLines(2);
+        artworkName.setPadding(dp(8), 0, dp(8), dp(7));
+        artFrame.addView(artworkName, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
+                / getResources().getDisplayMetrics().density);
+        int artHeight = widthDp >= 1350 ? 218 : widthDp >= 1000 ? 205 : 188;
+        tile.addView(artFrame, new LinearLayout.LayoutParams(-1, dp(artHeight)));
+        TextView meta = text(code + "    ·    " + element, 7, MUTED, true);
+        meta.setPadding(dp(5), dp(7), dp(5), 0);
+        meta.setGravity(Gravity.CENTER);
         tile.addView(meta);
         tile.setOnClickListener(v -> showCardDetails(card));
         return tile;
@@ -2335,33 +2405,79 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         }
     }
 
-    private void showCardDetails(JSONObject c) {
-        String rarity = c.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
-        String element = c.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
+    private void showCardDetails(JSONObject card) {
+        String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+        String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
         int accent = cardRarityColor(rarity);
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14), dp(8), dp(14), dp(8));
-        panel.setBackground(gradient(PANEL_LIGHT, PANEL, accent, dp(14)));
-        FrameLayout showcase = new FrameLayout(this);
-        showcase.setBackground(gradient(Color.rgb(24, 38, 35), Color.rgb(8, 16, 19), accent, dp(12)));
-        TextView fallback = text(elementSigil(element), 42, accent, true);
-        fallback.setGravity(Gravity.CENTER);
-        fallback.setAlpha(0.22f);
-        showcase.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(13), dp(13), dp(13), dp(13));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(25, 36, 57), Color.rgb(8, 13, 24)});
+        bg.setCornerRadius(dp(16));
+        bg.setStroke(dp(1), accent);
+        shell.setBackground(bg);
+
+        LinearLayout top = new LinearLayout(this);
+        top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(text("CARD ARCHIVE  /  DETAILS", 7, accent, true),
+                new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView close = button("CLOSE", false);
+        close.setOnClickListener(v -> dialog.dismiss());
+        top.addView(close, new LinearLayout.LayoutParams(dp(78), dp(34)));
+        shell.addView(top);
+
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.HORIZONTAL);
+        body.setGravity(Gravity.CENTER_VERTICAL);
+        body.setPadding(0, dp(10), 0, dp(10));
+        FrameLayout artFrame = new FrameLayout(this);
+        artFrame.setBackground(gradient(Color.rgb(22, 35, 52), Color.rgb(5, 10, 18), accent, dp(11)));
         CardArtView art = new CardArtView(this);
-        art.loadArtwork(cardArtworkPath(c));
-        showcase.addView(art, new FrameLayout.LayoutParams(-1, -1));
-        panel.addView(showcase, new LinearLayout.LayoutParams(-1, dp(220)));
-        TextView code = text(c.optString("card_code", "CARD") + "  ·  " + rarity + "  ·  " + element, 8, GOLD_BRIGHT, true);
-        code.setPadding(0, dp(10), 0, dp(5));
-        panel.addView(code);
-        TextView description = text(c.optString("description", "A collectible from the Firstlight Realm."), 10, MUTED, false);
-        description.setLineSpacing(dp(3), 1f);
-        panel.addView(description);
-        panel.addView(text("OWNED COPIES  ·  " + c.optInt("owned_count"), 8, GREEN, true));
-        new AlertDialog.Builder(this).setTitle(c.optString("name", "Card Details"))
-                .setView(panel).setPositiveButton("CLOSE", null).show();
+        art.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        art.loadArtwork(cardArtworkPath(card));
+        FrameLayout.LayoutParams ap = new FrameLayout.LayoutParams(-1, -1);
+        ap.setMargins(dp(3), dp(3), dp(3), dp(3));
+        artFrame.addView(art, ap);
+        body.addView(artFrame, new LinearLayout.LayoutParams(dp(218), dp(294)));
+
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(16), 0, dp(6), 0);
+        info.addView(text(card.optString("card_code", "CARD"), 8, accent, true));
+        TextView name = text(card.optString("name", "Card Details"), 22, TEXT, true);
+        name.setMaxLines(2);
+        info.addView(name);
+        info.addView(text(rarity + "  ·  " + element, 8, GOLD_BRIGHT, true));
+        TextView description = text(card.optString("description",
+                "A collectible from the Firstlight Realm."), 10, MUTED, false);
+        description.setLineSpacing(dp(3), 1.03f);
+        LinearLayout.LayoutParams descParams = new LinearLayout.LayoutParams(-1, -2);
+        descParams.topMargin = dp(10);
+        info.addView(description, descParams);
+        View rule = new View(this);
+        rule.setBackgroundColor(Color.rgb(51, 67, 88));
+        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(-1, dp(1));
+        rp.topMargin = dp(11);
+        rp.bottomMargin = dp(9);
+        info.addView(rule, rp);
+        info.addView(text("OWNED COPIES", 7, MUTED, true));
+        info.addView(text(String.valueOf(card.optInt("owned_count")), 19, GREEN, true));
+        body.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+        shell.addView(body);
+
+        dialog.setContentView(shell);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(760), getResources().getDisplayMetrics().widthPixels - dp(40)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setWindowAnimations(android.R.style.Animation_Dialog);
+        }
     }
 
     private void loadDuplicateConversionPanel() {
@@ -2753,7 +2869,7 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         } else {
             int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
                     / getResources().getDisplayMetrics().density);
-            int columns = widthDp >= 1100 ? 4 : widthDp >= 760 ? 3 : 2;
+            int columns = widthDp >= 1350 ? 6 : widthDp >= 1000 ? 5 : widthDp >= 700 ? 4 : 3;
             LinearLayout grid = null;
             int visible = 0;
             for (int i = 0; i < inventory.length(); i++) {
@@ -3084,73 +3200,127 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         JSONObject active = data.optJSONObject("activeBinder");
         if (binders == null) binders = new JSONArray();
         if (cards == null) cards = new JSONArray();
+        String activeName = active == null ? "Genesis Archive" : active.optString("name", "Genesis Archive");
 
-        addModeSpotlight("ARCHIVE COLLECTION", "Your personal binder vault",
-                "Curate themed shelves, keep prized pulls together and switch your active collection.",
-                "▤", CYAN);
-        LinearLayout activePanel = sectionPanel();
-        activePanel.setOrientation(LinearLayout.HORIZONTAL);
-        activePanel.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout cover = new FrameLayout(this);
-        cover.setBackground(gradient(Color.rgb(45, 61, 102), Color.rgb(13, 20, 42), CYAN, dp(12)));
-        TextView coverMark = text("▤", 38, CYAN, true);
-        coverMark.setGravity(Gravity.CENTER);
-        cover.addView(coverMark, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout feature = sectionPanel();
+        feature.setOrientation(LinearLayout.HORIZONTAL);
+        feature.setGravity(Gravity.CENTER_VERTICAL);
+        feature.setPadding(dp(14), dp(14), dp(14), dp(14));
+        feature.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(36, 59, 77), Color.rgb(12, 19, 33)}));
+        FrameLayout book = new FrameLayout(this);
+        GradientDrawable coverBg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{Color.rgb(42, 87, 105), Color.rgb(17, 36, 57), Color.rgb(27, 52, 76)});
+        coverBg.setCornerRadius(dp(8));
+        coverBg.setStroke(dp(1), CYAN);
+        book.setBackground(coverBg);
+        View spine = new View(this);
+        spine.setBackgroundColor(Color.argb(190, 100, 208, 218));
+        book.addView(spine, new FrameLayout.LayoutParams(dp(4), -1, Gravity.LEFT));
         if (cards.length() > 0 && cards.optJSONObject(0) != null) {
-            CardArtView art = new CardArtView(this);
-            art.loadArtwork(cardArtworkPath(cards.optJSONObject(0)));
-            cover.addView(art, new FrameLayout.LayoutParams(-1, -1));
+            CardArtView coverArt = new CardArtView(this);
+            coverArt.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            coverArt.setAlpha(0.86f);
+            coverArt.loadArtwork(cardArtworkPath(cards.optJSONObject(0)));
+            FrameLayout.LayoutParams coverParams = new FrameLayout.LayoutParams(-1, -1);
+            coverParams.setMargins(dp(7), dp(7), dp(7), dp(7));
+            book.addView(coverArt, coverParams);
+        } else {
+            TextView emblem = text("✦", 38, GOLD_BRIGHT, true);
+            emblem.setGravity(Gravity.CENTER);
+            book.addView(emblem, new FrameLayout.LayoutParams(-1, -1));
         }
-        activePanel.addView(cover, new LinearLayout.LayoutParams(dp(88), dp(108)));
+        View shade = new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.TRANSPARENT, Color.argb(165, 4, 12, 23)}));
+        book.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+        feature.addView(book, new LinearLayout.LayoutParams(dp(112), dp(142)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setPadding(dp(12), 0, 0, 0);
-        copy.addView(text("ACTIVE BINDER", 7, CYAN, true));
-        copy.addView(text(active == null ? "Genesis Archive" : active.optString("name", "Genesis Archive"), 16, TEXT, true));
-        copy.addView(text(cards.length() + " UNIQUE CARDS · " + binders.length() + " BINDERS", 8, GOLD_BRIGHT, true));
-        copy.addView(text("A dedicated home for your favourite cards and themed collections.", 8, MUTED, false));
-        activePanel.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-        content.addView(activePanel, rowParams());
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setOrientation(LinearLayout.HORIZONTAL);
-        TextView create = button("＋ CREATE BINDER", true);
+        copy.setPadding(dp(14), 0, 0, 0);
+        copy.addView(text("ACTIVE COLLECTION", 7, CYAN, true));
+        TextView name = text(activeName, 18, TEXT, true);
+        name.setMaxLines(2);
+        copy.addView(name);
+        copy.addView(text(cards.length() + " CARDS IN THIS BINDER", 8, GOLD_BRIGHT, true));
+        copy.addView(text(binders.length() + " PERSONAL BINDERS · TAP A COVER TO MANAGE",
+                7, MUTED, false));
+        TextView create = button("＋ NEW BINDER", true);
         create.setOnClickListener(v -> showCreateBinderDialog());
-        actions.addView(create, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        TextView cardsButton = button("VIEW CARDS", false);
-        cardsButton.setOnClickListener(v -> renderTab("collection"));
-        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(0, dp(42), 1f);
-        vp.leftMargin = dp(8);
-        actions.addView(cardsButton, vp);
-        content.addView(actions, rowParams());
+        LinearLayout.LayoutParams createParams = new LinearLayout.LayoutParams(dp(150), dp(36));
+        createParams.topMargin = dp(9);
+        copy.addView(create, createParams);
+        feature.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        content.addView(feature, rowParams());
 
-        content.addView(text("YOUR BINDER LIBRARY", 8, GOLD_BRIGHT, true));
-        for (int i = 0; i < binders.length(); i++) {
-            JSONObject binder = binders.optJSONObject(i);
-            if (binder == null) continue;
-            boolean selected = binder.optInt("is_active") == 1;
-            LinearLayout row = dataRow(binder.optString("name", "Untitled binder"),
-                    binder.optString("theme_key", "classic").toUpperCase(java.util.Locale.ROOT)
-                            + " THEME · " + binder.optInt("card_count") + " UNIQUE CARDS",
-                    selected ? "ACTIVE" : "MANAGE");
-            if (selected) row.setBackground(gradient(Color.rgb(25, 65, 74), Color.rgb(11, 19, 36), CYAN, dp(13)));
-            row.setOnClickListener(v -> showBinderActions(binder));
-            content.addView(row, rowParams());
+        if (binders.length() > 0) {
+            content.addView(text("YOUR BINDER SHELF", 8, GOLD_BRIGHT, true));
+            android.widget.HorizontalScrollView scroll = new android.widget.HorizontalScrollView(this);
+            scroll.setHorizontalScrollBarEnabled(false);
+            LinearLayout shelf = new LinearLayout(this);
+            shelf.setOrientation(LinearLayout.HORIZONTAL);
+            shelf.setPadding(0, dp(4), 0, dp(7));
+            scroll.addView(shelf);
+            for (int i = 0; i < binders.length(); i++) {
+                JSONObject binder = binders.optJSONObject(i);
+                if (binder == null) continue;
+                boolean selected = binder.optInt("is_active") == 1;
+                int accent = selected ? CYAN : VIOLET;
+                LinearLayout coverCard = new LinearLayout(this);
+                coverCard.setOrientation(LinearLayout.VERTICAL);
+                coverCard.setPadding(dp(7), dp(7), dp(7), dp(8));
+                GradientDrawable coverStyle = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                        selected ? new int[]{Color.rgb(35, 83, 95), Color.rgb(14, 29, 48)}
+                                : new int[]{Color.rgb(49, 50, 87), Color.rgb(19, 24, 45)});
+                coverStyle.setCornerRadius(dp(9));
+                coverStyle.setStroke(dp(1), selected ? CYAN : Color.rgb(71, 81, 117));
+                coverCard.setBackground(coverStyle);
+                FrameLayout icon = new FrameLayout(this);
+                icon.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                        new int[]{Color.rgb(52, 79, 112), Color.rgb(17, 28, 49)}));
+                TextView glyph = text(selected ? "✦" : "▤", 29, accent, true);
+                glyph.setGravity(Gravity.CENTER);
+                icon.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
+                coverCard.addView(icon, new LinearLayout.LayoutParams(dp(102), dp(82)));
+                TextView binderName = text(binder.optString("name", "Untitled Binder"), 9, TEXT, true);
+                binderName.setMaxLines(2);
+                binderName.setPadding(0, dp(6), 0, 0);
+                coverCard.addView(binderName);
+                coverCard.addView(text(binder.optInt("card_count") + " CARDS · "
+                        + (selected ? "ACTIVE" : "OPEN"), 7, accent, true));
+                coverCard.setOnClickListener(v -> showBinderActions(binder));
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(118), -2);
+                cp.rightMargin = dp(8);
+                shelf.addView(coverCard, cp);
+            }
+            content.addView(scroll, rowParams());
         }
 
-        addGap(content, 6);
-        content.addView(text("CARDS IN ACTIVE BINDER", 8, GOLD_BRIGHT, true));
+        LinearLayout heading = new LinearLayout(this);
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        heading.addView(text("CARDS IN ACTIVE BINDER", 8, GOLD_BRIGHT, true),
+                new LinearLayout.LayoutParams(0, -2, 1f));
+        heading.addView(text(String.valueOf(cards.length()), 8, CYAN, true));
+        content.addView(heading);
         if (cards.length() == 0) {
-            showNotice("This binder is empty. Your full archive remains safe under Cards.");
+            LinearLayout empty = sectionPanel();
+            empty.setGravity(Gravity.CENTER);
+            empty.addView(text("THIS BINDER IS EMPTY", 10, TEXT, true));
+            empty.addView(text("Add cards from your archive to start curating this collection.", 8, MUTED, false));
+            TextView viewCards = button("OPEN CARD ARCHIVE", false);
+            viewCards.setOnClickListener(v -> renderTab("collection"));
+            empty.addView(viewCards, new LinearLayout.LayoutParams(dp(175), dp(36)));
+            content.addView(empty, rowParams());
         } else {
-            int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density);
-            int columns = widthDp >= 1100 ? 4 : widthDp >= 760 ? 3 : 2;
+            int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
+                    / getResources().getDisplayMetrics().density);
+            int columns = widthDp >= 1350 ? 6 : widthDp >= 1000 ? 5 : widthDp >= 700 ? 4 : 3;
             LinearLayout grid = null;
-            int added = 0;
+            int visible = 0;
             for (int i = 0; i < cards.length(); i++) {
                 JSONObject card = cards.optJSONObject(i);
                 if (card == null) continue;
-                if (added % columns == 0) {
+                if (visible % columns == 0) {
                     grid = new LinearLayout(this);
                     grid.setOrientation(LinearLayout.HORIZONTAL);
                     content.addView(grid, new LinearLayout.LayoutParams(-1, -2));
@@ -3159,8 +3329,12 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
                 LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
                 p.setMargins(dp(3), dp(3), dp(3), dp(6));
                 grid.addView(tile, p);
-                added++;
+                visible++;
             }
+            int remainder = visible % columns;
+            if (remainder != 0 && grid != null)
+                for (int i = remainder; i < columns; i++)
+                    grid.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
         }
     }
 
@@ -3177,57 +3351,116 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
 
 
     private void renderAchievements(JSONObject data) {
-        JSONArray list=data.optJSONArray("achievements");
-        JSONObject metrics=data.optJSONObject("metrics");
-        if(list==null)list=new JSONArray();
-        int unlocked=0,claimed=0,ready=0;
-        for(int i=0;i<list.length();i++){
-            JSONObject a=list.optJSONObject(i);if(a==null)continue;
-            if(!a.isNull("unlocked_at")){unlocked++;if(a.isNull("claimed_at"))ready++;}
-            if(!a.isNull("claimed_at"))claimed++;
-        }
-        LinearLayout stats=new LinearLayout(this);
-        stats.addView(statCard("UNLOCKED",String.valueOf(unlocked),"Records earned"),weightParams(1));
-        stats.addView(statCard("CLAIMED",String.valueOf(claimed),"Rewards collected"),weightParams(1));
-        stats.addView(statCard("READY",String.valueOf(ready),"Awaiting claim"),weightParams(1));
-        content.addView(stats);addGap(content,12);
-        if(metrics!=null){
-            content.addView(text("YOUR LIFETIME RECORDS",8,GOLD,true));
-            content.addView(text("Cards "+metrics.optInt("unique_cards")+" · Adventure clears "+metrics.optInt("adventure_clears")
-                    +" · Boss clears "+metrics.optInt("boss_clears")+" · Packs opened "+metrics.optInt("packs_opened")
-                    +" · Collector Lv "+metrics.optInt("collector_level"),8,MUTED,false));
-            addGap(content,10);
-        }
-        content.addView(text("ACHIEVEMENT REGISTER",8,GOLD,true));
-        if(list.length()==0){showNotice("No active achievements are configured yet.");return;}
-        for(int i=0;i<list.length();i++){
-            JSONObject a=list.optJSONObject(i);if(a==null)continue;
-            int progress=a.optInt("progress"),target=Math.max(1,a.optInt("target"));
-            int pct=Math.min(100,Math.round(progress*100f/target));
-            boolean isUnlocked=!a.isNull("unlocked_at"),isClaimed=!a.isNull("claimed_at");
-            String status=isClaimed?"CLAIMED":isUnlocked?"UNLOCKED":"IN PROGRESS";
-            LinearLayout panel=sectionPanel();
-            panel.addView(text(a.optString("title","Achievement"),13,TEXT,true));
-            panel.addView(text(a.optString("description",""),8,MUTED,false));
-            panel.addView(text(status+" · "+progress+" / "+target+" · "+pct+"%",8,GOLD_BRIGHT,true));
-            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
-            bar.setMax(100);bar.setProgress(pct);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(isUnlocked?GREEN:GOLD));
-            panel.addView(bar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(7)));
-            panel.addView(text("REWARD · "+formatNumber(a.optLong("reward_coins"))+" Gold · "
-                    +formatNumber(a.optLong("reward_xp"))+" EXP"+(a.isNull("reward_cosmetic_id")?"":" · Cosmetic"),
-                    8,GOLD_BRIGHT,true));
-            if(isUnlocked&&!isClaimed){
-                TextView claim=button("CLAIM REWARD",true);
-                claim.setOnClickListener(v->confirmAction("Claim "+a.optString("title")+"?",
-                        "Your achievement reward will be added to your account.",()->api.post("/api/achievements/"+a.optString("slug")+"/claim",new JSONObject(),r->ui.post(()->{
-                            if(!r.ok())showResultDialog("Achievement unavailable",r.error);
-                            else{JSONObject reward=r.data.optJSONObject("reward");showResultDialog("ACHIEVEMENT CLAIMED",
-                                    "Gold: "+(reward==null?0:reward.optLong("coins"))+" · EXP: "+(reward==null?0:reward.optLong("xp")));
-                                refreshAccount(()->renderTab("achievements"));}
-                        }))));
-                panel.addView(claim,rowParams());
+        JSONArray list = data.optJSONArray("achievements");
+        JSONObject metrics = data.optJSONObject("metrics");
+        if (list == null) list = new JSONArray();
+        int unlocked = 0, claimed = 0, ready = 0;
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject item = list.optJSONObject(i);
+            if (item == null) continue;
+            if (!item.isNull("unlocked_at")) {
+                unlocked++;
+                if (item.isNull("claimed_at")) ready++;
             }
-            content.addView(panel,rowParams());
+            if (!item.isNull("claimed_at")) claimed++;
+        }
+        LinearLayout hall = sectionPanel();
+        hall.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(66, 54, 42), Color.rgb(17, 23, 39)}));
+        hall.addView(text("THE FIRSTLIGHT RECORDS", 8, GOLD_BRIGHT, true));
+        hall.addView(text("A legacy written by your actions", 19, TEXT, true));
+        hall.addView(text("Every collection, victory and milestone leaves a permanent mark.", 8, MUTED, false));
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statCard("UNLOCKED", formatNumber(unlocked), "Achievements"), weightParams(1));
+        stats.addView(statCard("CLAIMED", formatNumber(claimed), "Rewards earned"), weightParams(1));
+        stats.addView(statCard("READY", formatNumber(ready), "Awaiting claim"), weightParams(1));
+        hall.addView(stats);
+        content.addView(hall, rowParams());
+
+        if (metrics != null) {
+            content.addView(text("LIFETIME RECORDS", 8, GOLD_BRIGHT, true));
+            LinearLayout lifetime = new LinearLayout(this);
+            lifetime.setOrientation(LinearLayout.HORIZONTAL);
+            lifetime.addView(statCard("CARDS", formatNumber(metrics.optLong("unique_cards")), "Unique collected"), weightParams(1));
+            lifetime.addView(statCard("ADVENTURE", formatNumber(metrics.optLong("adventure_clears")), "Stages cleared"), weightParams(1));
+            lifetime.addView(statCard("BOSSES", formatNumber(metrics.optLong("boss_clears")), "Defeated"), weightParams(1));
+            lifetime.addView(statCard("PACKS", formatNumber(metrics.optLong("packs_opened")), "Opened"), weightParams(1));
+            content.addView(lifetime);
+        }
+
+        content.addView(text("ACHIEVEMENT REGISTER · " + list.length() + " RECORDS",
+                8, GOLD_BRIGHT, true));
+        if (list.length() == 0) { showNotice("No achievements are configured yet."); return; }
+        for (int i = 0; i < list.length(); i++) {
+            JSONObject item = list.optJSONObject(i);
+            if (item == null) continue;
+            int progress = Math.max(0, item.optInt("progress"));
+            int target = Math.max(1, item.optInt("target"));
+            int pct = Math.min(100, Math.round(progress * 100f / target));
+            boolean isUnlocked = !item.isNull("unlocked_at");
+            boolean isClaimed = !item.isNull("claimed_at");
+            int accent = isClaimed ? GREEN : isUnlocked ? GOLD_BRIGHT : VIOLET;
+            LinearLayout card = sectionPanel();
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+
+            FrameLayout medal = new FrameLayout(this);
+            GradientDrawable medalBg = new GradientDrawable();
+            medalBg.setShape(GradientDrawable.OVAL);
+            medalBg.setColor(Color.rgb(Color.red(accent) / 5 + 23,
+                    Color.green(accent) / 5 + 23, Color.blue(accent) / 5 + 27));
+            medalBg.setStroke(dp(1), accent);
+            medal.setBackground(medalBg);
+            TextView mark = text(isClaimed ? "✓" : isUnlocked ? "✦" : "◇", 27, accent, true);
+            mark.setGravity(Gravity.CENTER);
+            medal.addView(mark, new FrameLayout.LayoutParams(-1, -1));
+            card.addView(medal, new LinearLayout.LayoutParams(dp(60), dp(60)));
+
+            LinearLayout details = new LinearLayout(this);
+            details.setOrientation(LinearLayout.VERTICAL);
+            details.setPadding(dp(11), 0, dp(7), 0);
+            details.addView(text(item.optString("title", "Achievement"), 11, TEXT, true));
+            TextView description = text(item.optString("description", ""), 8, MUTED, false);
+            description.setMaxLines(2);
+            details.addView(description);
+            LinearLayout progressLine = new LinearLayout(this);
+            progressLine.setGravity(Gravity.CENTER_VERTICAL);
+            ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            bar.setMax(100);
+            bar.setProgress(pct);
+            bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+            progressLine.addView(bar, new LinearLayout.LayoutParams(0, dp(7), 1f));
+            TextView percentage = text(pct + "%", 7, accent, true);
+            percentage.setPadding(dp(7), 0, 0, 0);
+            progressLine.addView(percentage);
+            details.addView(progressLine);
+            details.addView(text(formatNumber(item.optLong("reward_coins")) + " GOLD · "
+                    + formatNumber(item.optLong("reward_xp")) + " EXP", 7, GOLD_BRIGHT, true));
+            card.addView(details, new LinearLayout.LayoutParams(0, -2, 1f));
+
+            if (isClaimed) {
+                card.addView(text("CLAIMED", 7, GREEN, true));
+            } else if (isUnlocked) {
+                TextView claim = button("CLAIM", true);
+                claim.setOnClickListener(v -> confirmAction("Claim " + item.optString("title") + "?",
+                        "Your achievement reward will be added to your account.",
+                        () -> api.post("/api/achievements/" + item.optString("slug") + "/claim",
+                                new JSONObject(), result -> ui.post(() -> {
+                                    if (!result.ok()) showResultDialog("Achievement unavailable", result.error);
+                                    else {
+                                        JSONObject reward = result.data.optJSONObject("reward");
+                                        showResultDialog("ACHIEVEMENT CLAIMED", "Gold: "
+                                                + (reward == null ? 0 : reward.optLong("coins"))
+                                                + " · EXP: " + (reward == null ? 0 : reward.optLong("xp")));
+                                        refreshAccount(() -> renderTab("achievements"));
+                                    }
+                                }))));
+                card.addView(claim, new LinearLayout.LayoutParams(dp(76), dp(36)));
+            } else {
+                card.addView(text(progress + " / " + target, 7, MUTED, true));
+            }
+            content.addView(card, rowParams());
         }
     }
 
@@ -3664,24 +3897,81 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         }
     }
 
+    private void showChoiceDialog(String title, String subtitle, String[] options,
+                                  java.util.function.IntConsumer onChoose) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(17), dp(16), dp(17), dp(15));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(25, 36, 56), Color.rgb(8, 13, 24)});
+        bg.setCornerRadius(dp(15));
+        bg.setStroke(dp(1), Color.rgb(65, 81, 108));
+        shell.setBackground(bg);
+        shell.addView(text("COLLECTOR ARCHIVE", 7, CYAN, true));
+        shell.addView(text(title, 18, TEXT, true));
+        if (subtitle != null && !subtitle.isEmpty()) shell.addView(text(subtitle, 8, MUTED, false));
+        addGap(shell, 10);
+        for (int i = 0; i < options.length; i++) {
+            final int index = i;
+            TextView option = button(options[i], i == 0);
+            option.setGravity(Gravity.CENTER_VERTICAL);
+            option.setPadding(dp(12), 0, dp(12), 0);
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(40));
+            p.bottomMargin = dp(6);
+            shell.addView(option, p);
+            option.setOnClickListener(v -> {
+                dialog.dismiss();
+                onChoose.accept(index);
+            });
+        }
+        TextView cancel = button("CLOSE", false);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        shell.addView(cancel, new LinearLayout.LayoutParams(-1, dp(36)));
+        dialog.setContentView(shell);
+        dialog.setCanceledOnTouchOutside(true);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(430), getResources().getDisplayMetrics().widthPixels - dp(42)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
+    }
+
     private void showBinderActions(JSONObject binder) {
-        String id=binder.optString("binder_id");
-        boolean isDefault=binder.optInt("is_default")==1;
-        String[] options=isDefault?new String[]{"SET ACTIVE","RENAME / CHANGE THEME"}:
-                new String[]{"SET ACTIVE","RENAME / CHANGE THEME","MANAGE CARD CONTENTS","DELETE BINDER"};
-        new AlertDialog.Builder(this).setTitle(binder.optString("name","Binder")).setItems(options,(d,w)->{
-            String choice=options[w];
-            if("SET ACTIVE".equals(choice)){
-                api.post("/api/binders/"+id,payload("set_active",true),r->ui.post(()->{
-                    if(!r.ok())showResultDialog("Binder not changed",r.error);else renderTab("binders");
-                }));
-            }else if("RENAME / CHANGE THEME".equals(choice))showBinderEditDialog(binder);
-            else if("MANAGE CARD CONTENTS".equals(choice))showBinderCardsDialog(id);
-            else if("DELETE BINDER".equals(choice))confirmAction("Delete "+binder.optString("name")+"?",
-                    "Only the binder is deleted. Your cards and collection remain untouched.",()->api.delete("/api/binders/"+id,r->ui.post(()->{
-                        if(!r.ok())showResultDialog("Binder not deleted",r.error);else{showResultDialog("BINDER DELETED",r.data.optString("message","Binder removed."));renderTab("binders");}
-                    })));
-        }).show();
+        String id = binder.optString("binder_id");
+        boolean isDefault = binder.optInt("is_default") == 1;
+        String[] options = isDefault
+                ? new String[]{"SET ACTIVE", "RENAME / CHANGE THEME"}
+                : new String[]{"SET ACTIVE", "RENAME / CHANGE THEME", "MANAGE CARD CONTENTS", "DELETE BINDER"};
+        showChoiceDialog(binder.optString("name", "Binder"),
+                binder.optInt("card_count") + " cards · "
+                        + binder.optString("theme_key", "classic").toUpperCase(java.util.Locale.ROOT),
+                options, selected -> {
+                    String choice = options[selected];
+                    if ("SET ACTIVE".equals(choice)) {
+                        api.post("/api/binders/" + id, payload("set_active", true), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Binder not changed", result.error);
+                            else renderTab("binders");
+                        }));
+                    } else if ("RENAME / CHANGE THEME".equals(choice)) {
+                        showBinderEditDialog(binder);
+                    } else if ("MANAGE CARD CONTENTS".equals(choice)) {
+                        showBinderCardsDialog(id);
+                    } else if ("DELETE BINDER".equals(choice)) {
+                        confirmAction("Delete " + binder.optString("name") + "?",
+                                "Only the binder is deleted. Your cards and collection remain untouched.",
+                                () -> api.delete("/api/binders/" + id, result -> ui.post(() -> {
+                                    if (!result.ok()) showResultDialog("Binder not deleted", result.error);
+                                    else {
+                                        showResultDialog("BINDER DELETED", result.data.optString("message", "Binder removed."));
+                                        renderTab("binders");
+                                    }
+                                })));
+                    }
+                });
     }
 
     private void showBinderEditDialog(JSONObject binder) {
@@ -3794,45 +4084,88 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
                                 boolean confirm, Runnable action) {
         android.app.Dialog dialog = new android.app.Dialog(this);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        boolean success = !confirm && title != null
+                && (title.toUpperCase(java.util.Locale.ROOT).contains("CLAIM")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("COMPLETE")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("ACQUIRED")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("VICTORY")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("PURCHASE"));
+        boolean error = !confirm && title != null
+                && (title.toUpperCase(java.util.Locale.ROOT).contains("FAILED")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("UNAVAILABLE")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("ERROR")
+                || title.toUpperCase(java.util.Locale.ROOT).contains("COULD NOT"));
+        int accent = confirm ? GOLD_BRIGHT : success ? CYAN : error ? RED : VIOLET;
+
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(20), dp(17), dp(20), dp(17));
-        shell.setBackground(gradient(Color.rgb(29, 30, 59), Color.rgb(9, 13, 29),
-                Color.rgb(133, 111, 228), dp(18)));
+        shell.setPadding(dp(20), dp(18), dp(20), dp(17));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(27, 38, 58), Color.rgb(8, 13, 25)});
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(1), Color.rgb(Color.red(accent) / 2 + 22,
+                Color.green(accent) / 2 + 22, Color.blue(accent) / 2 + 24));
+        shell.setBackground(bg);
 
-        TextView label = text(eyebrow, 8, Color.rgb(181, 164, 255), true);
-        label.setLetterSpacing(0.18f);
-        shell.addView(label);
-        TextView heading = text(title == null ? "REALM MESSAGE" :
-                title.toUpperCase(java.util.Locale.ROOT), 17, TEXT, true);
-        heading.setPadding(0, dp(6), 0, dp(7));
+        LinearLayout head = new LinearLayout(this);
+        head.setOrientation(LinearLayout.HORIZONTAL);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout crest = new FrameLayout(this);
+        GradientDrawable crestBg = new GradientDrawable();
+        crestBg.setShape(GradientDrawable.OVAL);
+        crestBg.setColor(Color.rgb(Color.red(accent) / 5 + 22,
+                Color.green(accent) / 5 + 22, Color.blue(accent) / 5 + 25));
+        crestBg.setStroke(dp(1), accent);
+        crest.setBackground(crestBg);
+        TextView symbol = text(confirm ? "?" : success ? "✓" : error ? "!" : "✦", 25, accent, true);
+        symbol.setGravity(Gravity.CENTER);
+        crest.addView(symbol, new FrameLayout.LayoutParams(-1, -1));
+        head.addView(crest, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, 0, 0);
+        TextView label = text(eyebrow == null ? "CARDUNIVERSE" : eyebrow.toUpperCase(java.util.Locale.ROOT),
+                7, accent, true);
+        label.setLetterSpacing(0.17f);
+        copy.addView(label);
+        TextView heading = text(title == null ? "REALM MESSAGE" : title, 17, TEXT, true);
         heading.setMaxLines(2);
-        shell.addView(heading);
+        heading.setPadding(0, dp(3), 0, 0);
+        copy.addView(heading);
+        head.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        shell.addView(head);
+
         View rule = new View(this);
-        rule.setBackgroundColor(Color.rgb(69, 67, 108));
-        shell.addView(rule, new LinearLayout.LayoutParams(-1, dp(1)));
-        TextView body = text(message == null ? "" : message, 10, MUTED, false);
-        body.setLineSpacing(dp(4), 1.05f);
-        body.setPadding(0, dp(12), 0, dp(16));
-        shell.addView(body);
+        rule.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{accent, Color.argb(35, Color.red(accent), Color.green(accent),
+                        Color.blue(accent)), Color.TRANSPARENT}));
+        LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(-1, dp(2));
+        ruleParams.topMargin = dp(14);
+        shell.addView(rule, ruleParams);
+
+        ScrollView scroll = new ScrollView(this);
+        TextView body = text(message == null || message.trim().isEmpty()
+                ? "No additional details were provided." : message, 10, Color.rgb(213, 222, 237), false);
+        body.setLineSpacing(dp(4), 1.04f);
+        body.setPadding(dp(2), dp(13), dp(2), dp(15));
+        scroll.addView(body);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, -2));
 
         LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
         actions.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         if (confirm) {
             TextView cancel = button("CANCEL", false);
-            actions.addView(cancel, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(42)));
-            View gap = new View(this);
-            actions.addView(gap, new LinearLayout.LayoutParams(dp(8), 1));
             cancel.setOnClickListener(v -> dialog.dismiss());
+            actions.addView(cancel, new LinearLayout.LayoutParams(dp(108), dp(40)));
+            actions.addView(new View(this), new LinearLayout.LayoutParams(dp(8), 1));
         }
-        TextView proceed = button(confirm ? "CONTINUE" : "GOT IT", true);
-        actions.addView(proceed, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(42)));
+        TextView proceed = button(confirm ? "CONFIRM" : error ? "CLOSE" : "CONTINUE", true);
         proceed.setOnClickListener(v -> {
             dialog.dismiss();
             if (action != null) action.run();
         });
+        actions.addView(proceed, new LinearLayout.LayoutParams(dp(124), dp(40)));
         shell.addView(actions);
         dialog.setContentView(shell);
         dialog.setCanceledOnTouchOutside(!confirm);
@@ -3840,8 +4173,9 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawableResource(android.R.color.transparent);
-            int width = Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(36));
-            window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setLayout(Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(42)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setWindowAnimations(android.R.style.Animation_Dialog);
         }
     }
 
@@ -3850,31 +4184,37 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
             showResultDialog("PACK OPENED", "Your collection has been updated.");
             return;
         }
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(14), dp(14), dp(14), dp(12));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{Color.rgb(36, 35, 75), Color.rgb(7, 12, 25)});
+        bg.setCornerRadius(dp(17));
+        bg.setStroke(dp(1), Color.rgb(133, 111, 228));
+        shell.setBackground(bg);
+
+        LinearLayout hero = new LinearLayout(this);
+        hero.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout seal = createSummonSeal(GOLD_BRIGHT, "✦", 76);
+        hero.addView(seal, new LinearLayout.LayoutParams(dp(76), dp(76)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, 0, 0);
+        copy.addView(text("ASTRAL GATE · COMPLETE", 7, GOLD_BRIGHT, true));
+        copy.addView(text("Summon revealed", 20, TEXT, true));
+        copy.addView(text(cards.length() + " new card" + (cards.length() == 1 ? "" : "s")
+                + " added to your archive", 8, MUTED, false));
+        hero.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        shell.addView(hero);
+
         ScrollView scroll = new ScrollView(this);
-        LinearLayout layout = new LinearLayout(this);
-        layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setPadding(dp(12), dp(10), dp(12), dp(10));
-        scroll.addView(layout);
-
-        LinearLayout hero = sectionPanel();
-        hero.setGravity(Gravity.CENTER);
-        TextView seal = text("✦", 40, GOLD_BRIGHT, true);
-        seal.setGravity(Gravity.CENTER);
-        hero.addView(seal);
-        TextView headline = text("SUMMON COMPLETE", 13, GOLD_BRIGHT, true);
-        headline.setGravity(Gravity.CENTER);
-        headline.setLetterSpacing(0.12f);
-        hero.addView(headline);
-        TextView subline = text(cards.length() + " CARD" + (cards.length() == 1 ? "" : "S")
-                + " ADDED TO YOUR ARCHIVE", 8, MUTED, true);
-        subline.setGravity(Gravity.CENTER);
-        hero.addView(subline);
-        layout.addView(hero, rowParams());
-        addGap(layout, 8);
-        layout.addView(text("YOUR NEWLY SUMMONED CARDS", 8, GOLD, true));
-        addGap(layout, 5);
-
-        int columns = cards.length() >= 3 ? 3 : Math.max(1, cards.length());
+        LinearLayout grid = new LinearLayout(this);
+        grid.setOrientation(LinearLayout.VERTICAL);
+        grid.setPadding(0, dp(10), 0, dp(8));
+        scroll.addView(grid);
+        int columns = cards.length() >= 4 ? 4 : cards.length() >= 2 ? 2 : 1;
         LinearLayout row = null;
         int visible = 0;
         for (int i = 0; i < cards.length(); i++) {
@@ -3883,64 +4223,68 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
             if (visible % columns == 0) {
                 row = new LinearLayout(this);
                 row.setOrientation(LinearLayout.HORIZONTAL);
-                layout.addView(row, new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                grid.addView(row, new LinearLayout.LayoutParams(-1, -2));
             }
             LinearLayout tile = createSummonRevealTile(card, visible + 1);
-            tile.setAlpha(0f);
-            tile.setTranslationY(dp(12));
-            LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(
-                    0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-            tileParams.setMargins(dp(3), dp(3), dp(3), dp(6));
-            row.addView(tile, tileParams);
-            tile.animate().alpha(1f).translationY(0f)
-                    .setStartDelay(Math.min(visible, 8) * 75L).setDuration(240).start();
+            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
+            p.setMargins(dp(4), dp(4), dp(4), dp(7));
+            row.addView(tile, p);
             visible++;
         }
-        if (row != null) {
-            int remainder = visible % columns;
-            if (remainder != 0) {
-                for (int i = remainder; i < columns; i++) {
-                    row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
-                }
-            }
+        if (row != null && visible % columns != 0)
+            for (int i = visible % columns; i < columns; i++)
+                row.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        TextView done = button("RETURN TO SUMMON", true);
+        done.setOnClickListener(v -> {
+            dialog.dismiss();
+            refreshAccount(() -> renderTab("summon"));
+        });
+        shell.addView(done, new LinearLayout.LayoutParams(-1, dp(42)));
+        dialog.setContentView(shell);
+        dialog.setCanceledOnTouchOutside(false);
+        dialog.setOnCancelListener(d -> refreshAccount(null));
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(850), getResources().getDisplayMetrics().widthPixels - dp(42)),
+                    Math.min(getResources().getDisplayMetrics().heightPixels - dp(48), dp(560)));
+            window.setWindowAnimations(android.R.style.Animation_Dialog);
         }
-        new AlertDialog.Builder(this)
-                .setTitle("✦  PACK REVEAL")
-                .setView(scroll)
-                .setPositiveButton("BACK TO SUMMON",
-                        (dialog, which) -> refreshAccount(() -> renderTab("summon")))
-                .setOnCancelListener(dialog -> refreshAccount(null))
-                .show();
     }
 
     private LinearLayout createSummonRevealTile(JSONObject card, int order) {
         String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
         String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
         int accent = cardRarityColor(rarity);
-        LinearLayout tile = sectionPanel();
-        tile.setPadding(dp(7), dp(7), dp(7), dp(8));
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setPadding(dp(5), dp(5), dp(5), dp(7));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(31, 42, 62), Color.rgb(9, 15, 27)});
+        bg.setCornerRadius(dp(10));
+        bg.setStroke(dp(1), accent);
+        tile.setBackground(bg);
         FrameLayout art = new FrameLayout(this);
-        art.setBackground(gradient(Color.rgb(30, 48, 39), Color.rgb(10, 18, 16), accent, dp(9)));
-        TextView glyph = text(elementSigil(element), 34, accent, true);
-        glyph.setGravity(Gravity.CENTER);
-        glyph.setAlpha(0.16f);
-        art.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
-        CardArtView illustration = new CardArtView(this);
-        illustration.loadArtwork(cardArtworkPath(card));
-        art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
-        tile.addView(art, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(116)));
-        TextView number = text(String.format(java.util.Locale.US, "CARD %02d", order),
-                7, MUTED, true);
-        number.setPadding(0, dp(5), 0, 0);
-        tile.addView(number);
+        art.setBackgroundColor(Color.rgb(7, 12, 22));
+        CardArtView image = new CardArtView(this);
+        image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        image.loadArtwork(cardArtworkPath(card));
+        art.addView(image, new FrameLayout.LayoutParams(-1, -1));
+        TextView badge = text(rarity, 7, Color.WHITE, true);
+        badge.setPadding(dp(6), dp(4), dp(6), dp(4));
+        badge.setBackground(gradient(accent, Color.rgb(Color.red(accent) / 2,
+                Color.green(accent) / 2, Color.blue(accent) / 2), accent, dp(6)));
+        FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+        bp.setMargins(dp(5), dp(5), 0, 0);
+        art.addView(badge, bp);
+        tile.addView(art, new LinearLayout.LayoutParams(-1, dp(186)));
+        tile.addView(text("NEW DISCOVERY · " + String.format(java.util.Locale.ROOT, "%02d", order),
+                6, GOLD_BRIGHT, true));
         TextView title = text(card.optString("name", "Unknown Card"), 10, TEXT, true);
         title.setMaxLines(2);
         tile.addView(title);
-        TextView badge = text(rarity, 7, accent, true);
-        badge.setPadding(0, dp(3), 0, 0);
-        tile.addView(badge);
         tile.addView(text(element, 7, MUTED, false));
         return tile;
     }
@@ -4534,16 +4878,18 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(10), dp(9), dp(10), dp(9));
-        row.setBackground(gradient(Color.rgb(25, 36, 65), Color.rgb(12, 19, 37),
-                Color.rgb(66, 91, 143), dp(13)));
-        View accent = new View(this);
-        accent.setBackground(gradient(CYAN, VIOLET, CYAN, dp(2)));
-        row.addView(accent, new LinearLayout.LayoutParams(dp(3), ViewGroup.LayoutParams.MATCH_PARENT));
+        row.setPadding(dp(10), dp(8), dp(10), dp(8));
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(24, 34, 53), Color.rgb(16, 24, 40)});
+        bg.setCornerRadius(dp(10));
+        bg.setStroke(dp(1), Color.rgb(43, 57, 79));
+        row.setBackground(bg);
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setPadding(dp(9), 0, dp(7), 0);
-        copy.addView(text(title, 10, TEXT, true));
+        copy.setPadding(0, 0, dp(8), 0);
+        TextView name = text(title, 10, TEXT, true);
+        name.setMaxLines(2);
+        copy.addView(name);
         TextView details = text(subtitle, 8, MUTED, false);
         details.setMaxLines(3);
         details.setLineSpacing(dp(1), 1.02f);
@@ -4552,13 +4898,16 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
         if (trailing != null && !trailing.isEmpty()) {
             TextView badge = text(trailing, 7, GOLD_BRIGHT, true);
             badge.setGravity(Gravity.CENTER);
-            badge.setMaxWidth(dp(132));
+            badge.setMaxWidth(dp(118));
             badge.setPadding(dp(8), dp(6), dp(8), dp(6));
-            badge.setBackground(gradient(Color.rgb(48, 42, 76), Color.rgb(23, 27, 50),
-                    Color.rgb(111, 101, 168), dp(9)));
+            GradientDrawable chip = new GradientDrawable();
+            chip.setColor(Color.rgb(42, 39, 52));
+            chip.setCornerRadius(dp(7));
+            chip.setStroke(dp(1), Color.rgb(94, 78, 65));
+            badge.setBackground(chip);
             row.addView(badge);
         }
-        row.setMinimumHeight(dp(52));
+        row.setMinimumHeight(dp(48));
         row.setTag(title);
         return row;
     }
@@ -4572,11 +4921,12 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
     private LinearLayout sectionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(14), dp(12), dp(14), dp(12));
-        GradientDrawable surface = gradient(Color.rgb(29, 40, 72), Color.rgb(12, 18, 36),
-                Color.rgb(76, 101, 161), dp(16));
+        panel.setPadding(dp(13), dp(11), dp(13), dp(11));
+        GradientDrawable surface = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{Color.rgb(25, 34, 53), Color.rgb(15, 22, 37)});
+        surface.setCornerRadius(dp(13));
+        surface.setStroke(dp(1), Color.rgb(46, 59, 82));
         panel.setBackground(surface);
-        panel.setElevation(dp(4));
         panel.setClipToPadding(false);
         return panel;
     }
@@ -4612,20 +4962,21 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
     }
 
     private TextView button(String label, boolean primary) {
-        int top = primary ? Color.rgb(166, 143, 255) : Color.rgb(38, 51, 83);
-        int bottom = primary ? Color.rgb(92, 74, 207) : Color.rgb(16, 25, 47);
-        TextView control = text(label, 9, Color.rgb(250, 248, 255), true);
+        int fill = primary ? Color.rgb(213, 169, 91) : Color.rgb(26, 36, 56);
+        int stroke = primary ? Color.rgb(246, 208, 139) : Color.rgb(67, 87, 117);
+        int ink = primary ? Color.rgb(28, 23, 19) : Color.rgb(228, 235, 248);
+        TextView control = text(label, 9, ink, true);
         control.setGravity(Gravity.CENTER);
-        control.setLetterSpacing(0.045f);
-        control.setPadding(dp(15), 0, dp(15), 0);
-        GradientDrawable shape = gradient(top, bottom,
-                primary ? Color.rgb(206, 190, 255) : Color.rgb(86, 122, 177), dp(11));
-        shape.setStroke(dp(1), primary ? Color.rgb(195, 178, 255) : Color.rgb(73, 99, 153));
+        control.setLetterSpacing(0.055f);
+        control.setPadding(dp(14), 0, dp(14), 0);
+        GradientDrawable shape = new GradientDrawable();
+        shape.setColor(fill);
+        shape.setCornerRadius(dp(8));
+        shape.setStroke(dp(1), stroke);
         control.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(Color.argb(85, 255, 255, 255)),
+                android.content.res.ColorStateList.valueOf(Color.argb(50, 255, 255, 255)),
                 shape, null));
-        control.setMinimumHeight(dp(42));
-        control.setElevation(dp(3));
+        control.setMinimumHeight(dp(40));
         control.setClickable(true);
         control.setFocusable(true);
         control.setOnTouchListener((view, event) -> {
