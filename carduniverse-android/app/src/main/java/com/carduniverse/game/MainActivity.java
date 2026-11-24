@@ -1871,75 +1871,122 @@ addModeSpotlight("DAILY & LONG-TERM OBJECTIVES", "Every action moves you forward
         if (items.length() == 0) showNotice("Your inbox is clear. New messages will appear here.");
     }
     private void renderGuild(JSONObject data) {
-addModeSpotlight("GUILD HALL", "Build a banner. Build a legacy.", "Grow your treasury, welcome collectors and leave your mark on the realm.", "♜", Color.rgb(105, 211, 153));
-
+        addModeSpotlight("GUILD HALL", "Build a banner. Build a legacy.",
+                "Your guild is a shared headquarters for collectors, contributions and community activity.",
+                "♜", Color.rgb(105, 211, 153));
         JSONObject guild = data.optJSONObject("guild");
         if (guild == null) {
             LinearLayout create = sectionPanel();
-            create.addView(text("BUILD YOUR OWN GUILD", 9, GOLD, true));
-            create.addView(text("Create a banner and invite other collectors into your realm.", 8, MUTED, false));
-            TextView createButton = button("CREATE GUILD", true);
+            create.setGravity(Gravity.CENTER);
+            FrameLayout crest = new FrameLayout(this);
+            crest.setBackground(gradient(Color.rgb(44, 97, 78), Color.rgb(13, 30, 38), CYAN, dp(16)));
+            TextView sigil = text("♜", 43, Color.rgb(170, 255, 220), true);
+            sigil.setGravity(Gravity.CENTER);
+            crest.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
+            create.addView(crest, new LinearLayout.LayoutParams(dp(86), dp(86)));
+            addGap(create, 6);
+            create.addView(text("NO GUILD BANNER YET", 9, CYAN, true));
+            create.addView(text("Create a guild or join a recruiting banner to enter the community.", 8, MUTED, false));
+            TextView createButton = button("CREATE YOUR GUILD", true);
             createButton.setOnClickListener(v -> showCreateGuildDialog());
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(145), dp(36));
-            cp.topMargin = dp(8);
-            create.addView(createButton, cp);
+            create.addView(createButton, new LinearLayout.LayoutParams(dp(185), dp(40)));
             content.addView(create, rowParams());
         } else {
             LinearLayout home = sectionPanel();
-            home.addView(text(guild.optString("emblem", "✦") + "  [" + guild.optString("tag", "GUILD") + "]", 8, GOLD, true));
-            home.addView(text(guild.optString("name", "Guild"), 20, TEXT, true));
-            home.addView(text(guild.optString("description", "Guild headquarters"), 9, MUTED, false));
-            home.addView(text("LEVEL " + guild.optInt("guild_level") + "  ·  "
-                    + guild.optInt("member_count") + "/" + guild.optInt("member_limit") + " MEMBERS"
-                    + "  ·  " + formatNumber(guild.optLong("bank_coins")) + " GOLD TREASURY",
-                    8, GOLD_BRIGHT, true));
+            home.setBackground(gradient(Color.rgb(26, 76, 68), Color.rgb(9, 24, 34), Color.rgb(103, 222, 170), dp(18)));
+            LinearLayout header = new LinearLayout(this);
+            header.setOrientation(LinearLayout.HORIZONTAL);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout crest = new FrameLayout(this);
+            crest.setBackground(gradient(Color.rgb(73, 131, 105), Color.rgb(15, 43, 43),
+                    Color.rgb(125, 244, 187), dp(16)));
+            TextView emblem = text(guild.optString("emblem", "✦"), 42, Color.rgb(210, 255, 230), true);
+            emblem.setGravity(Gravity.CENTER);
+            crest.addView(emblem, new FrameLayout.LayoutParams(-1, -1));
+            header.addView(crest, new LinearLayout.LayoutParams(dp(86), dp(86)));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setPadding(dp(12), 0, 0, 0);
+            copy.addView(text("[" + guild.optString("tag", "GUILD") + "] · GUILD BANNER",
+                    8, CYAN, true));
+            copy.addView(text(guild.optString("name", "Guild"), 20, TEXT, true));
+            TextView description = text(guild.optString("description", "Guild headquarters"),
+                    8, MUTED, false);
+            description.setMaxLines(2);
+            copy.addView(description);
+            header.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            home.addView(header);
+            LinearLayout stats = new LinearLayout(this);
+            stats.setOrientation(LinearLayout.HORIZONTAL);
+            stats.addView(statCard("GUILD LEVEL", String.valueOf(guild.optInt("guild_level")), "Progress"), weightParams(1));
+            stats.addView(statCard("MEMBERS", guild.optInt("member_count") + "/" + guild.optInt("member_limit"), "Roster"), weightParams(1));
+            stats.addView(statCard("TREASURY", formatNumber(guild.optLong("bank_coins")), "Gold"), weightParams(1));
+            home.addView(stats);
             TextView contribute = button("CONTRIBUTE GOLD", true);
             contribute.setOnClickListener(v -> chooseGuildContribution());
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(170), dp(36));
-            cp.topMargin = dp(8);
-            home.addView(contribute, cp);
+            home.addView(contribute, new LinearLayout.LayoutParams(dp(180), dp(40)));
             content.addView(home, rowParams());
+
             JSONArray members = guild.optJSONArray("members");
             if (members != null) {
-                content.addView(text("GUILD MEMBERS", 8, GOLD, true));
+                content.addView(text("GUILD ROSTER · " + members.length() + " MEMBERS", 8, GOLD_BRIGHT, true));
                 for (int i = 0; i < members.length(); i++) {
                     JSONObject member = members.optJSONObject(i);
                     if (member == null) continue;
-                    String sub = member.optString("role", "MEMBER") + "  ·  LEVEL " + member.optInt("collector_level")
-                            + "  ·  CONTRIBUTION " + formatNumber(member.optLong("contribution"));
-                    content.addView(dataRow(member.optString("display_name", "Collector"), sub, ""), rowParams());
+                    LinearLayout row = dataRow(member.optString("display_name", "Collector"),
+                            member.optString("role", "MEMBER").toUpperCase(java.util.Locale.ROOT)
+                                    + " · LEVEL " + member.optInt("collector_level")
+                                    + " · CONTRIBUTION " + formatNumber(member.optLong("contribution")),
+                            member.optString("role", "MEMBER"));
+                    content.addView(row, rowParams());
                 }
             }
             JSONArray activity = guild.optJSONArray("activity");
             if (activity != null && activity.length() > 0) {
-                addGap(content, 6);
-                content.addView(text("GUILD ACTIVITY", 8, GOLD, true));
+                addGap(content, 8);
+                content.addView(text("GUILD ACTIVITY FEED", 8, GOLD_BRIGHT, true));
                 for (int i = 0; i < activity.length(); i++) {
                     JSONObject event = activity.optJSONObject(i);
-                    if (event != null) content.addView(dataRow(humanize(event.optString("event_type", "GUILD EVENT")),
-                            event.optString("display_name", "Guild member") + "  ·  " + event.optString("created_at", ""), ""), rowParams());
+                    if (event == null) continue;
+                    LinearLayout item = dataRow(humanize(event.optString("event_type", "GUILD EVENT")),
+                            event.optString("display_name", "Guild member")
+                                    + " · " + event.optString("created_at", ""), "ACTIVITY");
+                    content.addView(item, rowParams());
                 }
             }
         }
         JSONArray directory = data.optJSONArray("directory");
         if (directory != null && directory.length() > 0) {
-            addGap(content, 8);
-            content.addView(text(guild == null ? "RECRUITING GUILDS" : "OTHER RECRUITING GUILDS", 8, GOLD, true));
+            addGap(content, 10);
+            content.addView(text(guild == null ? "RECRUITING GUILDS" : "OTHER RECRUITING GUILDS",
+                    8, GOLD_BRIGHT, true));
             for (int i = 0; i < directory.length(); i++) {
                 JSONObject entry = directory.optJSONObject(i);
                 if (entry == null) continue;
-                LinearLayout item = dataRow("[" + entry.optString("tag", "??") + "] " + entry.optString("name", "Guild"),
-                        "LEADER " + entry.optString("leader_name", "Unknown") + "  ·  "
-                                + entry.optInt("member_count") + "/" + entry.optInt("member_limit") + " MEMBERS",
-                        "LV " + entry.optInt("guild_level"));
+                LinearLayout card = sectionPanel();
+                card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setGravity(Gravity.CENTER_VERTICAL);
+                FrameLayout crest = new FrameLayout(this);
+                crest.setBackground(gradient(Color.rgb(41, 74, 66), Color.rgb(12, 28, 36),
+                        Color.rgb(104, 215, 164), dp(12)));
+                TextView symbol = text("[" + entry.optString("tag", "??") + "]", 9, CYAN, true);
+                symbol.setGravity(Gravity.CENTER);
+                crest.addView(symbol, new FrameLayout.LayoutParams(-1, -1));
+                card.addView(crest, new LinearLayout.LayoutParams(dp(60), dp(58)));
+                LinearLayout copy = new LinearLayout(this);
+                copy.setOrientation(LinearLayout.VERTICAL);
+                copy.setPadding(dp(10), 0, dp(7), 0);
+                copy.addView(text(entry.optString("name", "Guild"), 12, TEXT, true));
+                copy.addView(text("LEADER " + entry.optString("leader_name", "Unknown")
+                        + " · " + entry.optInt("member_count") + "/" + entry.optInt("member_limit") + " MEMBERS",
+                        7, MUTED, false));
+                copy.addView(text("LEVEL " + entry.optInt("guild_level"), 7, GOLD_BRIGHT, true));
+                card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
                 TextView join = button("JOIN", false);
-                join.setPadding(dp(12), 0, dp(12), 0);
                 join.setOnClickListener(v -> confirmAction("Join [" + entry.optString("tag") + "]?",
                         "You can only belong to one guild at a time.", () -> joinGuild(entry.optString("tag"))));
-                LinearLayout.LayoutParams jp = new LinearLayout.LayoutParams(dp(76), dp(32));
-                jp.leftMargin = dp(7);
-                item.addView(join, jp);
-                content.addView(item, rowParams());
+                card.addView(join, new LinearLayout.LayoutParams(dp(72), dp(36)));
+                content.addView(card, rowParams());
             }
         } else if (guild == null) {
             showNotice("There are no recruiting guilds right now. You can create the first one.");
@@ -2592,35 +2639,138 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
     }
 
     private void renderTrades(JSONObject data) {
-addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", "Trade eligible cards with other collectors while bound and reserved cards stay protected.", "⇄", CYAN);
-
-        JSONArray inventoryRaw=data.optJSONArray("inventory"),tradesRaw=data.optJSONArray("trades");
-        final JSONArray inventory=inventoryRaw==null?new JSONArray():inventoryRaw;
-        final JSONArray trades=tradesRaw==null?new JSONArray():tradesRaw;
-        LinearLayout head=sectionPanel();head.addView(text("SECURE PLAYER-TO-PLAYER EXCHANGE",8,GOLD,true));
-        head.addView(text("Only available tradable cards can be offered. Reserved or bound cards are excluded.",8,MUTED,false));
-        TextView create=button("CREATE TRADE OFFER",true);create.setOnClickListener(v->showTradeCreateDialog(inventory));
-        head.addView(create,new LinearLayout.LayoutParams(dp(190),dp(38)));content.addView(head,rowParams());
-        String uid=me==null?"":me.optString("user_id");int count=0;content.addView(text("TRADE OFFERS",8,GOLD,true));
-        for(int i=0;i<trades.length();i++){
-            JSONObject t=trades.optJSONObject(i);if(t==null)continue;boolean incoming=uid.equals(t.optString("target_user_id")),outgoing=uid.equals(t.optString("creator_user_id"));if(!incoming&&!outgoing)continue;
-            String title=incoming?t.optString("creator_name","Collector")+" sent an offer":"Offer to "+t.optString("target_name","Collector");
-            StringBuilder detail=new StringBuilder(t.optString("status","PENDING"));if(!t.optString("message").isEmpty())detail.append(" · ").append(t.optString("message"));
-            JSONArray items=t.optJSONArray("items");if(items!=null)for(int j=0;j<items.length();j++){JSONObject it=items.optJSONObject(j);if(it!=null)detail.append("\\n").append(it.optString("name")).append(" · ").append(it.optString("rarity"));}
-            LinearLayout row=dataRow(title,detail.toString(),t.optString("status"));
-            if(incoming&&"PENDING".equalsIgnoreCase(t.optString("status"))){
-                TextView accept=button("ACCEPT",true);accept.setOnClickListener(v->showTradeAcceptDialog(t.optString("trade_id"),inventory));
-                TextView decline=button("DECLINE",false);decline.setOnClickListener(v->confirmAction("Decline trade?","The offered cards will be released.",()->api.post("/api/trades/"+t.optString("trade_id")+"/decline",new JSONObject(),x->ui.post(()->{if(!x.ok())showResultDialog("Trade error",x.error);else renderTab("trades");}))));
-                row.addView(accept,new LinearLayout.LayoutParams(dp(72),dp(32)));LinearLayout.LayoutParams dp2=new LinearLayout.LayoutParams(dp(78),dp(32));dp2.leftMargin=dp(5);row.addView(decline,dp2);
-            }else if(outgoing&&"PENDING".equalsIgnoreCase(t.optString("status"))){
-                TextView cancel=button("CANCEL",false);cancel.setOnClickListener(v->confirmAction("Cancel trade offer?","Your reserved cards will become available again.",()->api.post("/api/trades/"+t.optString("trade_id")+"/cancel",new JSONObject(),x->ui.post(()->{if(!x.ok())showResultDialog("Trade error",x.error);else renderTab("trades");}))));
-                row.addView(cancel,new LinearLayout.LayoutParams(dp(78),dp(32)));
-            }
-            content.addView(row,rowParams());count++;
+        addModeSpotlight("COLLECTOR EXCHANGE", "Trade fairly. Complete the collection.",
+                "Create offers, review incoming deals and exchange only cards that are eligible for trade.",
+                "⇄", CYAN);
+        JSONArray inventoryRaw = data.optJSONArray("inventory");
+        JSONArray tradesRaw = data.optJSONArray("trades");
+        final JSONArray inventory = inventoryRaw == null ? new JSONArray() : inventoryRaw;
+        final JSONArray trades = tradesRaw == null ? new JSONArray() : tradesRaw;
+        String userId = me == null ? "" : me.optString("user_id");
+        int incomingCount = 0;
+        int outgoingCount = 0;
+        for (int i = 0; i < trades.length(); i++) {
+            JSONObject trade = trades.optJSONObject(i);
+            if (trade == null || !"PENDING".equalsIgnoreCase(trade.optString("status"))) continue;
+            if (userId.equals(trade.optString("target_user_id"))) incomingCount++;
+            if (userId.equals(trade.optString("creator_user_id"))) outgoingCount++;
         }
-        if(count==0)showNotice("No trade offers yet. Create one to start exchanging cards.");
-        content.addView(text("AVAILABLE TRADABLE CARDS · "+inventory.length(),8,GOLD,true));
-        for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · Tradable",""),rowParams());}
+        LinearLayout dashboard = sectionPanel();
+        dashboard.setBackground(gradient(Color.rgb(26, 59, 77), Color.rgb(10, 17, 34), CYAN, dp(16)));
+        dashboard.addView(text("SECURE PLAYER-TO-PLAYER EXCHANGE", 8, CYAN, true));
+        dashboard.addView(text("Your trade desk", 18, TEXT, true));
+        dashboard.addView(text("Reserved cards stay locked until an offer is accepted, declined or cancelled.",
+                8, MUTED, false));
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statCard("INCOMING", String.valueOf(incomingCount), "Awaiting you"), weightParams(1));
+        stats.addView(statCard("OUTGOING", String.valueOf(outgoingCount), "Awaiting reply"), weightParams(1));
+        stats.addView(statCard("TRADABLE", String.valueOf(inventory.length()), "Available cards"), weightParams(1));
+        dashboard.addView(stats);
+        TextView create = button("＋ CREATE TRADE OFFER", true);
+        create.setOnClickListener(v -> showTradeCreateDialog(inventory));
+        dashboard.addView(create, new LinearLayout.LayoutParams(dp(205), dp(40)));
+        content.addView(dashboard, rowParams());
+
+        content.addView(text("ACTIVE TRADE CONTRACTS", 8, GOLD_BRIGHT, true));
+        int visibleTrades = 0;
+        for (int i = 0; i < trades.length(); i++) {
+            JSONObject trade = trades.optJSONObject(i);
+            if (trade == null) continue;
+            boolean incoming = userId.equals(trade.optString("target_user_id"));
+            boolean outgoing = userId.equals(trade.optString("creator_user_id"));
+            if (!incoming && !outgoing) continue;
+            visibleTrades++;
+            boolean pending = "PENDING".equalsIgnoreCase(trade.optString("status"));
+            String counterparty = incoming ? trade.optString("creator_name", "Collector")
+                    : trade.optString("target_name", "Collector");
+            LinearLayout card = sectionPanel();
+            card.setBackground(gradient(incoming ? Color.rgb(25, 63, 74) : Color.rgb(40, 43, 77),
+                    Color.rgb(10, 17, 34), incoming ? CYAN : VIOLET, dp(15)));
+            LinearLayout top = new LinearLayout(this);
+            top.setGravity(Gravity.CENTER_VERTICAL);
+            top.addView(text(incoming ? "INCOMING OFFER" : "OUTGOING OFFER",
+                    7, incoming ? CYAN : VIOLET, true), new LinearLayout.LayoutParams(0, -2, 1f));
+            TextView status = text(trade.optString("status", "PENDING").toUpperCase(java.util.Locale.ROOT),
+                    7, pending ? GOLD_BRIGHT : MUTED, true);
+            status.setPadding(dp(8), dp(5), dp(8), dp(5));
+            status.setBackground(gradient(Color.rgb(34, 40, 67), Color.rgb(13, 19, 36),
+                    pending ? GOLD : Color.rgb(91, 107, 142), dp(8)));
+            top.addView(status);
+            card.addView(top);
+            card.addView(text(counterparty, 14, TEXT, true));
+            if (!trade.optString("message").isEmpty())
+                card.addView(text("“" + trade.optString("message") + "”", 8, MUTED, false));
+            JSONArray offered = trade.optJSONArray("items");
+            if (offered != null && offered.length() > 0) {
+                card.addView(text("OFFERED CARDS · " + offered.length(), 7, GOLD_BRIGHT, true));
+                for (int j = 0; j < offered.length(); j++) {
+                    JSONObject item = offered.optJSONObject(j);
+                    if (item == null) continue;
+                    String itemName = item.optString("name", "Card");
+                    String detail = item.optString("rarity", "CARD") + " · "
+                            + item.optString("element", "UNKNOWN") + " · " + item.optString("card_code", "");
+                    card.addView(dataRow(itemName, detail, "OFFER"), rowParams());
+                }
+            }
+            if (pending && incoming) {
+                LinearLayout actions = new LinearLayout(this);
+                actions.setOrientation(LinearLayout.HORIZONTAL);
+                TextView accept = button("ACCEPT DEAL", true);
+                accept.setOnClickListener(v -> showTradeAcceptDialog(trade.optString("trade_id"), inventory));
+                TextView decline = button("DECLINE", false);
+                decline.setOnClickListener(v -> confirmAction("Decline trade?",
+                        "The offered cards will be released to their owner.", () ->
+                        api.post("/api/trades/" + trade.optString("trade_id") + "/decline",
+                                new JSONObject(), result -> ui.post(() -> {
+                                    if (!result.ok()) showResultDialog("Trade error", result.error);
+                                    else renderTab("trades");
+                                }))));
+                actions.addView(accept, new LinearLayout.LayoutParams(0, dp(38), 1f));
+                LinearLayout.LayoutParams declineParams = new LinearLayout.LayoutParams(0, dp(38), 1f);
+                declineParams.leftMargin = dp(7);
+                actions.addView(decline, declineParams);
+                card.addView(actions);
+            } else if (pending && outgoing) {
+                TextView cancel = button("CANCEL OFFER", false);
+                cancel.setOnClickListener(v -> confirmAction("Cancel trade offer?",
+                        "Your reserved cards will become available again.", () ->
+                        api.post("/api/trades/" + trade.optString("trade_id") + "/cancel",
+                                new JSONObject(), result -> ui.post(() -> {
+                                    if (!result.ok()) showResultDialog("Trade error", result.error);
+                                    else renderTab("trades");
+                                }))));
+                card.addView(cancel, new LinearLayout.LayoutParams(dp(145), dp(36)));
+            }
+            content.addView(card, rowParams());
+        }
+        if (visibleTrades == 0) showNotice("No offers are waiting. Create your first contract to start exchanging cards.");
+
+        addGap(content, 8);
+        content.addView(text("AVAILABLE FOR TRADE · " + inventory.length(), 8, GOLD_BRIGHT, true));
+        if (inventory.length() == 0) {
+            showNotice("No cards are currently available. Bound cards and cards reserved in open offers cannot be traded.");
+        } else {
+            int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
+                    / getResources().getDisplayMetrics().density);
+            int columns = widthDp >= 1100 ? 4 : widthDp >= 760 ? 3 : 2;
+            LinearLayout grid = null;
+            int visible = 0;
+            for (int i = 0; i < inventory.length(); i++) {
+                JSONObject card = inventory.optJSONObject(i);
+                if (card == null) continue;
+                if (visible % columns == 0) {
+                    grid = new LinearLayout(this);
+                    grid.setOrientation(LinearLayout.HORIZONTAL);
+                    content.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+                }
+                LinearLayout tile = createCardTile(card);
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
+                p.setMargins(dp(3), dp(3), dp(3), dp(6));
+                grid.addView(tile, p);
+                visible++;
+            }
+        }
     }
 
     private void showTradeCreateDialog(JSONArray inventory) {
