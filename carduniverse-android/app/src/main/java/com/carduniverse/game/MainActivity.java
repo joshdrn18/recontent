@@ -4910,6 +4910,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         boolean[] selected = new boolean[inventory.length()];
         LinearLayout[] rows = new LinearLayout[inventory.length()];
         TextView[] markers = new TextView[inventory.length()];
+        final AlertDialog[] dialogHolder = new AlertDialog[1];
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -5002,7 +5003,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     }
                 }
                 selected[index] = !selected[index];
-                updateTradePickerSelection(selected, counter, dialog, markers, rows);
+                updateTradePickerSelection(selected, counter, dialogHolder[0], markers, rows);
             });
         }
 
@@ -5022,6 +5023,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     }
                     showTradeRecipientDialog(ids);
                 }).create();
+        dialogHolder[0] = dialog;
 
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
