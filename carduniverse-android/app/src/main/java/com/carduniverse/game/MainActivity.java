@@ -85,6 +85,7 @@ public final class MainActivity extends Activity {
     private int chatRefreshSeconds = 5;
     private static final int REQUEST_CARD_ARTWORK = 7301;
     private TextView pendingArtworkUpload;
+    private boolean missionsDailyLoading = false;
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
     private JSONObject arenaLeaderCard;
     private JSONObject arenaOpponentCard;
@@ -1817,6 +1818,24 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     private void renderMissions(JSONObject data) {
         JSONArray missions = data.optJSONArray("missions");
         JSONArray challenges = data.optJSONArray("daily_challenges");
+        if (challenges == null) {
+            addRealmScene("adventure", "QUEST BOARD",
+                    "Fetching your daily contracts and collector objectives.", 0, 0);
+            TextView loading = text("SYNCING DAILY CHALLENGES…", 8, MUTED, true);
+            content.addView(loading, rowParams());
+            if (missionsDailyLoading) return;
+            missionsDailyLoading = true;
+            api.get("/api/daily-challenges", result -> ui.post(() -> {
+                missionsDailyLoading = false;
+                if (!"missions".equals(activeTab) || content == null) return;
+                content.removeView(loading);
+                JSONArray daily = result.ok() ? result.data.optJSONArray("challenges") : null;
+                try { data.put("daily_challenges", daily == null ? new JSONArray() : daily); }
+                catch (Exception ignored) {}
+                renderMissions(data);
+            }));
+            return;
+        }
         addRealmScene("adventure", "QUEST BOARD",
                 "Daily contracts, weekly trials and long-term collector objectives.",
                 0, 0);
@@ -2045,7 +2064,12 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             String currency = item.optString("currency", "COINS").toUpperCase(java.util.Locale.ROOT);
             long price = item.optLong("price");
             long stock = item.isNull("stock_remaining") ? -1 : item.optLong("stock_remaining");
-            boolean owned = item.optInt("cosmetic_owned") == 1;
+            boolean cosmeticOwned = item.optInt("cosmetic_owned") == 1;
+            boolean alreadyCollected = item.optLong("card_owned") > 0;
+            int purchaseLimit = item.optInt("purchase_limit");
+            int purchasedCount = item.optInt("purchased_count");
+            boolean limitReached = purchaseLimit > 0 && purchasedCount >= purchaseLimit;
+            boolean owned = cosmeticOwned || limitReached;
             boolean canBuy = !owned && stock != 0 && price > 0 && !itemId.isEmpty();
             int accent = owned ? GREEN : "GEMS".equals(currency) ? VIOLET
                     : "SHARDS".equals(currency) ? CYAN : GOLD;
@@ -2077,8 +2101,12 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             copy.addView(text(stock < 0 ? "OPEN STOCK" : stock == 0 ? "SOLD OUT"
                     : formatNumber(stock) + " UNITS LEFT", 7, stock == 0 ? RED : MUTED, true));
             card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-            if (owned) card.addView(text("OWNED", 8, GREEN, true));
+            if (cosmeticOwned) card.addView(text("OWNED", 8, GREEN, true));
+            else if (limitReached) card.addView(text("LIMIT REACHED", 7, MUTED, true));
             else {
+                if (alreadyCollected) {
+                    card.addView(text("ALREADY IN BINDER", 7, CYAN, true));
+                }
                 TextView buy = button(canBuy ? "PURCHASE" : stock == 0 ? "SOLD OUT" : "LOCKED", true);
                 buy.setEnabled(canBuy);
                 buy.setOnClickListener(v -> confirmPurchaseAction("Purchase " + title + "?",
@@ -4200,6 +4228,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         browse.addView(search, fieldParams());
         final String[] filterNames = {"ALL", "RARE+", "LEGENDARY+", "MYTHIC"};
         final int[] selectedFilter = {0};
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
         final TextView[] chips = new TextView[filterNames.length];
         LinearLayout chipRow = new LinearLayout(this);
         HorizontalScrollView chipScroll = new HorizontalScrollView(this);
@@ -4230,8 +4260,6 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         browse.addView(chipScroll, new LinearLayout.LayoutParams(-1, dp(40)));
         content.addView(browse, rowParams());
 
-        LinearLayout results = new LinearLayout(this);
-        results.setOrientation(LinearLayout.VERTICAL);
         content.addView(results);
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -6375,6 +6403,10 @@ private void showTradeCreateDialog(JSONArray inventory) {
             catch (Exception error) { amount = 0; }
             if (amount < 1 || amount > 1000000) {
                 amountInput.setError("Enter an amount from 1 to 1,000,000 Gold.");
+                return;
+            }
+            if (amount > availableGold) {
+                amountInput.setError("Your wallet does not have enough Gold.");
                 return;
             }
             final int gold = amount;
