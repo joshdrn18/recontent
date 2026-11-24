@@ -133,16 +133,16 @@ jobs:
         if: steps.signing.outputs.configured == 'true'
         run: |
           set -euo pipefail
-          cp carduniverse-android/app/build/outputs/apk/release/app-release.apk CardUniverse-v2.19.0.apk
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose CardUniverse-v2.19.0.apk
-          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging CardUniverse-v2.19.0.apk | grep -F "package: name='com.carduniverse.game' versionCode='24' versionName='2.19.0'"
+          cp carduniverse-android/app/build/outputs/apk/release/app-release.apk CardUniverse-v2.20.0.apk
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose CardUniverse-v2.20.0.apk
+          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging CardUniverse-v2.20.0.apk | grep -F "package: name='com.carduniverse.game' versionCode='25' versionName='2.20.0'"
 
       - name: Upload APK artifact
         if: steps.signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: CardUniverse-Android-v2.19.0
-          path: CardUniverse-v2.19.0.apk
+          name: CardUniverse-Android-v2.20.0
+          path: CardUniverse-v2.20.0.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -150,11 +150,11 @@ jobs:
         if: github.ref == 'refs/heads/carduniverse-android' && steps.signing.outputs.configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v2.19.0-build-${{ github.run_number }}
-          name: CardUniverse Android v2.19.0 (build ${{ github.run_number }})
+          tag_name: carduniverse-android-v2.20.0-build-${{ github.run_number }}
+          name: CardUniverse Android v2.20.0 (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
-          files: CardUniverse-v2.19.0.apk
+          files: CardUniverse-v2.20.0.apk
 
       - name: Explain skipped APK build
         if: steps.signing.outputs.configured != 'true'
