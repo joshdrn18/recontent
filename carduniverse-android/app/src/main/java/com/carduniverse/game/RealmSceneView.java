@@ -123,14 +123,115 @@ public final class RealmSceneView extends View {
         fill(c, front, Color.rgb(12, 22, 36));
     }
 
-    private void drawHome(Canvas c, float t) {
-        drawCastle(c, 690, 174, 1.05f, Color.rgb(69, 87, 125));
-        drawFloatingIsland(c, 190, 198, 1.0f, t);
-        drawFloatingIsland(c, 493, 188, 0.62f, t + 0.3f);
-        drawBridge(c, 235, 221, 705, 212);
-        drawTrees(c, 0, 227, 1.1f);
-        glow(c, 682, 172, 92, GOLD, 0.18f);
+        private void drawHome(Canvas c, float t) {
+        // A layered sky citadel with a clear hero focal point.
+        drawMountains(c, Color.rgb(42, 53, 89), Color.rgb(19, 31, 49));
+        drawCastle(c, 492, 174, 1.12f, Color.rgb(67, 88, 137));
+        drawFloatingIsland(c, 142, 199, 0.72f, t);
+        drawFloatingIsland(c, 820, 194, 0.56f, t + 0.45f);
+        drawBridge(c, 80, 239, 890, 220);
+        drawTrees(c, 0, 240, 0.78f);
+        glow(c, 500, 138, 150, GOLD, 0.20f);
+        glow(c, 728, 196, 112, CYAN, 0.23f);
+        drawHeroKnight(c, 730, 270, 0.90f, t);
+        drawFloorRays(c, t, CYAN);
     }
+
+    private void drawHeroKnight(Canvas c, float x, float y, float scale, float t) {
+        c.save();
+        c.translate(x, y + (float)Math.sin(t * 6.28f) * 2.2f);
+        c.scale(scale, scale);
+        glow(c, 0, -96, 92, CYAN, 0.28f);
+
+        // Long split cape and silhouette layers create depth against the distant skyline.
+        Path cape = new Path();
+        cape.moveTo(-23, -142);
+        cape.cubicTo(-82, -91, -83, -12, -42, 8);
+        cape.lineTo(2, -39);
+        cape.lineTo(40, 12);
+        cape.cubicTo(84, -29, 57, -110, 23, -145);
+        cape.close();
+        fill(c, cape, Color.rgb(24, 37, 74));
+        Path capeLight = new Path();
+        capeLight.moveTo(-20, -127);
+        capeLight.cubicTo(-54, -85, -57, -23, -39, -2);
+        capeLight.lineTo(-19, -40);
+        capeLight.close();
+        fill(c, capeLight, Color.rgb(48, 83, 145));
+
+        // Boots and greaves.
+        p.setColor(Color.rgb(22, 30, 49));
+        c.drawRoundRect(new RectF(-30, -48, -7, 9), 7, 7, p);
+        c.drawRoundRect(new RectF(9, -47, 34, 10), 7, 7, p);
+        p.setColor(Color.rgb(137, 164, 202));
+        c.drawRoundRect(new RectF(-29, -45, -10, -18), 5, 5, p);
+        c.drawRoundRect(new RectF(12, -43, 32, -16), 5, 5, p);
+
+        // Breastplate with bright chest gem.
+        Path torso = new Path();
+        torso.moveTo(-28, -145); torso.lineTo(28, -145);
+        torso.lineTo(42, -75); torso.lineTo(0, -51);
+        torso.lineTo(-42, -75); torso.close();
+        fill(c, torso, Color.rgb(93, 119, 158));
+        p.setStyle(Paint.Style.STROKE); p.setStrokeWidth(3); p.setColor(Color.rgb(215, 222, 242));
+        c.drawPath(torso, p); p.setStyle(Paint.Style.FILL);
+        Path chest = new Path();
+        chest.moveTo(-18, -132); chest.lineTo(18, -132); chest.lineTo(25, -81);
+        chest.lineTo(0, -67); chest.lineTo(-25, -81); chest.close();
+        fill(c, chest, Color.rgb(37, 60, 105));
+        glow(c, 0, -105, 27, GOLD, 0.5f);
+        p.setColor(GOLD); c.drawCircle(0, -106, 7, p);
+        p.setColor(Color.rgb(228, 208, 155));
+        Path plate = new Path();
+        plate.moveTo(-27, -140); plate.lineTo(-51, -127); plate.lineTo(-42, -96);
+        plate.lineTo(-23, -103); plate.close();
+        fill(c, plate, Color.rgb(184, 190, 211));
+        Path plateR = new Path();
+        plateR.moveTo(27, -140); plateR.lineTo(51, -127); plateR.lineTo(42, -96);
+        plateR.lineTo(23, -103); plateR.close();
+        fill(c, plateR, Color.rgb(184, 190, 211));
+
+        // Arms and gauntlets.
+        p.setStrokeWidth(13); p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(Color.rgb(67, 88, 128));
+        c.drawLine(-32, -128, -54, -72, p);
+        c.drawLine(32, -128, 50, -79, p);
+        p.setStrokeWidth(7); p.setColor(Color.rgb(197, 207, 226));
+        c.drawLine(-53, -77, -47, -58, p);
+        c.drawLine(49, -84, 58, -67, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+
+        // Head, hair and crown crest.
+        p.setColor(Color.rgb(220, 194, 169));
+        c.drawOval(new RectF(-20, -190, 20, -145), p);
+        p.setColor(Color.rgb(25, 31, 53));
+        Path hair = new Path();
+        hair.moveTo(-22, -166); hair.lineTo(-26, -192); hair.lineTo(-9, -205);
+        hair.lineTo(12, -202); hair.lineTo(26, -185); hair.lineTo(18, -158);
+        hair.lineTo(8, -180); hair.lineTo(-4, -166); hair.close();
+        fill(c, hair, Color.rgb(30, 40, 65));
+        p.setColor(GOLD); p.setStrokeWidth(3);
+        c.drawLine(-17, -189, -3, -206, p);
+        c.drawLine(3, -207, 19, -189, p);
+        p.setColor(CYAN); c.drawCircle(0, -194, 4, p);
+
+        // Raised energy blade with a subtle animated trail.
+        c.save();
+        c.rotate(-13 + (float)Math.sin(t * 6.28f) * 2f, 57, -68);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(8); p.setColor(Color.rgb(49, 75, 122));
+        c.drawLine(57, -68, 111, -210, p);
+        p.setStrokeWidth(4); p.setColor(Color.rgb(129, 226, 255));
+        c.drawLine(57, -68, 111, -210, p);
+        p.setStrokeWidth(1.5f); p.setColor(Color.WHITE);
+        c.drawLine(61, -82, 108, -202, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        glow(c, 111, -210, 30, CYAN, 0.9f);
+        c.restore();
+        c.restore();
+    }
+
+
 
     private void drawAdventure(Canvas c, float t) {
         drawCastle(c, 795, 164, 0.9f, Color.rgb(80, 94, 142));
@@ -232,24 +333,100 @@ public final class RealmSceneView extends View {
         p.setStrokeWidth(2);p.setColor(Color.argb(100,234,208,162));c.drawOval(new RectF(300,201,662,267),p);p.setStyle(Paint.Style.FILL);
         drawFighter(c,310,194,1f,CYAN,true,t);
         drawFighter(c,650,190,1.05f,RED,false,t);
+        // Animated crossing blade trails make the arena read as a live encounter.
+        float clash = 0.5f + 0.5f * (float)Math.sin(t * 6.28f * 1.8f);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeCap(Paint.Cap.ROUND);
+        p.setStrokeWidth(4 + clash * 3);
+        p.setColor(Color.argb((int)(80 + clash * 140), 153, 225, 255));
+        c.drawArc(new RectF(410,116,548,252),205,82,false,p);
+        p.setStrokeWidth(2);p.setColor(Color.argb((int)(60+clash*130),255,207,142));
+        c.drawArc(new RectF(420,125,540,244),18,82,false,p);
+        p.setStrokeCap(Paint.Cap.BUTT);p.setStyle(Paint.Style.FILL);
+        glow(c,480,190,44,clash>0.5f?GOLD:CYAN,0.25f+clash*0.52f);
         p.setColor(Color.argb(210,240,221,184));p.setStrokeWidth(3);
         c.drawLine(474,173,488,208,p);c.drawLine(488,173,474,208,p);
         drawFloorRays(c,t,GOLD);
     }
 
-    private void drawFighter(Canvas c,float x,float y,float scale,int color,boolean left,float t){
-        c.save();c.translate(x,y);c.scale(scale,scale);
-        glow(c,0,-42,65,color,0.28f);
-        p.setColor(Color.rgb(18,24,41));c.drawOval(new RectF(-35,-8,35,74),p);
-        p.setColor(color);c.drawCircle(0,-45,22,p);
-        p.setColor(Color.rgb(224,206,185));c.drawCircle(0,-46,15,p);
-        p.setColor(Color.rgb(32,34,51));c.drawArc(new RectF(-20,-64,20,-30),180,180,true,p);
-        p.setColor(color);Path cape=new Path();cape.moveTo(-22,-10);cape.lineTo(left?-57:57,45);cape.lineTo(22,32);cape.close();fill(c,cape,color);
-        p.setColor(Color.rgb(197,207,225));p.setStrokeWidth(5);p.setStrokeCap(Paint.Cap.ROUND);
-        c.drawLine(20,-5,left?46:-46,-42,p);p.setStrokeCap(Paint.Cap.BUTT);
-        p.setColor(GOLD);c.drawCircle(left?46:-46,-42,5,p);
+        private void drawFighter(Canvas c,float x,float y,float scale,int color,boolean left,float t){
+        c.save();
+        c.translate(x, y + (float)Math.sin(t * 6.28f + (left ? 0 : 1.6f)) * 2f);
+        c.scale(scale,scale);
+        float facing = left ? 1f : -1f;
+        glow(c,0,-49,74,color,0.30f);
+
+        // Cast shadow and armoured legs.
+        p.setColor(Color.argb(105,0,0,0));
+        c.drawOval(new RectF(-45,48,48,70),p);
+        p.setColor(Color.rgb(24,29,45));
+        c.drawRoundRect(new RectF(-26,-14,-5,53),7,7,p);
+        c.drawRoundRect(new RectF(7,-14,28,53),7,7,p);
+        p.setColor(Color.rgb(111,128,161));
+        c.drawRoundRect(new RectF(-25,4,-7,37),5,5,p);
+        c.drawRoundRect(new RectF(9,4,27,37),5,5,p);
+        p.setColor(Color.rgb(184,191,210));
+        c.drawRoundRect(new RectF(-31,42,-2,57),5,5,p);
+        c.drawRoundRect(new RectF(4,42,34,57),5,5,p);
+
+        // Cape and torso armour.
+        Path cape=new Path();
+        cape.moveTo(-19,-105);cape.lineTo(left?-65:65,36);cape.lineTo(0,18);
+        cape.lineTo(28,41);cape.lineTo(18,-106);cape.close();
+        fill(c,cape,color);
+        Path torso=new Path();
+        torso.moveTo(-28,-105);torso.lineTo(27,-105);torso.lineTo(36,-24);
+        torso.lineTo(0,-4);torso.lineTo(-36,-24);torso.close();
+        fill(c,torso,Color.rgb(79,92,121));
+        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3);
+        p.setColor(Color.rgb(206,211,227));c.drawPath(torso,p);p.setStyle(Paint.Style.FILL);
+        Path breast=new Path();
+        breast.moveTo(-18,-95);breast.lineTo(18,-95);breast.lineTo(24,-35);
+        breast.lineTo(0,-22);breast.lineTo(-24,-35);breast.close();
+        fill(c,breast,Color.rgb(33,42,66));
+        p.setColor(GOLD);c.drawCircle(0,-61,6,p);
+        glow(c,0,-61,23,color,0.38f);
+
+        // Shoulder plates and gauntlet arms.
+        p.setColor(Color.rgb(177,188,210));
+        c.drawCircle(-31,-94,13,p);c.drawCircle(31,-94,13,p);
+        p.setColor(Color.rgb(69,83,113));
+        p.setStrokeWidth(13);p.setStrokeCap(Paint.Cap.ROUND);
+        c.drawLine(-31,-87,-43,-35,p);
+        c.drawLine(31,-87,43,-35,p);
+        p.setStrokeWidth(7);p.setColor(Color.rgb(205,211,228));
+        c.drawLine(-43,-38,-48,-25,p);c.drawLine(43,-38,48,-25,p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+
+        // Helm and visor.
+        p.setColor(Color.rgb(223,197,168));c.drawCircle(0,-126,18,p);
+        p.setColor(Color.rgb(28,34,55));
+        Path helmet=new Path();
+        helmet.moveTo(-21,-126);helmet.lineTo(-14,-150);helmet.lineTo(0,-162);
+        helmet.lineTo(17,-149);helmet.lineTo(22,-122);helmet.lineTo(0,-135);helmet.close();
+        fill(c,helmet,Color.rgb(174,187,212));
+        p.setColor(Color.rgb(21,34,54));c.drawRect(-14,-128,14,-122,p);
+        p.setColor(color);c.drawCircle(0,-129,3,p);
+        Path plume=new Path();
+        plume.moveTo(0,-159);plume.quadTo(left?18:-18,-181,left?40:-40,-169);
+        plume.lineTo(left?10:-10,-151);plume.close();fill(c,plume,color);
+
+        // Blade, held outward toward the opponent.
+        c.save();
+        c.rotate((left? -18f:18f)+(float)Math.sin(t*6.28f+ (left?0:2))*4f,
+                facing*39,-47);
+        p.setStrokeWidth(9);p.setStrokeCap(Paint.Cap.ROUND);
+        p.setColor(Color.rgb(37,43,65));c.drawLine(facing*39,-47,facing*76,-132,p);
+        p.setStrokeWidth(4);p.setColor(Color.rgb(214,231,251));
+        c.drawLine(facing*39,-47,facing*76,-132,p);
+        p.setStrokeWidth(1.5f);p.setColor(color);
+        c.drawLine(facing*42,-58,facing*74,-129,p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        c.restore();
         c.restore();
     }
+
+
 
     private void drawSummon(Canvas c, float t) {
         drawCastle(c,480,165,0.5f,Color.rgb(48,59,104));
