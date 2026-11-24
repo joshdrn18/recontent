@@ -746,6 +746,23 @@ public final class MainActivity extends Activity {
         parent.addView(row, rowParams());
     }
 
+
+    private boolean usesRealmScene(String tab) {
+        return "collection".equals(tab) || "binders".equals(tab) || "achievements".equals(tab)
+                || "summon".equals(tab) || "adventure".equals(tab) || "dungeons".equals(tab)
+                || "raids".equals(tab) || "arena".equals(tab) || "trades".equals(tab)
+                || "shop".equals(tab) || "guild".equals(tab) || "missions".equals(tab)
+                || "progression".equals(tab);
+    }
+
+    private void addRealmScene(String mode, String title, String subtitle, int progress, int total) {
+        RealmSceneView scene = new RealmSceneView(this, mode, title, subtitle, progress, total);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(226));
+        params.bottomMargin = dp(9);
+        content.addView(scene, params);
+    }
+
     private void renderTab(String tab) {
         activeTab = tab;
         refreshNav();
@@ -757,7 +774,7 @@ public final class MainActivity extends Activity {
             renderHome();
             return;
         }
-        addScreenHero(tab);
+        if (!usesRealmScene(tab)) addScreenHero(tab);
         renderLoading();
         String path = endpointFor(tab);
         if (path == null) {
@@ -767,7 +784,7 @@ public final class MainActivity extends Activity {
         api.get(path, result -> ui.post(() -> {
             if (!tab.equals(activeTab) || content == null) return;
             content.removeAllViews();
-            addScreenHero(tab);
+            if (!usesRealmScene(tab)) addScreenHero(tab);
             if (!result.ok()) {
                 showNotice(result.error == null ? "Unable to load this section." : result.error);
                 TextView retry = button("TRY AGAIN", false);
@@ -800,39 +817,7 @@ public final class MainActivity extends Activity {
     }
 
     private void renderHome() {
-        LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.HORIZONTAL);
-        hero.setGravity(Gravity.CENTER_VERTICAL);
-        hero.setPadding(dp(18), dp(15), dp(18), dp(15));
-        hero.setBackground(gradient(Color.rgb(47, 40, 91), Color.rgb(13, 18, 39), Color.rgb(147, 124, 231), dp(16)));
-
-        LinearLayout heroCopy = new LinearLayout(this);
-        heroCopy.setOrientation(LinearLayout.VERTICAL);
-        heroCopy.addView(text("WELCOME TO FIRSTLIGHT", 8, GOLD_BRIGHT, true));
-        addGap(heroCopy, 5);
-        heroCopy.addView(text("The realm is yours, " + me.optString("display_name", "Collector") + ".", 20, TEXT, true));
-        heroCopy.addView(text("Your next discovery is waiting beyond the archive.", 9, MUTED, false));
-        TextView level = text("COLLECTOR LEVEL  " + me.optInt("collector_level", 1), 8, GOLD_BRIGHT, true);
-        level.setPadding(0, dp(8), 0, 0);
-        heroCopy.addView(level);
-        hero.addView(heroCopy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-        FrameLayout heroMark = new FrameLayout(this);
-        heroMark.setBackground(gradient(Color.rgb(44, 34, 79), Color.rgb(13, 17, 37),
-                Color.rgb(152, 126, 255), dp(16)));
-        TextView star = text("✦", 42, GOLD_BRIGHT, true);
-        star.setGravity(Gravity.CENTER);
-        heroMark.addView(star, new FrameLayout.LayoutParams(-1, -1));
-        CardArtView fox = new CardArtView(this);
-        fox.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-        fox.loadArtwork("/art/cinder-fox.webp");
-        FrameLayout.LayoutParams foxParams = new FrameLayout.LayoutParams(-1, -1);
-        foxParams.setMargins(dp(5), dp(5), dp(5), dp(5));
-        heroMark.addView(fox, foxParams);
-        LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(dp(104), dp(104));
-        hmp.leftMargin = dp(14);
-        hero.addView(heroMark, hmp);
-        content.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        addRealmScene("home", "FIRSTLIGHT REALM", "Your collection is waiting. Choose where your story begins.", me.optInt("collector_level", 1), 1000);
 
         addGap(content, 12);
         if (isGodModeEnabled()) {
@@ -1012,32 +997,7 @@ public final class MainActivity extends Activity {
             JSONObject p = packs.optJSONObject(i);
             if (p != null) totalQuantity += Math.max(0, p.optInt("quantity"));
         }
-        LinearLayout shrine = sectionPanel();
-        shrine.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{Color.rgb(49, 40, 88), Color.rgb(11, 16, 32)}));
-        LinearLayout hero = new LinearLayout(this);
-        hero.setOrientation(LinearLayout.HORIZONTAL);
-        hero.setGravity(Gravity.CENTER_VERTICAL);
-        FrameLayout gate = createSummonSeal(VIOLET, "✧", 104);
-        hero.addView(gate, new LinearLayout.LayoutParams(dp(104), dp(104)));
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        copy.setPadding(dp(13), 0, 0, 0);
-        copy.addView(text("SUMMON SANCTUM", 8, Color.rgb(199, 175, 255), true));
-        copy.addView(text("The Astral Gate", 21, TEXT, true));
-        copy.addView(text("Break a seal. Discover a new legend.", 8, MUTED, false));
-        copy.addView(text(unlimited ? "GOD MODE · UNLIMITED SUMMONS"
-                : totalQuantity + " PACKS READY TO OPEN", 8, GOLD_BRIGHT, true));
-        hero.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-        shrine.addView(hero);
-        LinearLayout metrics = new LinearLayout(this);
-        metrics.setOrientation(LinearLayout.HORIZONTAL);
-        metrics.addView(statCard("PACK TYPES", String.valueOf(packs.length()), "Available"), weightParams(1));
-        metrics.addView(statCard("INVENTORY", unlimited ? "∞" : formatNumber(totalQuantity),
-                unlimited ? "Master access" : "Ready to summon"), weightParams(1));
-        shrine.addView(metrics);
-        content.addView(shrine, rowParams());
-
+        addRealmScene("summon", "THE ASTRAL GATE", "Choose a seal below to open a portal and reveal your next cards.", totalQuantity, Math.max(1, totalQuantity));
         content.addView(text("AVAILABLE SUMMON SEALS", 8, GOLD_BRIGHT, true));
         for (int i = 0; i < packs.length(); i++) {
             JSONObject pack = packs.optJSONObject(i);
@@ -1126,6 +1086,10 @@ public final class MainActivity extends Activity {
         if (packs.length() == 0) showNotice("No summon seals are available right now.");
     }
     private void renderArena(JSONObject data) {
+        addRealmScene("arena", isAdminAccount() ? "THE GRAND ARENA · OBSERVER" : "THE GRAND ARENA",
+                isAdminAccount() ? "Spectator access · public competitive standings only."
+                        : "Prepare your formation and enter the battle arena.", 0, 0);
+
 if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             addModeSpotlight("ARENA · ADMIN VIEW ONLY", "Spectator access",
                     "Master Admin accounts can inspect the public Ranked ladder, but cannot enter Casual or Ranked PvP.",
@@ -1566,9 +1530,6 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     }
 
     private void renderAdventure(JSONObject data) {
-        addModeSpotlight("FIRSTLIGHT CAMPAIGN", "Explore the realm. Defeat its guardians.",
-                "Clear chapters, unlock new encounters and bring home rewards from every victory.",
-                "⚔", Color.rgb(255, 133, 114));
         JSONArray chapters = data.optJSONArray("chapters");
         if (chapters == null) { renderObjectSummary(data, "ADVENTURE PROGRESS"); return; }
 
@@ -1588,6 +1549,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 else if (stage.optBoolean("unlocked")) readyStages++;
             }
         }
+        addRealmScene("adventure", "FIRSTLIGHT FRONTIER", "Follow the trail, clear encounters and unlock the next region.", clearedStages, Math.max(1, totalStages));
         LinearLayout expedition = sectionPanel();
         expedition.setBackground(gradient(Color.rgb(84, 43, 54), Color.rgb(12, 18, 37),
                 Color.rgb(255, 130, 113), dp(17)));
@@ -1727,6 +1689,7 @@ addModeSpotlight("DAILY & LONG-TERM OBJECTIVES", "Every action moves you forward
 
         JSONArray missions = data.optJSONArray("missions");
         JSONArray challenges = data.optJSONArray("daily_challenges");
+        addRealmScene("adventure", "QUEST BOARD", "Daily contracts and long-term objectives for your collector.", 0, 0);
         if (missions == null && challenges == null) { renderObjectSummary(data, "MISSION STATUS"); return; }
 
         if (challenges != null) {
@@ -1799,10 +1762,8 @@ addModeSpotlight("DAILY & LONG-TERM OBJECTIVES", "Every action moves you forward
         JSONArray items = data.optJSONArray("items");
         JSONObject wallet = data.optJSONObject("wallet");
         if (items == null) { renderObjectSummary(data, "SHOP INVENTORY"); return; }
-        addModeSpotlight("FIRSTLIGHT MARKET", "A real collector's marketplace",
-                "Browse clearly priced listings, check stock and exchange your earned currencies for useful upgrades and cosmetics.",
-                "♢", GOLD_BRIGHT);
         if (wallet == null) wallet = new JSONObject();
+        addRealmScene("market", "FIRSTLIGHT MARKET", "A realm bazaar for cards, supplies and collector cosmetics.", items.length(), Math.max(1, items.length()));
         LinearLayout balances = new LinearLayout(this);
         balances.setOrientation(LinearLayout.HORIZONTAL);
         balances.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Available"), weightParams(1));
@@ -1932,6 +1893,7 @@ addModeSpotlight("DAILY & LONG-TERM OBJECTIVES", "Every action moves you forward
                 "Your guild is a shared headquarters for collectors, contributions and community activity.",
                 "♜", Color.rgb(105, 211, 153));
         JSONObject guild = data.optJSONObject("guild");
+        addRealmScene("guild", guild == null ? "GUILD FRONTIER" : guild.optString("name", "GUILD HALL"), guild == null ? "Find your banner or found a new guild." : "Your community headquarters · build a shared legacy.", guild == null ? 0 : guild.optInt("member_count"), guild == null ? 1 : Math.max(1, guild.optInt("member_limit")));
         if (guild == null) {
             LinearLayout create = sectionPanel();
             create.setGravity(Gravity.CENTER);
@@ -2168,6 +2130,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
         }
 
+        addRealmScene("archive", "THE CARD ARCHIVE", "Every card you discover becomes part of your legend.", ownedTypes, cards.length());
         LinearLayout summary = new LinearLayout(this);
         summary.setOrientation(LinearLayout.HORIZONTAL);
         summary.addView(statCard("UNIQUE CARDS", String.valueOf(ownedTypes), "In your collection"),
@@ -2501,9 +2464,6 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void renderDungeons(JSONObject data) {
-        addModeSpotlight("THE DEEP VAULT", "Descend into the unknown",
-                "Every floor is a choice: fight for power, take the treasure route or recover before the next chamber.",
-                "⌘", VIOLET);
         JSONArray dungeons = data.optJSONArray("dungeons");
         JSONArray claimable = data.optJSONArray("claimableRuns");
         JSONArray history = data.optJSONArray("history");
@@ -2512,6 +2472,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         int limit = data.optInt("dailyLimit", 3);
         int remaining = Math.max(0, limit - used);
 
+        addRealmScene("dungeon", run == null ? "THE DEEP VAULT" : run.optString("dungeon_name", "ACTIVE EXPEDITION"), "Explore the chambers. Choose your route. Bring the treasure home.", run == null ? used : run.optInt("floor_reached"), run == null ? Math.max(1, limit) : 6);
         LinearLayout daily = sectionPanel();
         daily.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(16)));
         daily.addView(text("EXPEDITION ENERGY", 8, CYAN, true));
@@ -2656,14 +2617,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void renderRaids(JSONObject data) {
-        addModeSpotlight("WORLD BOSS · SHARED HEALTH POOL", "The whole realm fights as one",
-                "Deal your daily damage, watch the guardian's shared HP fall and claim rewards when your contribution qualifies.",
-                "♜", PINK);
         JSONArray bosses = data.optJSONArray("bosses");
         if (bosses == null || bosses.length() == 0) {
             showNotice("No world raid is scheduled. Return when the next guardian awakens.");
             return;
         }
+        JSONObject featuredBoss = bosses.optJSONObject(0);
+        if (featuredBoss != null) addRealmScene("raid", featuredBoss.optString("name", "WORLD BOSS"),
+                "The realm shares one health pool. Every strike matters.", featuredBoss.optInt("progress_percent"), 100);
         for (int i = 0; i < bosses.length(); i++) {
             JSONObject boss = bosses.optJSONObject(i);
             if (boss == null) continue;
@@ -2755,9 +2716,6 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void renderTrades(JSONObject data) {
-        addModeSpotlight("COLLECTOR EXCHANGE", "Trade fairly. Complete the collection.",
-                "Create offers, review incoming deals and exchange only cards that are eligible for trade.",
-                "⇄", CYAN);
         JSONArray inventoryRaw = data.optJSONArray("inventory");
         JSONArray tradesRaw = data.optJSONArray("trades");
         final JSONArray inventory = inventoryRaw == null ? new JSONArray() : inventoryRaw;
@@ -2771,6 +2729,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (userId.equals(trade.optString("target_user_id"))) incomingCount++;
             if (userId.equals(trade.optString("creator_user_id"))) outgoingCount++;
         }
+        addRealmScene("trade", "COLLECTOR EXCHANGE", "Two collectors. Two offers. One fair exchange.", incomingCount + outgoingCount, Math.max(1, trades.length()));
         LinearLayout dashboard = sectionPanel();
         dashboard.setBackground(gradient(Color.rgb(26, 59, 77), Color.rgb(10, 17, 34), CYAN, dp(16)));
         dashboard.addView(text("SECURE PLAYER-TO-PLAYER EXCHANGE", 8, CYAN, true));
@@ -3202,6 +3161,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (cards == null) cards = new JSONArray();
         String activeName = active == null ? "Genesis Archive" : active.optString("name", "Genesis Archive");
 
+        addRealmScene("binder", activeName, "Your private card library · organise and curate your favourite pulls.", cards.length(), Math.max(1, cards.length()));
         LinearLayout feature = sectionPanel();
         feature.setOrientation(LinearLayout.HORIZONTAL);
         feature.setGravity(Gravity.CENTER_VERTICAL);
@@ -3364,6 +3324,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
             if (!item.isNull("claimed_at")) claimed++;
         }
+        addRealmScene("records", "HALL OF LEGENDS", "Permanent records of every achievement, collection and victory.", unlocked, Math.max(1, list.length()));
         LinearLayout hall = sectionPanel();
         hall.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{Color.rgb(66, 54, 42), Color.rgb(17, 23, 39)}));
@@ -3477,6 +3438,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         int total = data.optInt("rewardTotal");
         int pages = Math.max(1, (int) Math.ceil(total / (double) Math.max(1, pageSize)));
 
+        addRealmScene("records", "COLLECTOR MILESTONES", "Your journey through the Firstlight ranks.", level, 1000);
         LinearLayout hero = sectionPanel();
         hero.setBackground(gradient(Color.rgb(71, 55, 106), Color.rgb(12, 18, 39), GOLD, dp(17)));
         LinearLayout heading = new LinearLayout(this);
