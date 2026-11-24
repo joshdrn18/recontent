@@ -1643,6 +1643,17 @@ public final class MainActivity extends Activity {
         content.addView(duplicates, new LinearLayout.LayoutParams(dp(220), dp(36)));
     }
 
+    private String cardArtworkPath(JSONObject card) {
+        if (card == null) return "";
+        String code = card.optString("card_code", "").trim().toUpperCase(java.util.Locale.ROOT);
+        String name = card.optString("name", "").toLowerCase(java.util.Locale.ROOT);
+        if ("FL-001".equals(code) && name.contains("fox")) return "/art/cinder-fox.webp";
+        String path = card.optString("art_path", "").trim();
+        if (path.startsWith("/media/cards/") || path.startsWith("/art/")) return path;
+        if (code.matches("(FL|MY|EV)-\\d{3}")) return "/media/cards/artwork/" + code + ".svg";
+        return "";
+    }
+
     private LinearLayout createCardTile(JSONObject card) {
         String name = card.optString("name", "Unknown Card");
         String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
@@ -1665,7 +1676,14 @@ public final class MainActivity extends Activity {
         sigil.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams sigilParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        sigil.setAlpha(0.16f);
         art.addView(sigil, sigilParams);
+        CardArtView illustration = new CardArtView(this);
+        illustration.loadArtwork(cardArtworkPath(card));
+        FrameLayout.LayoutParams illustrationParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        illustrationParams.setMargins(dp(5), dp(2), dp(5), dp(2));
+        art.addView(illustration, illustrationParams);
         TextView elementLabel = text(element, 7, GOLD_BRIGHT, true);
         elementLabel.setGravity(Gravity.RIGHT | Gravity.BOTTOM);
         FrameLayout.LayoutParams elementParams = new FrameLayout.LayoutParams(
@@ -1673,7 +1691,7 @@ public final class MainActivity extends Activity {
                 Gravity.BOTTOM | Gravity.RIGHT);
         elementParams.setMargins(0, 0, dp(7), dp(5));
         art.addView(elementLabel, elementParams);
-        tile.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(82)));
+        tile.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(116)));
 
         TextView rarityLabel = text(rarity, 7, accent, true);
         rarityLabel.setPadding(0, dp(6), 0, dp(2));
@@ -1721,17 +1739,31 @@ public final class MainActivity extends Activity {
 
     private void showCardDetails(JSONObject c) {
         String rarity = c.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
-        String name = c.optString("name", "Card Details");
-        String message = c.optString("card_code", "CARD")
-                + "\\n" + rarity + "  ·  " + c.optString("element", "AETHER")
-                + "\\n\\n" + c.optString("description", "A collectible from the Firstlight Realm.")
-                + "\\n\\nOwned copies: " + c.optInt("owned_count")
-                + "\\n\\nCard catalogue details are shared with the website.";
-        new AlertDialog.Builder(this)
-                .setTitle(name)
-                .setMessage(message)
-                .setPositiveButton("CLOSE", null)
-                .show();
+        String element = c.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
+        int accent = cardRarityColor(rarity);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(14), dp(8), dp(14), dp(8));
+        panel.setBackground(gradient(PANEL_LIGHT, PANEL, accent, dp(14)));
+        FrameLayout showcase = new FrameLayout(this);
+        showcase.setBackground(gradient(Color.rgb(24, 38, 35), Color.rgb(8, 16, 19), accent, dp(12)));
+        TextView fallback = text(elementSigil(element), 42, accent, true);
+        fallback.setGravity(Gravity.CENTER);
+        fallback.setAlpha(0.22f);
+        showcase.addView(fallback, new FrameLayout.LayoutParams(-1, -1));
+        CardArtView art = new CardArtView(this);
+        art.loadArtwork(cardArtworkPath(c));
+        showcase.addView(art, new FrameLayout.LayoutParams(-1, -1));
+        panel.addView(showcase, new LinearLayout.LayoutParams(-1, dp(220)));
+        TextView code = text(c.optString("card_code", "CARD") + "  ·  " + rarity + "  ·  " + element, 8, GOLD_BRIGHT, true);
+        code.setPadding(0, dp(10), 0, dp(5));
+        panel.addView(code);
+        TextView description = text(c.optString("description", "A collectible from the Firstlight Realm."), 10, MUTED, false);
+        description.setLineSpacing(dp(3), 1f);
+        panel.addView(description);
+        panel.addView(text("OWNED COPIES  ·  " + c.optInt("owned_count"), 8, GREEN, true));
+        new AlertDialog.Builder(this).setTitle(c.optString("name", "Card Details"))
+                .setView(panel).setPositiveButton("CLOSE", null).show();
     }
 
     private void loadDuplicateConversionPanel() {
@@ -2004,10 +2036,12 @@ public final class MainActivity extends Activity {
                     Color.rgb(82, 104, 77), dp(8)));
             TextView sigil = text("＋", 29, MUTED, true);
             sigil.setGravity(Gravity.CENTER);
-            art.addView(sigil, new FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            art.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
+            CardArtView illustration = new CardArtView(this);
+            illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+            art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
             LinearLayout.LayoutParams artParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, dp(74));
+                    ViewGroup.LayoutParams.MATCH_PARENT, dp(112));
             artParams.topMargin = dp(6);
             panel.addView(art, artParams);
 
@@ -2038,7 +2072,7 @@ public final class MainActivity extends Activity {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                     String selectedId = position >= 0 && position < ids.length ? ids[position] : "";
-                    updateFormationCardPreview(cardsById.get(selectedId), art, sigil, cardName, cardMeta);
+                    updateFormationCardPreview(cardsById.get(selectedId), art, illustration, sigil, cardName, cardMeta);
                 }
                 @Override public void onNothingSelected(AdapterView<?> parent) {}
             });
@@ -2052,7 +2086,7 @@ public final class MainActivity extends Activity {
             String initialId = spinner.getSelectedItemPosition() >= 0
                     && spinner.getSelectedItemPosition() < ids.length
                     ? ids[spinner.getSelectedItemPosition()] : "";
-            updateFormationCardPreview(cardsById.get(initialId), art, sigil, cardName, cardMeta);
+            updateFormationCardPreview(cardsById.get(initialId), art, illustration, sigil, cardName, cardMeta);
         }
 
         content.addView(grid);
@@ -2091,10 +2125,13 @@ public final class MainActivity extends Activity {
     }
 
     private void updateFormationCardPreview(JSONObject card, FrameLayout art,
-                                            TextView sigil, TextView name, TextView meta) {
+                                            CardArtView illustration, TextView sigil,
+                                            TextView name, TextView meta) {
         if (card == null) {
             art.setBackground(gradient(Color.rgb(26, 45, 37), Color.rgb(10, 19, 16),
                     Color.rgb(82, 104, 77), dp(8)));
+            illustration.clearArtwork();
+            sigil.setAlpha(1f);
             sigil.setText("＋");
             sigil.setTextColor(MUTED);
             name.setText("EMPTY SLOT");
@@ -2109,6 +2146,8 @@ public final class MainActivity extends Activity {
         art.setBackground(gradient(Color.rgb(31, 50, 39), Color.rgb(10, 19, 16), accent, dp(8)));
         sigil.setText(elementSigil(element));
         sigil.setTextColor(accent);
+        sigil.setAlpha(0.16f);
+        illustration.loadArtwork(cardArtworkPath(card));
         name.setText(card.optString("name", "Unknown Card"));
         name.setTextColor(TEXT);
         meta.setText(rarity + " · " + element + " · ×" + card.optInt("owned_count"));
@@ -2625,10 +2664,13 @@ public final class MainActivity extends Activity {
         art.setBackground(gradient(Color.rgb(30, 48, 39), Color.rgb(10, 18, 16), accent, dp(9)));
         TextView glyph = text(elementSigil(element), 34, accent, true);
         glyph.setGravity(Gravity.CENTER);
-        art.addView(glyph, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        glyph.setAlpha(0.16f);
+        art.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
+        CardArtView illustration = new CardArtView(this);
+        illustration.loadArtwork(cardArtworkPath(card));
+        art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
         tile.addView(art, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(83)));
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(116)));
         TextView number = text(String.format(java.util.Locale.US, "CARD %02d", order),
                 7, MUTED, true);
         number.setPadding(0, dp(5), 0, 0);
