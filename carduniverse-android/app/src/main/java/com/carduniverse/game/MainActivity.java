@@ -30,6 +30,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
@@ -84,6 +85,8 @@ public final class MainActivity extends Activity {
     private boolean purchaseConfirmationsEnabled = true;
     private int chatRefreshSeconds = 5;
     private static final int REQUEST_CARD_ARTWORK = 7301;
+    private static final int REQUEST_PROFILE_AVATAR = 7302;
+    private TextView pendingProfileAvatar;
     private TextView pendingArtworkUpload;
     private boolean missionsDailyLoading = false;
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
@@ -333,11 +336,15 @@ public final class MainActivity extends Activity {
         TextView heading = text(register ? "Create your account" : "Welcome back", 22, TEXT, true);
         TextView hint = text(register ? "Begin your collection in the Firstlight Realm." : "Sign in to return to your collection.", 10, MUTED, false);
         EditText nameField = editField("Display name", false);
+        EditText usernameField = editField("Username (3–20 letters, numbers, _)", false);
+        usernameField.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        usernameField.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(20)});
         EditText emailField = editField("Email address", false);
         emailField.setInputType( android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
         EditText passwordField = editField("Password", true);
         passwordField.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        if (!register) nameField.setVisibility(View.GONE);
+        if (!register) { nameField.setVisibility(View.GONE); usernameField.setVisibility(View.GONE); }
 
         TextView errorText = text(error == null ? "" : error, 9, RED, false);
         errorText.setMaxLines(3);
@@ -358,6 +365,7 @@ public final class MainActivity extends Activity {
         form.addView(hint);
         addGap(form, compact ? 8 : 13);
         form.addView(nameField, fieldParams());
+        form.addView(usernameField, fieldParams());
         form.addView(emailField, fieldParams());
         form.addView(passwordField, fieldParams());
         if (!register) addGap(form, 2);
@@ -373,8 +381,15 @@ public final class MainActivity extends Activity {
             String email = emailField.getText().toString().trim();
             String password = passwordField.getText().toString();
             String displayName = nameField.getText().toString().trim();
+            String username = usernameField.getText().toString().trim().replaceFirst("^@", "")
+                    .toLowerCase(java.util.Locale.ROOT);
             if (email.isEmpty() || password.isEmpty() || (register && displayName.length() < 2)) {
-                errorText.setText(register ? "Enter your display name, email and password." : "Enter your email and password.");
+                errorText.setText(register ? "Enter your display name, username, email and password." : "Enter your email and password.");
+                return;
+            }
+            if (register && !username.matches("[a-z][a-z0-9_]{2,19}")) {
+                usernameField.setError("Use 3–20 characters, start with a letter, and use letters, numbers or underscores.");
+                errorText.setText("Choose a valid unique username before creating your account.");
                 return;
             }
             if (register && password.length() < 10) {
@@ -387,7 +402,7 @@ public final class MainActivity extends Activity {
             try {
                 payload.put("email", email);
                 payload.put("password", password);
-                if (register) payload.put("displayName", displayName);
+                if (register) { payload.put("displayName", displayName); payload.put("username", username); }
             } catch (Exception ignored) {}
             api.post(register ? "/api/auth/register" : "/api/auth/login", payload, result -> ui.post(() -> {
                 requestBusy = false;
@@ -475,6 +490,7 @@ public final class MainActivity extends Activity {
                 {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
                 {"trades", "⇄", "TRADES"},
+                {"friends", "♧", "FRIENDS"},
                 {"chat", "◉", "CHAT"},
                 {"missions", "☷", "MISSIONS"},
                 {"shop", "♢", "SHOP"},
@@ -855,6 +871,10 @@ public final class MainActivity extends Activity {
             renderHome();
             return;
         }
+        if ("friends".equals(tab)) {
+            renderFriendsScreen();
+            return;
+        }
         if (!usesRealmScene(tab)) addScreenHero(tab);
         renderLoading();
         String path = endpointFor(tab);
@@ -1093,6 +1113,7 @@ public final class MainActivity extends Activity {
         guildParams.leftMargin = dp(8);
         extras.addView(featureCard("♜", "Guild Hall", "Your realm companions", () -> renderTab("guild")), guildParams);
         content.addView(extras);
+        content.addView(featureCard("♧", "Friends", "Add collectors by username", () -> renderTab("friends")), rowParams());
     }
 
     private LinearLayout lobbyStat(String label, String value, int accent) {
@@ -3490,124 +3511,13 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         LinearLayout panel = sectionPanel();
         panel.setBackground(gradient(Color.rgb(41, 47, 79), Color.rgb(9, 16, 31), VIOLET, dp(14)));
         panel.addView(text("MASTER ADMIN · ARTWORK STUDIO", 8, VIOLET, true));
-        panel.addView(text("Generate new card illustrations or upload finished art to the shared collection catalogue.",
+        panel.addView(text("Upload finished card illustrations to the shared collection catalogue.",
                 9, TEXT, true));
 
         LinearLayout aiPanel = sectionPanel();
-        aiPanel.setBackground(gradient(Color.rgb(37, 39, 74), Color.rgb(10, 17, 34), VIOLET, dp(12)));
-        aiPanel.addView(text("✦  AI CARD ART GENERATOR", 8, GOLD_BRIGHT, true));
-        aiPanel.addView(text("Select an existing catalogue card, describe the visual direction and generate a portrait illustration. The result replaces that card's current artwork for every player.",
-                8, MUTED, false));
-
-        final JSONObject[] selectedCard = {null};
-        final TextView[] selectedLabel = new TextView[1];
-        TextView selectCard = button("CHOOSE A CARD TO ILLUSTRATE", false);
-        selectedLabel[0] = selectCard;
-        selectCard.setOnClickListener(v -> {
-            if (cards == null || cards.length() == 0) {
-                showResultDialog("No catalogue cards", "There are no cards available for artwork generation.");
-                return;
-            }
-            ArrayList<JSONObject> eligible = new ArrayList<>();
-            ArrayList<String> labels = new ArrayList<>();
-            for (int i = 0; i < cards.length(); i++) {
-                JSONObject card = cards.optJSONObject(i);
-                if (card == null) continue;
-                String cardId = card.optString("card_id", card.optString("id", ""));
-                if (cardId.isEmpty()) continue;
-                eligible.add(card);
-                labels.add(card.optString("card_code", "CARD") + "  ·  "
-                        + card.optString("name", "Unknown card") + "  ·  "
-                        + card.optString("rarity", "COMMON") + " / "
-                        + card.optString("element", "AETHER"));
-            }
-            if (eligible.isEmpty()) {
-                showResultDialog("Card IDs unavailable",
-                        "The collection catalogue did not return card IDs required to safely update an artwork record.");
-                return;
-            }
-            new AlertDialog.Builder(this).setTitle("SELECT CATALOGUE CARD")
-                    .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-                        selectedCard[0] = eligible.get(which);
-                        selectCard.setText(selectedCard[0].optString("card_code", "CARD")
-                                + "  ·  " + selectedCard[0].optString("name", "Selected card"));
-                        selectCard.setTextColor(CYAN);
-                    }).setNegativeButton("CANCEL", null).show();
-        });
-        aiPanel.addView(selectCard, new LinearLayout.LayoutParams(-1, dp(40)));
-
-        addGap(aiPanel, 7);
-        aiPanel.addView(text("ART DIRECTION / PROMPT", 7, GOLD_BRIGHT, true));
-        EditText prompt = editField("Example: A silver-winged guardian fox standing above a moonlit frozen lake, elegant cyan spirit flames, detailed fantasy anime key art…", false);
-        prompt.setSingleLine(false);
-        prompt.setMinLines(3);
-        prompt.setMaxLines(5);
-        prompt.setFilters(new android.text.InputFilter[]{
-                new android.text.InputFilter.LengthFilter(700)
-        });
-        aiPanel.addView(prompt, new LinearLayout.LayoutParams(-1, dp(104)));
-
-        TextView quota = text("CHECKING DAILY IMAGE QUOTA…", 8, MUTED, true);
-        quota.setPadding(0, dp(7), 0, dp(5));
-        aiPanel.addView(quota);
-        Runnable refreshQuota = () -> api.get("/api/admin/cards/artwork-quota", result -> ui.post(() -> {
-            if (!result.ok()) {
-                quota.setText("AI IMAGE QUOTA UNAVAILABLE · " + result.error);
-                return;
-            }
-            quota.setText("SHARED QUOTA  ·  " + result.data.optInt("remaining")
-                    + " / " + result.data.optInt("daily_limit") + " LEFT"
-                    + "     YOUR QUOTA  ·  " + result.data.optInt("personal_remaining")
-                    + " / " + result.data.optInt("personal_limit") + " LEFT  ·  UTC");
-        }));
-        refreshQuota.run();
-
-        TextView generate = button("✦  GENERATE CARD ARTWORK", true);
-        LinearLayout.LayoutParams generateParams = new LinearLayout.LayoutParams(-1, dp(42));
-        generateParams.topMargin = dp(7);
-        aiPanel.addView(generate, generateParams);
-        generate.setOnClickListener(v -> {
-            JSONObject target = selectedCard[0];
-            String cardId = target == null ? "" : target.optString("card_id",
-                    target.optString("id", ""));
-            String direction = prompt.getText().toString().trim();
-            if (cardId.isEmpty()) {
-                showResultDialog("Choose a card first", "Select the catalogue card you want to illustrate.");
-                return;
-            }
-            if (direction.length() < 8) {
-                prompt.setError("Describe the artwork in at least 8 characters.");
-                return;
-            }
-            if (direction.length() > 700) {
-                prompt.setError("Keep the artwork direction below 700 characters.");
-                return;
-            }
-            confirmAction("Generate artwork for " + target.optString("name", "this card") + "?",
-                    "This uses one image from the daily CardUniverse generation quota and replaces the current artwork for every player.",
-                    () -> {
-                generate.setEnabled(false);
-                generate.setText("GENERATING ARTWORK…");
-                api.post("/api/admin/cards/" + Uri.encode(cardId) + "/artwork/generate",
-                        payload("prompt", direction), result -> ui.post(() -> {
-                    generate.setEnabled(true);
-                    generate.setText("✦  GENERATE CARD ARTWORK");
-                    if (!result.ok()) {
-                        showResultDialog("Artwork generation failed", result.error);
-                        refreshQuota.run();
-                        return;
-                    }
-                    showResultDialog("CARD ARTWORK GENERATED",
-                            result.data.optString("message", "The new card illustration is now shared with all players.")
-                                    + "\n\n" + result.data.optInt("remaining") + " shared image(s) left today"
-                                    + " · " + result.data.optInt("personal_remaining") + " in your quota");
-                    refreshQuota.run();
-                    refreshAccount(() -> renderTab("collection"));
-                }));
-            });
-        });
-        aiPanel.addView(text("10 images per admin per day · 50 images shared per day (UTC reset) · Each successful render replaces the selected card artwork.",
-                7, MUTED, false));
+        aiPanel.setBackground(gradient(Color.rgb(34, 38, 56), Color.rgb(10, 16, 29), Color.rgb(90, 103, 128), dp(12)));
+        aiPanel.addView(text("AI CARD GENERATOR DISABLED", 8, MUTED, true));
+        aiPanel.addView(text("AI artwork generation has been switched off. Use the manual artwork upload below to add approved card illustrations.", 8, MUTED, false));
         panel.addView(aiPanel, rowParams());
 
         addGap(panel, 10);
@@ -3640,6 +3550,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_PROFILE_AVATAR) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) uploadProfileAvatar(data.getData());
+            return;
+        }
         if (requestCode != REQUEST_CARD_ARTWORK || resultCode != RESULT_OK || data == null) return;
         ArrayList<Uri> selected = new ArrayList<>();
         if (data.getClipData() != null) {
@@ -7436,6 +7350,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView email = text(me.optString("email", "Account email unavailable"), 8, MUTED, false);
         email.setMaxLines(1);
         identityCopy.addView(email);
+        TextView handle = text("@" + me.optString("username", "collector"), 8, CYAN, true);
+        handle.setMaxLines(1);
+        identityCopy.addView(handle);
         TextView rank = text("LEVEL " + formatNumber(me.optLong("collector_level", 1))
                 + "  ·  " + me.optString("role", "collector").toUpperCase(java.util.Locale.ROOT),
                 7, CYAN, true);
@@ -7483,10 +7400,15 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView edit = button("EDIT PROFILE", true);
         edit.setOnClickListener(v -> { dialog.dismiss(); showProfileEditor(); });
         actions.addView(edit, new LinearLayout.LayoutParams(0, dp(41), 1f));
+        TextView friends = button("FRIENDS", false);
+        friends.setOnClickListener(v -> { dialog.dismiss(); renderTab("friends"); });
+        LinearLayout.LayoutParams friendsParams = new LinearLayout.LayoutParams(0, dp(41), 1f);
+        friendsParams.leftMargin = dp(7);
+        actions.addView(friends, friendsParams);
         TextView settings = button("SETTINGS", false);
         settings.setOnClickListener(v -> { dialog.dismiss(); renderTab("settings"); });
         LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0, dp(41), 1f);
-        settingsParams.leftMargin = dp(8);
+        settingsParams.leftMargin = dp(7);
         actions.addView(settings, settingsParams);
         shell.addView(actions);
 
@@ -7520,42 +7442,478 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         return panel;
     }
 
+
     private void showProfileEditor() {
         api.get("/api/profile", result -> ui.post(() -> {
             if (!result.ok()) { showResultDialog("Profile unavailable", result.error); return; }
+            JSONObject profileUser = result.data.optJSONObject("user");
             JSONObject profileData = result.data.optJSONObject("profile");
+            if (profileUser == null) profileUser = me == null ? new JSONObject() : me;
             if (profileData == null) profileData = new JSONObject();
-            EditText name = editField("Display name", false);
-            name.setText(me == null ? "" : me.optString("display_name", ""));
-            EditText bio = editField("Short bio (max 180 characters)", false);
+            try {
+                if (me != null) {
+                    me.put("display_name", profileUser.optString("display_name", me.optString("display_name", "Collector")));
+                    me.put("username", profileUser.optString("username", me.optString("username", "")));
+                }
+            } catch (Exception ignored) {}
+
+            if (content == null) return;
+            if (pageTitle != null) pageTitle.setText("EDIT PROFILE");
+            content.removeAllViews();
+
+            LinearLayout heading = new LinearLayout(this);
+            heading.setOrientation(LinearLayout.VERTICAL);
+            heading.setPadding(dp(3), dp(2), dp(3), dp(8));
+            TextView eyebrow = text("COLLECTOR IDENTITY  /  FIRSTLIGHT REALM", 7, GOLD, true);
+            eyebrow.setLetterSpacing(0.13f);
+            heading.addView(eyebrow);
+            heading.addView(text("Your profile, your legend.", 18, TEXT, true));
+            heading.addView(text("Manage how other collectors see you across the realm.", 8, MUTED, false));
+            content.addView(heading, rowParams());
+
+            LinearLayout avatarPanel = sectionPanel();
+            avatarPanel.setBackground(gradient(Color.rgb(38, 43, 73), Color.rgb(11, 17, 32), VIOLET, dp(14)));
+            avatarPanel.addView(text("PROFILE APPEARANCE", 8, GOLD_BRIGHT, true));
+            LinearLayout avatarRow = new LinearLayout(this);
+            avatarRow.setGravity(Gravity.CENTER_VERTICAL);
+            avatarRow.setPadding(0, dp(8), 0, 0);
+            FrameLayout avatarFrame = new FrameLayout(this);
+            avatarFrame.setBackground(gradient(Color.rgb(242, 213, 155), Color.rgb(117, 85, 52), GOLD_BRIGHT, dp(42)));
+            avatarFrame.setClipToOutline(true);
+            TextView avatarFallback = text(initials(profileUser.optString("display_name", "CU")), 22, BG, true);
+            avatarFallback.setGravity(Gravity.CENTER);
+            avatarFrame.addView(avatarFallback, new FrameLayout.LayoutParams(-1, -1));
+            ImageView avatarImage = new ImageView(this);
+            avatarImage.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            avatarImage.setVisibility(View.GONE);
+            avatarFrame.addView(avatarImage, new FrameLayout.LayoutParams(-1, -1));
+            avatarRow.addView(avatarFrame, new LinearLayout.LayoutParams(dp(76), dp(76)));
+            LinearLayout avatarCopy = new LinearLayout(this);
+            avatarCopy.setOrientation(LinearLayout.VERTICAL);
+            avatarCopy.setPadding(dp(12), 0, 0, 0);
+            avatarCopy.addView(text("YOUR COLLECTOR AVATAR", 8, TEXT, true));
+            avatarCopy.addView(text("JPG, PNG or WebP · up to 2 MB", 7, MUTED, false));
+            TextView upload = button("CHANGE PHOTO", false);
+            LinearLayout.LayoutParams uploadParams = new LinearLayout.LayoutParams(-2, dp(34));
+            uploadParams.topMargin = dp(6);
+            avatarCopy.addView(upload, uploadParams);
+            upload.setOnClickListener(v -> chooseProfileAvatar());
+            avatarRow.addView(avatarCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+            avatarPanel.addView(avatarRow);
+            String avatarUrl = profileData.optString("avatarUrl", "");
+            loadProfileAvatar(avatarImage, avatarUrl);
+            pendingProfileAvatar = upload;
+            if (!avatarUrl.isEmpty()) {
+                TextView removeAvatar = text("REMOVE PROFILE PHOTO", 7, RED, true);
+                removeAvatar.setPadding(dp(2), dp(8), 0, dp(1));
+                removeAvatar.setOnClickListener(v -> confirmAction("Remove profile photo?",
+                        "Your collector profile will return to its default emblem.", () ->
+                        api.delete("/api/profile/avatar", removed -> ui.post(() -> {
+                            if (!removed.ok()) { showResultDialog("Photo not removed", removed.error); return; }
+                            Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
+                            showProfileEditor();
+                        }))));
+                avatarPanel.addView(removeAvatar);
+            }
+            content.addView(avatarPanel, rowParams());
+            addGap(content, 8);
+
+            LinearLayout identity = sectionPanel();
+            identity.addView(text("PUBLIC IDENTITY", 8, GOLD_BRIGHT, true));
+            EditText displayName = editField("Display name", false);
+            displayName.setText(profileUser.optString("display_name", ""));
+            displayName.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(48)});
+            identity.addView(text("DISPLAY NAME", 7, MUTED, true));
+            identity.addView(displayName, fieldParams());
+
+            EditText username = editField("your_username", false);
+            username.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                    | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+            username.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(20)});
+            username.setText(profileUser.optString("username", me == null ? "" : me.optString("username", "")));
+            boolean canEditUsername = isAdminAccount();
+            username.setEnabled(canEditUsername);
+            username.setAlpha(canEditUsername ? 1f : 0.68f);
+            identity.addView(text(canEditUsername ? "USERNAME  ·  MASTER ADMIN CAN CHANGE THIS"
+                    : "USERNAME  ·  LOCKED AFTER REGISTRATION", 7, MUTED, true));
+            identity.addView(username, fieldParams());
+            identity.addView(text(canEditUsername
+                    ? "3–20 characters. Start with a letter; use letters, numbers or underscores."
+                    : "Share this unique handle with other collectors to receive friend requests.",
+                    7, MUTED, false));
+            content.addView(identity, rowParams());
+            addGap(content, 8);
+
+            LinearLayout about = sectionPanel();
+            about.addView(text("ABOUT YOUR COLLECTOR", 8, GOLD_BRIGHT, true));
+            EditText bio = editField("Write a short bio about your collection…", false);
             bio.setSingleLine(false);
-            bio.setMinLines(3);
+            bio.setMinLines(4);
+            bio.setMaxLines(5);
+            bio.setGravity(Gravity.TOP | Gravity.START);
+            bio.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(180)});
             bio.setText(profileData.optString("bio", ""));
-            LinearLayout form = new LinearLayout(this);
-            form.setOrientation(LinearLayout.VERTICAL);
-            form.setPadding(dp(8), dp(8), dp(8), 0);
-            form.addView(name, fieldParams());
-            form.addView(bio, fieldParams());
+            TextView bioCount = text(bio.length() + " / 180", 7, MUTED, true);
+            bioCount.setGravity(Gravity.RIGHT);
+            bio.addTextChangedListener(new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    bioCount.setText(s.length() + " / 180");
+                }
+                @Override public void afterTextChanged(Editable s) {}
+            });
+            about.addView(text("PUBLIC BIO", 7, MUTED, true));
+            about.addView(bio, new LinearLayout.LayoutParams(-1, dp(100)));
+            about.addView(bioCount);
+            content.addView(about, rowParams());
+            addGap(content, 8);
+
+            LinearLayout titlesPanel = sectionPanel();
+            titlesPanel.addView(text("TITLE COLLECTION", 8, GOLD_BRIGHT, true));
+            titlesPanel.addView(text("Equip a title you have already earned. Locked titles cannot be selected.", 7, MUTED, false));
+            JSONArray titles = result.data.optJSONArray("titles");
+            ArrayList<String> titleIds = new ArrayList<>();
+            ArrayList<String> titleLabels = new ArrayList<>();
+            titleIds.add("");
+            titleLabels.add("No title equipped");
+            if (titles != null) for (int i = 0; i < titles.length(); i++) {
+                JSONObject t = titles.optJSONObject(i);
+                if (t == null || t.optInt("owned") != 1) continue;
+                titleIds.add(t.optString("title_id", ""));
+                titleLabels.add(t.optString("name", "Collector title") + "  ·  " + t.optString("rarity", "COMMON"));
+            }
+            Spinner titleSpinner = new Spinner(this);
+            ArrayAdapter<String> titleAdapter = new ArrayAdapter<>(this,
+                    android.R.layout.simple_spinner_item, titleLabels);
+            titleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            titleSpinner.setAdapter(titleAdapter);
             String activeTitle = profileData.optString("activeTitleId", "");
-            new AlertDialog.Builder(this).setTitle("Collector profile").setView(form)
-                    .setNegativeButton("CANCEL", null)
-                    .setPositiveButton("SAVE", (dialog, which) -> {
-                        JSONObject payload = new JSONObject();
-                        try {
-                            payload.put("displayName", name.getText().toString().trim());
-                            payload.put("bio", bio.getText().toString().trim());
-                            payload.put("activeTitleId", activeTitle);
-                        } catch (Exception ignored) {}
-                        api.patch("/api/profile", payload, saved -> ui.post(() -> {
-                            if (!saved.ok()) { showResultDialog("Profile not saved", saved.error); return; }
-                            showResultDialog("PROFILE UPDATED", "Your collector profile has been saved.");
-                            refreshAccount(() -> {
-                                if ("settings".equals(activeTab)) renderTab("settings");
-                                else showPlayerProfile();
-                            });
-                        }));
-                    }).show();
+            int activeIndex = titleIds.indexOf(activeTitle);
+            titleSpinner.setSelection(Math.max(0, activeIndex));
+            titlesPanel.addView(titleSpinner, fieldParams());
+            content.addView(titlesPanel, rowParams());
+            addGap(content, 10);
+
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            TextView save = button("SAVE PROFILE", true);
+            TextView friends = button("FRIENDS", false);
+            actions.addView(save, new LinearLayout.LayoutParams(0, dp(44), 1.3f));
+            LinearLayout.LayoutParams friendsParams = new LinearLayout.LayoutParams(0, dp(44), 0.8f);
+            friendsParams.leftMargin = dp(7);
+            actions.addView(friends, friendsParams);
+            content.addView(actions, rowParams());
+            friends.setOnClickListener(v -> renderTab("friends"));
+            TextView back = text("←  BACK TO SETTINGS", 8, MUTED, true);
+            back.setGravity(Gravity.CENTER);
+            back.setPadding(0, dp(12), 0, dp(10));
+            back.setOnClickListener(v -> renderTab("settings"));
+            content.addView(back);
+
+            save.setOnClickListener(v -> {
+                String nameValue = displayName.getText().toString().trim();
+                String usernameValue = username.getText().toString().trim().replaceFirst("^@", "")
+                        .toLowerCase(java.util.Locale.ROOT);
+                if (nameValue.length() < 2) {
+                    displayName.setError("Use at least 2 characters.");
+                    return;
+                }
+                if (canEditUsername && !usernameValue.matches("[a-z][a-z0-9_]{2,19}")) {
+                    username.setError("Use 3–20 letters, numbers or underscores; start with a letter.");
+                    return;
+                }
+                save.setEnabled(false);
+                save.setText("SAVING PROFILE…");
+                JSONObject payload = new JSONObject();
+                try {
+                    payload.put("displayName", nameValue);
+                    payload.put("bio", bio.getText().toString().trim());
+                    payload.put("activeTitleId", titleIds.get(Math.max(0,
+                            Math.min(titleIds.size() - 1, titleSpinner.getSelectedItemPosition()))));
+                    if (canEditUsername) payload.put("username", usernameValue);
+                } catch (Exception ignored) {}
+                api.patch("/api/profile", payload, saved -> ui.post(() -> {
+                    if (!saved.ok()) {
+                        save.setEnabled(true);
+                        save.setText("SAVE PROFILE");
+                        showResultDialog("Profile not saved", saved.error);
+                        return;
+                    }
+                    JSONObject savedUser = saved.data.optJSONObject("user");
+                    try {
+                        if (me != null && savedUser != null) {
+                            me.put("display_name", savedUser.optString("display_name", nameValue));
+                            me.put("username", savedUser.optString("username", usernameValue));
+                        }
+                    } catch (Exception ignored) {}
+                    Toast.makeText(this, "Collector profile saved.", Toast.LENGTH_SHORT).show();
+                    showProfileEditor();
+                }));
+            });
         }));
+    }
+
+    private void chooseProfileAvatar() {
+        Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        pick.addCategory(Intent.CATEGORY_OPENABLE);
+        pick.setType("image/*");
+        pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        try { startActivityForResult(pick, REQUEST_PROFILE_AVATAR); }
+        catch (Exception error) {
+            showResultDialog("Photo picker unavailable", "Unable to open the image picker on this device.");
+        }
+    }
+
+    private void loadProfileAvatar(ImageView target, String path) {
+        if (target == null || path == null || path.trim().isEmpty()) return;
+        target.setTag(path);
+        new Thread(() -> {
+            java.net.HttpURLConnection connection = null;
+            android.graphics.Bitmap bitmap = null;
+            try {
+                String url = path.startsWith("http") ? path : ApiClient.API_ROOT + path;
+                connection = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(15000);
+                connection.setUseCaches(true);
+                if (connection.getResponseCode() == 200) {
+                    try (InputStream input = connection.getInputStream()) {
+                        bitmap = android.graphics.BitmapFactory.decodeStream(input);
+                    }
+                }
+            } catch (Exception ignored) {
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+            android.graphics.Bitmap loaded = bitmap;
+            ui.post(() -> {
+                if (loaded != null && path.equals(target.getTag())) {
+                    target.setImageBitmap(loaded);
+                    target.setVisibility(View.VISIBLE);
+                }
+            });
+        }, "cu-profile-avatar").start();
+    }
+
+    private void uploadProfileAvatar(Uri uri) {
+        if (uri == null) return;
+        TextView status = pendingProfileAvatar;
+        if (status != null) {
+            status.setEnabled(false);
+            status.setText("UPLOADING PHOTO…");
+        }
+        new Thread(() -> {
+            ApiClient.UploadFile upload = null;
+            String problem = null;
+            try (InputStream input = getContentResolver().openInputStream(uri);
+                 ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                if (input == null) throw new IllegalStateException("Unable to read the selected photo.");
+                byte[] buffer = new byte[8192];
+                int count;
+                while ((count = input.read(buffer)) != -1) {
+                    if (output.size() + count > 2 * 1024 * 1024) {
+                        throw new IllegalArgumentException("Profile photos must be 2 MB or smaller.");
+                    }
+                    output.write(buffer, 0, count);
+                }
+                String mime = getContentResolver().getType(uri);
+                String filename = artworkFilename(uri);
+                if (mime == null) {
+                    String lower = filename.toLowerCase(java.util.Locale.ROOT);
+                    mime = lower.endsWith(".png") ? "image/png"
+                            : lower.endsWith(".jpg") || lower.endsWith(".jpeg") ? "image/jpeg"
+                            : lower.endsWith(".webp") ? "image/webp" : "";
+                }
+                if ("image/jpg".equalsIgnoreCase(mime)) mime = "image/jpeg";
+                if (!"image/jpeg".equalsIgnoreCase(mime)
+                        && !"image/png".equalsIgnoreCase(mime)
+                        && !"image/webp".equalsIgnoreCase(mime)) {
+                    throw new IllegalArgumentException("Use a JPEG, PNG or WebP photo.");
+                }
+                upload = new ApiClient.UploadFile(filename, mime, output.toByteArray());
+            } catch (Exception error) {
+                problem = error.getMessage() == null ? "Unable to read the selected photo." : error.getMessage();
+            }
+            String finalProblem = problem;
+            ApiClient.UploadFile finalUpload = upload;
+            if (finalProblem != null || finalUpload == null) {
+                ui.post(() -> {
+                    if (status != null) { status.setEnabled(true); status.setText("CHANGE PHOTO"); }
+                    showResultDialog("Profile photo not uploaded",
+                            finalProblem == null ? "Unable to prepare the selected photo." : finalProblem);
+                });
+                return;
+            }
+            ArrayList<ApiClient.UploadFile> files = new ArrayList<>();
+            files.add(finalUpload);
+            api.postMultipart("/api/profile/avatar", "avatar", files, result -> ui.post(() -> {
+                if (status != null) { status.setEnabled(true); status.setText("CHANGE PHOTO"); }
+                if (!result.ok()) {
+                    showResultDialog("Profile photo not uploaded", result.error);
+                    return;
+                }
+                Toast.makeText(this, "Profile photo updated.", Toast.LENGTH_SHORT).show();
+                showProfileEditor();
+            }));
+        }, "cu-profile-photo-upload").start();
+    }
+
+    private void renderFriendsScreen() {
+        if (content == null) return;
+        content.removeAllViews();
+        LinearLayout intro = sectionPanel();
+        intro.setBackground(gradient(Color.rgb(35, 55, 70), Color.rgb(11, 19, 34), CYAN, dp(13)));
+        intro.addView(text("COLLECTOR NETWORK", 7, CYAN, true));
+        intro.addView(text("Find your people. Build your party.", 17, TEXT, true));
+        intro.addView(text("Add collectors using their unique username. You can accept, decline or cancel requests at any time.", 8, MUTED, false));
+        content.addView(intro, rowParams());
+        addGap(content, 8);
+
+        LinearLayout addPanel = sectionPanel();
+        addPanel.addView(text("ADD A FRIEND", 8, GOLD_BRIGHT, true));
+        addPanel.addView(text("Your username  ·  @" + (me == null ? "collector" : me.optString("username", "collector")), 7, MUTED, false));
+        LinearLayout addRow = new LinearLayout(this);
+        addRow.setGravity(Gravity.CENTER_VERTICAL);
+        EditText query = editField("@username", false);
+        query.setSingleLine(true);
+        query.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        query.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(21)});
+        addRow.addView(query, new LinearLayout.LayoutParams(0, dp(43), 1f));
+        TextView send = button("SEND REQUEST", true);
+        LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(dp(124), dp(43));
+        sendParams.leftMargin = dp(7);
+        addRow.addView(send, sendParams);
+        addPanel.addView(addRow);
+        content.addView(addPanel, rowParams());
+        addGap(content, 8);
+
+        LinearLayout lists = new LinearLayout(this);
+        lists.setOrientation(LinearLayout.VERTICAL);
+        lists.addView(sectionPanel());
+        content.addView(lists, rowParams());
+        api.get("/api/friends", result -> ui.post(() -> {
+            if (!"friends".equals(activeTab) || content == null) return;
+            lists.removeAllViews();
+            if (!result.ok()) {
+                LinearLayout error = sectionPanel();
+                error.addView(text("FRIEND LIST UNAVAILABLE", 8, RED, true));
+                error.addView(text(result.error, 8, MUTED, false));
+                TextView retry = button("TRY AGAIN", false);
+                retry.setOnClickListener(v -> renderFriendsScreen());
+                error.addView(retry, new LinearLayout.LayoutParams(-1, dp(38)));
+                lists.addView(error, rowParams());
+                return;
+            }
+            JSONArray incoming = result.data.optJSONArray("incoming");
+            JSONArray outgoing = result.data.optJSONArray("outgoing");
+            JSONArray friends = result.data.optJSONArray("friends");
+            addFriendGroup(lists, "FRIEND REQUESTS", "Requests waiting for your response", incoming, 1);
+            addFriendGroup(lists, "SENT REQUESTS", "Requests you are waiting on", outgoing, 2);
+            addFriendGroup(lists, "YOUR FRIENDS", "Collectors connected to your account", friends, 0);
+        }));
+        send.setOnClickListener(v -> {
+            String value = query.getText().toString().trim().replaceFirst("^@", "")
+                    .toLowerCase(java.util.Locale.ROOT);
+            if (!value.matches("[a-z][a-z0-9_]{2,19}")) {
+                query.setError("Enter a valid @username.");
+                return;
+            }
+            send.setEnabled(false);
+            send.setText("SENDING…");
+            api.post("/api/friends/request", payload("username", value), sent -> ui.post(() -> {
+                send.setEnabled(true);
+                send.setText("SEND REQUEST");
+                if (!sent.ok()) {
+                    showResultDialog("Friend request not sent", sent.error);
+                    return;
+                }
+                Toast.makeText(this, sent.data.optString("message", "Friend request sent."), Toast.LENGTH_SHORT).show();
+                renderFriendsScreen();
+            }));
+        });
+    }
+
+    private void addFriendGroup(LinearLayout parent, String title, String subtitle, JSONArray rows, int mode) {
+        LinearLayout group = sectionPanel();
+        group.addView(text(title + "  ·  " + (rows == null ? 0 : rows.length()), 8, GOLD_BRIGHT, true));
+        group.addView(text(subtitle, 7, MUTED, false));
+        if (rows == null || rows.length() == 0) {
+            group.addView(text(mode == 1 ? "No incoming requests." : mode == 2
+                    ? "No outgoing requests." : "No friends added yet. Search by username above.",
+                    8, MUTED, false));
+        } else {
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject player = rows.optJSONObject(i);
+                if (player == null) continue;
+                LinearLayout card = new LinearLayout(this);
+                card.setOrientation(LinearLayout.VERTICAL);
+                card.setPadding(dp(10), dp(9), dp(10), dp(9));
+                card.setBackground(gradient(Color.rgb(27, 37, 60), Color.rgb(13, 20, 36),
+                        mode == 0 ? CYAN : mode == 1 ? GOLD : VIOLET, dp(10)));
+                LinearLayout top = new LinearLayout(this);
+                top.setGravity(Gravity.CENTER_VERTICAL);
+                FrameLayout emblem = new FrameLayout(this);
+                emblem.setBackground(gradient(Color.rgb(242, 213, 155), Color.rgb(117, 85, 52), GOLD_BRIGHT, dp(22)));
+                TextView initialsView = text(initials(player.optString("display_name", "CU")), 10, BG, true);
+                initialsView.setGravity(Gravity.CENTER);
+                emblem.addView(initialsView, new FrameLayout.LayoutParams(-1, -1));
+                top.addView(emblem, new LinearLayout.LayoutParams(dp(42), dp(42)));
+                LinearLayout identity = new LinearLayout(this);
+                identity.setOrientation(LinearLayout.VERTICAL);
+                identity.setPadding(dp(9), 0, 0, 0);
+                identity.addView(text(player.optString("display_name", "Collector"), 9, TEXT, true));
+                identity.addView(text("@" + player.optString("username", "unknown")
+                        + "  ·  LEVEL " + player.optInt("collector_level", 1), 7, CYAN, true));
+                top.addView(identity, new LinearLayout.LayoutParams(0, -2, 1f));
+                card.addView(top);
+                LinearLayout actions = new LinearLayout(this);
+                actions.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+                actions.setPadding(0, dp(7), 0, 0);
+                if (mode == 1) {
+                    TextView accept = button("ACCEPT", true);
+                    TextView decline = button("DECLINE", false);
+                    actions.addView(accept, new LinearLayout.LayoutParams(dp(94), dp(34)));
+                    LinearLayout.LayoutParams declineParams = new LinearLayout.LayoutParams(dp(94), dp(34));
+                    declineParams.leftMargin = dp(6);
+                    actions.addView(decline, declineParams);
+                    String requestId = player.optString("request_id", "");
+                    accept.setOnClickListener(v -> performFriendAction("/api/friends/requests/" + Uri.encode(requestId) + "/accept", true));
+                    decline.setOnClickListener(v -> performFriendAction("/api/friends/requests/" + Uri.encode(requestId) + "/decline", true));
+                } else if (mode == 2) {
+                    TextView cancel = button("CANCEL REQUEST", false);
+                    actions.addView(cancel, new LinearLayout.LayoutParams(dp(142), dp(34)));
+                    String requestId = player.optString("request_id", "");
+                    cancel.setOnClickListener(v -> performFriendAction("/api/friends/requests/" + Uri.encode(requestId), false));
+                } else {
+                    TextView remove = button("REMOVE FRIEND", false);
+                    actions.addView(remove, new LinearLayout.LayoutParams(dp(128), dp(34)));
+                    String userId = player.optString("user_id", "");
+                    remove.setOnClickListener(v -> confirmAction("Remove this friend?",
+                            "The collector will be removed from your Friends list.", () ->
+                            performFriendAction("/api/friends/" + Uri.encode(userId), false)));
+                }
+                card.addView(actions);
+                LinearLayout.LayoutParams cardParams = rowParams();
+                cardParams.topMargin = dp(7);
+                group.addView(card, cardParams);
+            }
+        }
+        parent.addView(group, rowParams());
+        addGap(parent, 8);
+    }
+
+    private void performFriendAction(String path, boolean post) {
+        ApiClient.Callback callback = result -> ui.post(() -> {
+            if (!result.ok()) {
+                showResultDialog("Friend action failed", result.error);
+                return;
+            }
+            Toast.makeText(this, result.data.optString("message", "Friends updated."), Toast.LENGTH_SHORT).show();
+            renderFriendsScreen();
+        });
+        if (post) api.post(path, new JSONObject(), callback);
+        else api.delete(path, callback);
     }
 
     private void showReportPlayerDialog() {
