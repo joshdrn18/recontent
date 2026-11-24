@@ -3191,6 +3191,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (listings == null) listings = new JSONArray();
         if (myListings == null) myListings = new JSONArray();
         if (inventory == null) inventory = fallbackInventory == null ? new JSONArray() : fallbackInventory;
+        final JSONArray tradeInventory = inventory;
 
         addGap(content, 12);
         LinearLayout market = sectionPanel();
@@ -3203,7 +3204,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         marketCopy.addView(text("Browse cards listed by every collector.", 9, TEXT, true));
         marketHead.addView(marketCopy, new LinearLayout.LayoutParams(0, -2, 1f));
         TextView create = button("＋ LIST A CARD", true);
-        create.setOnClickListener(v -> showTradeListingDialog(inventory));
+        create.setOnClickListener(v -> showTradeListingDialog(tradeInventory));
         marketHead.addView(create);
         market.addView(marketHead);
         market.addView(text("Each listing reserves the exact tradable card instance until it is removed, expires or changes hands.",
@@ -3249,7 +3250,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             empty.addView(text("THE MARKET IS QUIET", 10, TEXT, true));
             empty.addView(text("Be the first collector to list a card for trade.", 8, MUTED, false));
             TextView list = button("LIST YOUR FIRST CARD", true);
-            list.setOnClickListener(v -> showTradeListingDialog(inventory));
+            list.setOnClickListener(v -> showTradeListingDialog(tradeInventory));
             empty.addView(list, new LinearLayout.LayoutParams(dp(190), dp(38)));
             content.addView(empty, rowParams());
             return;
@@ -3305,7 +3306,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 info.addView(note);
             }
             TextView offer = button("MAKE TRADE OFFER", true);
-            offer.setOnClickListener(v -> showPublicTradeRequestDialog(listing, inventory));
+            offer.setOnClickListener(v -> showPublicTradeRequestDialog(listing, tradeInventory));
             LinearLayout.LayoutParams offerParams = new LinearLayout.LayoutParams(dp(160), dp(36));
             offerParams.topMargin = dp(7);
             info.addView(offer, offerParams);
