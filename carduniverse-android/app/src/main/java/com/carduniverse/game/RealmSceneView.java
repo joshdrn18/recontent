@@ -931,28 +931,48 @@ public final class RealmSceneView extends View {
     }
 
     private void drawHud(Canvas c){
-        // Text and progress live inside the scene, so the scene reads like a game screen, not a web card.
+        // Keep the title and objective readout inside a compact, aspect-safe HUD.
         p.setTypeface(Typeface.create("sans-serif-condensed",Typeface.BOLD));
-        p.setTextSize(12);p.setColor(Color.argb(205,194,208,234));
+        p.setTextSize(15);
+        p.setColor(Color.argb(205,194,208,234));
         c.drawText("CARDUNIVERSE  /  FIRSTLIGHT",26,28,p);
-        p.setTextSize(27);p.setColor(WHITE);
-        c.drawText(title.toUpperCase(java.util.Locale.ROOT),26,66,p);
-        p.setTextSize(12);p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
+        p.setTextSize(32);
+        p.setColor(WHITE);
+        c.drawText(title.toUpperCase(java.util.Locale.ROOT),26,68,p);
+        p.setTextSize(14);
+        p.setTypeface(Typeface.create("sans-serif",Typeface.NORMAL));
         p.setColor(Color.rgb(198,207,226));
-        if(!subtitle.isEmpty()) c.drawText(subtitle.length()>85?subtitle.substring(0,82)+"…":subtitle,28,89,p);
+        if(!subtitle.isEmpty()) {
+            String line = subtitle.length() > 82 ? subtitle.substring(0, 79) + "…" : subtitle;
+            c.drawText(line,28,96,p);
+        }
 
-        // Small live progress readout, styled like an in-game objective HUD.
         if(total>0){
             float ratio=Math.max(0,Math.min(1,progress/(float)total));
-            p.setColor(Color.argb(170,7,12,24));c.drawRoundRect(new RectF(26,258,252,280),10,10,p);
-            p.setColor(GOLD);c.drawRoundRect(new RectF(26,258,252,280),10,10,p);
-            p.setColor(Color.rgb(9,15,29));c.drawRoundRect(new RectF(28,260,250,278),8,8,p);
-            if(ratio>0){p.setColor(CYAN);c.drawRoundRect(new RectF(28,260,28+222*ratio,278),8,8,p);}
-            p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));p.setTextSize(10);p.setColor(WHITE);
-            c.drawText(progress+" / "+total+"  OBJECTIVE",270,274,p);
+            RectF hud = new RectF(26,246,364,288);
+            p.setColor(Color.argb(214,7,12,24));
+            c.drawRoundRect(hud,12,12,p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(1.5f);
+            p.setColor(Color.argb(205,Color.red(GOLD),Color.green(GOLD),Color.blue(GOLD)));
+            c.drawRoundRect(hud,12,12,p);
+            p.setStyle(Paint.Style.FILL);
+            p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));
+            p.setTextSize(15);
+            p.setColor(WHITE);
+            c.drawText("OBJECTIVE  ·  "+progress+" / "+total,40,266,p);
+            RectF track = new RectF(40,274,350,282);
+            p.setColor(Color.rgb(34,43,61));
+            c.drawRoundRect(track,6,6,p);
+            if(ratio>0){
+                p.setColor(CYAN);
+                c.drawRoundRect(new RectF(40,274,40+310*ratio,282),6,6,p);
+            }
         } else {
-            p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));p.setTextSize(10);
-            p.setColor(Color.rgb(203,187,255));c.drawText("REALM ONLINE  ·  EXPLORE",28,273,p);
+            p.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));
+            p.setTextSize(15);
+            p.setColor(Color.rgb(203,187,255));
+            c.drawText("REALM ONLINE  ·  EXPLORE",28,274,p);
         }
     }
 

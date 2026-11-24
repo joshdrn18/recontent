@@ -546,43 +546,51 @@ public final class MainActivity extends Activity {
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        right.setPadding(dp(compact ? 6 : 9), dp(4), dp(compact ? 6 : 9), dp(4));
-        right.setBackground(gradient(Color.rgb(34, 42, 70), Color.rgb(12, 20, 39),
-                Color.rgb(91, 111, 153), dp(26)));
+        right.setPadding(dp(compact ? 8 : 11), dp(compact ? 4 : 6),
+                dp(compact ? 8 : 11), dp(compact ? 4 : 6));
+        right.setBackground(gradient(Color.rgb(25, 35, 59), Color.rgb(8, 15, 31),
+                Color.rgb(119, 145, 191), dp(18)));
+        right.setElevation(dp(4));
+        right.setMinimumHeight(dp(compact ? 42 : 48));
         right.setClickable(true);
         right.setFocusable(true);
         right.setContentDescription("Open collector profile");
         right.setOnClickListener(v -> showPlayerProfile());
 
         String collectorName = me.optString("display_name", "Collector");
-        accountLabel = text(collectorName, compact ? 8 : 9, GOLD_BRIGHT, true);
+        accountLabel = text(collectorName, compact ? 8 : 10, GOLD_BRIGHT, true);
         accountLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         accountLabel.setSingleLine(true);
-        accountLabel.setMaxWidth(dp(compact ? 68 : 166));
-        String profileMeta = "LV " + formatNumber(me.optLong("collector_level", 1))
+        accountLabel.setMaxWidth(dp(compact ? 104 : 178));
+        String profileMeta = "LEVEL " + formatNumber(me.optLong("collector_level", 1))
                 + "  ·  " + walletLine();
         currencyLabel = text(profileMeta, compact ? 6 : 7, MUTED, true);
         currencyLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         currencyLabel.setSingleLine(true);
-        currencyLabel.setMaxWidth(dp(compact ? 112 : 196));
+        currencyLabel.setMaxWidth(dp(compact ? 108 : 190));
         LinearLayout account = new LinearLayout(this);
         account.setOrientation(LinearLayout.VERTICAL);
         account.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         account.addView(accountLabel);
         account.addView(currencyLabel);
-        TextView profileHint = text("COLLECTOR PROFILE  ↗", 5, CYAN, true);
+        TextView profileHint = text(isAdminAccount() ? "MASTER ACCOUNT  ↗" : "VIEW PROFILE  ↗",
+                6, isAdminAccount() ? VIOLET : CYAN, true);
         profileHint.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        account.addView(profileHint);
+        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hintParams.topMargin = dp(2);
+        account.addView(profileHint, hintParams);
         right.addView(account);
 
         FrameLayout avatarRing = new FrameLayout(this);
         avatarRing.setPadding(dp(2), dp(2), dp(2), dp(2));
-        avatarRing.setBackground(gradient(Color.rgb(255, 231, 178), GOLD,
-                Color.rgb(177, 132, 70), dp(24)));
+        avatarRing.setBackground(gradient(Color.rgb(255, 238, 194), GOLD_BRIGHT,
+                Color.rgb(153, 104, 59), dp(24)));
+        avatarRing.setElevation(dp(2));
         LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(
-                dp(compact ? 31 : 38), dp(compact ? 31 : 38));
-        avp.leftMargin = dp(compact ? 7 : 10);
-        TextView avatar = text(initials(collectorName), compact ? 9 : 11, BG, true);
+                dp(compact ? 35 : 42), dp(compact ? 35 : 42));
+        avp.leftMargin = dp(compact ? 8 : 11);
+        TextView avatar = text(initials(collectorName), compact ? 10 : 12, BG, true);
         avatar.setGravity(Gravity.CENTER);
         avatar.setBackground(gradient(Color.rgb(249, 231, 190), GOLD_BRIGHT,
                 Color.rgb(185, 133, 66), dp(22)));
@@ -592,18 +600,6 @@ public final class MainActivity extends Activity {
         avatarRing.setFocusable(true);
         avatarRing.setContentDescription("Open collector profile");
         avatarRing.setOnClickListener(v -> showPlayerProfile());
-
-        if ("admin".equalsIgnoreCase(me.optString("role", ""))) {
-            TextView adminPill = text("GOD MODE", 6, Color.rgb(220, 207, 255), true);
-            adminPill.setGravity(Gravity.CENTER);
-            adminPill.setPadding(dp(6), dp(4), dp(6), dp(4));
-            adminPill.setBackground(gradient(Color.rgb(52, 39, 91),
-                    Color.rgb(28, 24, 58), Color.rgb(149, 117, 255), dp(20)));
-            LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(25));
-            pillParams.leftMargin = dp(6);
-            right.addView(adminPill, 0);
-        }
         top.addView(right);
         mainColumn.addView(top, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(compact ? 39 : 44)));
@@ -819,8 +815,15 @@ public final class MainActivity extends Activity {
 
     private void addRealmScene(String mode, String title, String subtitle, int progress, int total) {
         RealmSceneView scene = new RealmSceneView(this, "summon", title, subtitle, progress, total);
+        int availableWidth = content == null ? 0 : content.getWidth();
+        if (availableWidth <= dp(160)) {
+            availableWidth = getResources().getDisplayMetrics().widthPixels
+                    - dp(compactLayout ? 22 : 120);
+        }
+        int sceneHeight = Math.max(dp(96), Math.min(dp(260),
+                Math.round(availableWidth * 300f / 960f)));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(226));
+                ViewGroup.LayoutParams.MATCH_PARENT, sceneHeight);
         params.bottomMargin = dp(9);
         content.addView(scene, params);
     }
@@ -1479,8 +1482,11 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     moveCard.setPadding(dp(8), dp(8), dp(8), dp(8));
                     int tint = "STRIKE".equals(choice[0]) ? GOLD_BRIGHT
                             : "GUARD".equals(choice[0]) ? GREEN : Color.rgb(115, 165, 218);
-                    moveCard.setBackground(gradient(PANEL_LIGHT, PANEL, tint, dp(10)));
-                    TextView icon = text(choice[1], 23, tint, true);
+                    moveCard.setBackground(gradient(PANEL_LIGHT, PANEL, tint, dp(12)));
+                    moveCard.setElevation(dp(3));
+                    moveCard.setClickable(true);
+                    moveCard.setFocusable(true);
+                    TextView icon = text(choice[1], 25, tint, true);
                     icon.setGravity(Gravity.CENTER);
                     moveCard.addView(icon);
                     TextView label = text(choice[0], 10, TEXT, true);
@@ -1499,7 +1505,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                                 () -> submitArenaMove(active.optString("match_id"), choice[0]));
                     });
                     LinearLayout.LayoutParams moveParams = new LinearLayout.LayoutParams(0,
-                            dp(90), 1f);
+                            dp(108), 1f);
                     moveParams.setMargins(dp(3), 0, dp(3), 0);
                     moves.addView(moveCard, moveParams);
                 }
@@ -1717,21 +1723,33 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         rivalParams.setMargins(dp(3), 0, dp(3), 0);
         duel.addView(opponentFace.root, rivalParams);
 
-        FrameLayout.LayoutParams duelParams = new FrameLayout.LayoutParams(-1, dp(118), Gravity.BOTTOM);
-        duelParams.setMargins(dp(10), 0, dp(10), dp(9));
+        TextView arenaBanner = text("✦  FIRSTLIGHT DUEL ARENA  ✦", 8, GOLD_BRIGHT, true);
+        arenaBanner.setGravity(Gravity.CENTER);
+        arenaBanner.setPadding(dp(12), dp(6), dp(12), dp(6));
+        arenaBanner.setBackground(gradient(Color.argb(224, 12, 19, 36),
+                Color.argb(230, 8, 13, 26), Color.rgb(142, 117, 83), dp(18)));
+        FrameLayout.LayoutParams bannerParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(30),
+                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        bannerParams.topMargin = dp(10);
+        stage.addView(arenaBanner, bannerParams);
+
+        duel.setElevation(dp(5));
+        FrameLayout.LayoutParams duelParams = new FrameLayout.LayoutParams(-1, dp(174), Gravity.BOTTOM);
+        duelParams.setMargins(dp(12), 0, dp(12), dp(10));
         stage.addView(duel, duelParams);
 
-        TextView versus = text("VS", 9, GOLD_BRIGHT, true);
+        TextView versus = text("VS", 10, GOLD_BRIGHT, true);
         versus.setGravity(Gravity.CENTER);
         versus.setPadding(dp(5), dp(5), dp(5), dp(5));
-        versus.setElevation(dp(9));
-        versus.setBackground(gradient(Color.rgb(52, 38, 31), Color.rgb(20, 19, 27),
-                GOLD_BRIGHT, dp(20)));
-        FrameLayout.LayoutParams versusParams = new FrameLayout.LayoutParams(dp(38), dp(34),
+        versus.setElevation(dp(10));
+        versus.setBackground(gradient(Color.rgb(65, 45, 30), Color.rgb(20, 19, 27),
+                GOLD_BRIGHT, dp(22)));
+        FrameLayout.LayoutParams versusParams = new FrameLayout.LayoutParams(dp(42), dp(38),
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        versusParams.bottomMargin = dp(51);
+        versusParams.bottomMargin = dp(78);
         stage.addView(versus, versusParams);
-        stage.setMinimumHeight(dp(246));
+        stage.setMinimumHeight(dp(350));
 
         if (playerCard == null) {
             api.get("/api/formation", result -> ui.post(() -> {
@@ -3896,11 +3914,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         int limit = data.optInt("dailyLimit", 3);
         int remaining = Math.max(0, limit - used);
 
+        JSONObject activeDungeonReward = run == null ? null : run.optJSONObject("reward");
+        int activeDungeonMaxFloors = activeDungeonReward == null ? 6
+                : Math.max(1, activeDungeonReward.optInt("max_floors", 6));
         addRealmScene("dungeon", run == null ? "THE DEEP VAULT"
                 : run.optString("dungeon_name", "ACTIVE EXPEDITION"),
                 "Choose a gate, descend through its chambers and bring the treasure home.",
                 run == null ? used : run.optInt("floor_reached"),
-                run == null ? Math.max(1, limit) : 6);
+                run == null ? Math.max(1, limit) : activeDungeonMaxFloors);
         LinearLayout dungeonOverview = sectionPanel();
         dungeonOverview.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(15)));
         dungeonOverview.addView(text("THE DEEP VAULT · EXPEDITION DIRECTORY", 8, VIOLET, true));
