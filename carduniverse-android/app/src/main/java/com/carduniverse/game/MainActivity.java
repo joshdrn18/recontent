@@ -950,9 +950,14 @@ public final class MainActivity extends Activity {
                     explanation.setGravity(Gravity.CENTER);
                     explanation.setMaxLines(2);
                     moveCard.addView(explanation);
-                    moveCard.setOnClickListener(v -> confirmAction("Use " + choice[0] + "?",
-                            "Your move is locked for this turn once submitted.",
-                            () -> submitArenaMove(active.optString("match_id"), choice[0])));
+                    moveCard.setOnClickListener(v -> {
+                        moveCard.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80)
+                                .withEndAction(() -> moveCard.animate().scaleX(1f).scaleY(1f)
+                                        .setDuration(150).start()).start();
+                        confirmAction("Use " + choice[0] + "?",
+                                "Your move is locked for this turn once submitted.",
+                                () -> submitArenaMove(active.optString("match_id"), choice[0]));
+                    });
                     LinearLayout.LayoutParams moveParams = new LinearLayout.LayoutParams(0,
                             dp(90), 1f);
                     moveParams.setMargins(dp(3), 0, dp(3), 0);
@@ -2878,10 +2883,64 @@ public final class MainActivity extends Activity {
                 renderTab("arena");
                 return;
             }
-            showResultDialog("ARENA MOVE", result.data.optString("message",
-                    result.data.optBoolean("waiting") ? "Move locked. Waiting for your opponent." : "Match updated."));
-            renderTab("arena");
+            String message = result.data.optString("message",
+                    result.data.optBoolean("waiting") ? "Move locked. Waiting for your opponent." : "Match updated.");
+            showArenaMoveEffect(move, message, result.data.optBoolean("waiting"));
         }));
+    }
+
+    private void showArenaMoveEffect(String move, String serverMessage, boolean waiting) {
+        String action = move == null ? "FOCUS" : move.toUpperCase(java.util.Locale.ROOT);
+        int accent = "STRIKE".equals(action) ? Color.rgb(244, 151, 100)
+                : "GUARD".equals(action) ? Color.rgb(124, 211, 164)
+                : Color.rgb(153, 174, 255);
+        String glyph = "STRIKE".equals(action) ? "⚔" : "GUARD".equals(action) ? "◈" : "✦";
+
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setGravity(Gravity.CENTER_HORIZONTAL);
+        panel.setPadding(dp(18), dp(16), dp(18), dp(16));
+        panel.setBackground(gradient(Color.rgb(25, 37, 37), Color.rgb(8, 15, 22), accent, dp(18)));
+
+        FrameLayout stage = new FrameLayout(this);
+        stage.setBackground(gradient(Color.rgb(31, 47, 50), Color.rgb(10, 19, 26), accent, dp(15)));
+        TextView rune = text(glyph, 58, accent, true);
+        rune.setGravity(Gravity.CENTER);
+        rune.setShadowLayer(dp(18), 0, 0, accent);
+        stage.addView(rune, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout.LayoutParams stageParams = new LinearLayout.LayoutParams(-1, dp(126));
+        stageParams.bottomMargin = dp(12);
+        panel.addView(stage, stageParams);
+
+        TextView kicker = text("ARENA ACTION · " + (waiting ? "TURN LOCKED" : "SERVER CONFIRMED"),
+                8, GOLD_BRIGHT, true);
+        kicker.setGravity(Gravity.CENTER);
+        panel.addView(kicker);
+        TextView title = text(action + (waiting ? " READY" : " RESOLVED"), 19, TEXT, true);
+        title.setGravity(Gravity.CENTER);
+        title.setPadding(0, dp(4), 0, dp(6));
+        panel.addView(title);
+        TextView detail = text(serverMessage, 9, MUTED, false);
+        detail.setGravity(Gravity.CENTER);
+        detail.setLineSpacing(dp(3), 1f);
+        panel.addView(detail);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("⚔  BATTLE EFFECT")
+                .setView(panel)
+                .setPositiveButton("CONTINUE", (d, w) -> renderTab("arena"))
+                .create();
+        dialog.setOnShowListener(d -> {
+            rune.setScaleX(0.45f);
+            rune.setScaleY(0.45f);
+            rune.setAlpha(0f);
+            stage.setAlpha(0.6f);
+            rune.animate().scaleX(1.08f).scaleY(1.08f).alpha(1f).setDuration(320)
+                    .withEndAction(() -> rune.animate().scaleX(1f).scaleY(1f).setDuration(150).start())
+                    .start();
+            stage.animate().alpha(1f).setDuration(300).start();
+        });
+        dialog.show();
     }
 
     private void joinGuild(String tag) {
