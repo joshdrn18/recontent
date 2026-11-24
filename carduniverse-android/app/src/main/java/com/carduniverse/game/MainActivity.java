@@ -20,6 +20,9 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.content.Context;
+import android.content.SharedPreferences;
+import android.view.MotionEvent;
+import android.view.HapticFeedbackConstants;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -41,11 +44,15 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class MainActivity extends Activity {
-    private static final int BG = Color.rgb(8, 11, 24);
-    private static final int PANEL = Color.rgb(20, 26, 45);
-    private static final int PANEL_LIGHT = Color.rgb(29, 37, 62);
-    private static final int GOLD = Color.rgb(157, 135, 238);
-    private static final int GOLD_BRIGHT = Color.rgb(211, 201, 255);
+    private static final int BG = Color.rgb(7, 10, 22);
+    private static final int PANEL = Color.rgb(15, 21, 42);
+    private static final int PANEL_LIGHT = Color.rgb(26, 36, 64);
+    private static final int GOLD = Color.rgb(234, 188, 95);
+    private static final int VIOLET = Color.rgb(143, 116, 255);
+    private static final int CYAN = Color.rgb(75, 218, 220);
+    private static final int BLUE = Color.rgb(86, 154, 255);
+    private static final int PINK = Color.rgb(242, 112, 174);
+    private static final int GOLD_BRIGHT = Color.rgb(255, 224, 154);
     private static final int TEXT = Color.rgb(241, 242, 255);
     private static final int MUTED = Color.rgb(158, 169, 198);
     private static final int GREEN = Color.rgb(104, 219, 190);
@@ -61,6 +68,11 @@ public final class MainActivity extends Activity {
     private TextView pageTitle;
     private TextView accountLabel;
     private TextView currencyLabel;
+    private GameAudioEngine gameAudio;
+    private SharedPreferences gamePrefs;
+    private boolean bgmEnabled = true;
+    private boolean sfxEnabled = true;
+    private boolean hapticsEnabled = true;
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
     private JSONObject arenaLeaderCard;
     private JSONObject arenaOpponentCard;
@@ -88,6 +100,11 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         api = new ApiClient(this);
+        gamePrefs = getSharedPreferences("carduniverse_game_settings", MODE_PRIVATE);
+        bgmEnabled = gamePrefs.getBoolean("bgm_enabled", true);
+        sfxEnabled = gamePrefs.getBoolean("sfx_enabled", true);
+        hapticsEnabled = gamePrefs.getBoolean("haptics_enabled", true);
+        gameAudio = new GameAudioEngine();
         configureWindow();
         showSplash();
         api.get("/api/me", result -> ui.post(() -> {
@@ -604,6 +621,128 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private int screenAccent(String tab) {
+        if ("collection".equals(tab) || "binders".equals(tab)) return CYAN;
+        if ("evolution".equals(tab) || "summon".equals(tab)) return PINK;
+        if ("progression".equals(tab) || "events".equals(tab) || "missions".equals(tab)) return GOLD_BRIGHT;
+        if ("adventure".equals(tab) || "dungeons".equals(tab) || "raids".equals(tab) || "arena".equals(tab)) return Color.rgb(255, 126, 112);
+        if ("trades".equals(tab) || "shop".equals(tab)) return CYAN;
+        if ("guild".equals(tab)) return Color.rgb(106, 210, 153);
+        if ("ranked".equals(tab) || "leaderboards".equals(tab)) return Color.rgb(255, 198, 92);
+        return VIOLET;
+    }
+
+    private String screenSigil(String tab) {
+        if ("collection".equals(tab)) return "▧";
+        if ("binders".equals(tab)) return "▤";
+        if ("evolution".equals(tab) || "summon".equals(tab)) return "✧";
+        if ("progression".equals(tab) || "events".equals(tab)) return "✺";
+        if ("adventure".equals(tab) || "dungeons".equals(tab) || "raids".equals(tab) || "arena".equals(tab)) return "⚔";
+        if ("trades".equals(tab)) return "⇄";
+        if ("shop".equals(tab)) return "◇";
+        if ("guild".equals(tab)) return "♜";
+        if ("ranked".equals(tab) || "leaderboards".equals(tab)) return "♛";
+        return "✦";
+    }
+
+    private void addScreenHero(String tab) {
+        int accent = screenAccent(tab);
+        LinearLayout hero = new LinearLayout(this);
+        hero.setOrientation(LinearLayout.HORIZONTAL);
+        hero.setGravity(Gravity.CENTER_VERTICAL);
+        hero.setPadding(dp(15), dp(12), dp(15), dp(12));
+        hero.setBackground(gradient(
+                Color.rgb(Math.min(255, Color.red(accent) / 3 + 28),
+                        Math.min(255, Color.green(accent) / 4 + 27),
+                        Math.min(255, Color.blue(accent) / 3 + 52)),
+                Color.rgb(9, 15, 32), accent, dp(17)));
+        hero.setElevation(dp(5));
+
+        FrameLayout crest = new FrameLayout(this);
+        crest.setBackground(gradient(Color.rgb(35, 39, 78), Color.rgb(14, 20, 42), accent, dp(13)));
+        TextView emblem = text(screenSigil(tab), 31, accent, true);
+        emblem.setGravity(Gravity.CENTER);
+        crest.addView(emblem, new FrameLayout.LayoutParams(-1, -1));
+        hero.addView(crest, new LinearLayout.LayoutParams(dp(58), dp(58)));
+
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, 0, 0);
+        TextView eyebrow = text("FIRSTLIGHT REALM  /  LIVE MODULE", 7, accent, true);
+        eyebrow.setLetterSpacing(0.15f);
+        copy.addView(eyebrow);
+        TextView heading = text(screenHeading(tab), 20, TEXT, true);
+        heading.setPadding(0, dp(3), 0, dp(2));
+        copy.addView(heading);
+        TextView description = text(screenDescription(tab), 8, MUTED, false);
+        description.setMaxLines(2);
+        copy.addView(description);
+        hero.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        content.addView(hero, rowParams());
+        addGap(content, 11);
+    }
+
+    private void addModeSpotlight(String eyebrow, String title, String description, String emblem, int accent) {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.HORIZONTAL);
+        panel.setGravity(Gravity.CENTER_VERTICAL);
+        panel.setPadding(dp(14), dp(11), dp(14), dp(11));
+        panel.setBackground(gradient(
+                Color.rgb(Math.min(255, Color.red(accent) / 4 + 26),
+                        Math.min(255, Color.green(accent) / 4 + 28),
+                        Math.min(255, Color.blue(accent) / 4 + 48)),
+                Color.rgb(10, 16, 34), accent, dp(15)));
+        FrameLayout mark = new FrameLayout(this);
+        mark.setBackground(gradient(Color.rgb(37, 43, 81), Color.rgb(12, 19, 38), accent, dp(12)));
+        TextView icon = text(emblem, 31, accent, true);
+        icon.setGravity(Gravity.CENTER);
+        mark.addView(icon, new FrameLayout.LayoutParams(-1, -1));
+        panel.addView(mark, new LinearLayout.LayoutParams(dp(58), dp(58)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, 0, 0);
+        copy.addView(text(eyebrow, 7, accent, true));
+        copy.addView(text(title, 14, TEXT, true));
+        TextView detail = text(description, 8, MUTED, false);
+        detail.setMaxLines(2);
+        copy.addView(detail);
+        panel.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        content.addView(panel, rowParams());
+        addGap(content, 9);
+    }
+
+    private void addAudioSetting(LinearLayout parent, String title, String description, int kind) {
+        boolean enabled = kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled : hapticsEnabled;
+        LinearLayout row = dataRow(title, description, enabled ? "ON" : "OFF");
+        TextView toggle = button(enabled ? "ON" : "OFF", enabled);
+        toggle.setOnClickListener(v -> {
+            boolean next = !(kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled : hapticsEnabled);
+            if (kind == 0) {
+                bgmEnabled = next;
+                gamePrefs.edit().putBoolean("bgm_enabled", next).apply();
+                if (gameAudio != null) {
+                    if (next) gameAudio.startAmbient();
+                    else gameAudio.stopAmbient();
+                }
+            } else if (kind == 1) {
+                sfxEnabled = next;
+                gamePrefs.edit().putBoolean("sfx_enabled", next).apply();
+                if (next && gameAudio != null) gameAudio.playSuccess();
+            } else {
+                hapticsEnabled = next;
+                gamePrefs.edit().putBoolean("haptics_enabled", next).apply();
+            }
+            toggle.setText(next ? "ON" : "OFF");
+            toggle.setBackground(gradient(next ? Color.rgb(46, 112, 101) : Color.rgb(40, 48, 72),
+                    next ? Color.rgb(20, 60, 57) : Color.rgb(16, 24, 43),
+                    next ? CYAN : Color.rgb(83, 102, 143), dp(10)));
+        });
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(dp(68), dp(34));
+        p.leftMargin = dp(7);
+        row.addView(toggle, p);
+        parent.addView(row, rowParams());
+    }
+
     private void renderTab(String tab) {
         activeTab = tab;
         refreshNav();
@@ -615,13 +754,7 @@ public final class MainActivity extends Activity {
             renderHome();
             return;
         }
-        TextView eyebrow = text("FIRSTLIGHT REALM  /  " + title, 8, GOLD, true);
-        eyebrow.setLetterSpacing(0.14f);
-        content.addView(eyebrow);
-        addGap(content, 5);
-        content.addView(text(screenHeading(tab), 23, TEXT, true));
-        content.addView(text(screenDescription(tab), 10, MUTED, false));
-        addGap(content, 14);
+        addScreenHero(tab);
         renderLoading();
         String path = endpointFor(tab);
         if (path == null) {
@@ -631,11 +764,7 @@ public final class MainActivity extends Activity {
         api.get(path, result -> ui.post(() -> {
             if (!tab.equals(activeTab) || content == null) return;
             content.removeAllViews();
-            content.addView(eyebrow);
-            addGap(content, 5);
-            content.addView(text(screenHeading(tab), 23, TEXT, true));
-            content.addView(text(screenDescription(tab), 10, MUTED, false));
-            addGap(content, 14);
+            addScreenHero(tab);
             if (!result.ok()) {
                 showNotice(result.error == null ? "Unable to load this section." : result.error);
                 TextView retry = button("TRY AGAIN", false);
@@ -832,6 +961,8 @@ public final class MainActivity extends Activity {
 
     
     private void renderPacks(JSONObject data) {
+addModeSpotlight("SUMMON HALL · THE ASTRAL GATE", "Break the seal. Meet your next legend.", "Every opening adds its revealed cards to your permanent collection.", "✧", VIOLET);
+
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
         boolean unlimited = data.optBoolean("unlimited") || isGodModeEnabled();
@@ -907,6 +1038,28 @@ public final class MainActivity extends Activity {
         if (packs.length() == 0) showNotice("No packs are currently available.");
     }
     private void renderArena(JSONObject data) {
+if (isAdminAccount() || data.optBoolean("rankedHidden")) {
+            addModeSpotlight("ARENA · ADMIN VIEW ONLY", "Spectator access",
+                    "Master Admin accounts can inspect the public Ranked ladder, but cannot enter Casual or Ranked PvP.",
+                    "◈", PINK);
+            JSONArray ladder = data.optJSONArray("ladder");
+            if (ladder == null) ladder = new JSONArray();
+            LinearLayout note = sectionPanel();
+            note.addView(text("PVP MATCHMAKING DISABLED", 9, PINK, true));
+            note.addView(text("No queue, match controls or player moves are available to this account.", 9, MUTED, false));
+            content.addView(note, rowParams());
+            content.addView(text("PUBLIC RANKED LEADERS · " + ladder.length(), 8, GOLD_BRIGHT, true));
+            for (int i = 0; i < ladder.length(); i++) {
+                JSONObject player = ladder.optJSONObject(i);
+                if (player != null) content.addView(dataRow("#" + (i + 1) + " · "
+                        + player.optString("display_name", "Collector"),
+                        formatNumber(player.optLong("rating")) + " RATING · " + player.optInt("wins")
+                                + "W / " + player.optInt("losses") + "L",
+                        player.optString("tier", "")), rowParams());
+            }
+            return;
+        }
+
         JSONObject rating = data.optJSONObject("rating");
         JSONObject season = data.optJSONObject("season");
         if (rating != null) {
@@ -1325,6 +1478,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderAdventure(JSONObject data) {
+addModeSpotlight("FIRSTLIGHT CAMPAIGN", "A world beyond the archive", "Choose a chapter, follow the stage path and return stronger from every encounter.", "⚔", Color.rgb(255, 133, 114));
+
         JSONArray chapters = data.optJSONArray("chapters");
         if (chapters == null) { renderObjectSummary(data, "ADVENTURE PROGRESS"); return; }
         content.addView(statCard("COLLECTOR POWER", formatNumber(data.optLong("playerPower")), "Current expedition strength"));
@@ -1393,6 +1548,8 @@ public final class MainActivity extends Activity {
         }
     }
     private void renderMissions(JSONObject data) {
+addModeSpotlight("DAILY & LONG-TERM OBJECTIVES", "Every action moves you forward", "Complete daily tasks and realm missions to earn Gold, EXP and summon supplies.", "☷", CYAN);
+
         JSONArray missions = data.optJSONArray("missions");
         JSONArray challenges = data.optJSONArray("daily_challenges");
         if (missions == null && challenges == null) { renderObjectSummary(data, "MISSION STATUS"); return; }
@@ -1464,6 +1621,8 @@ public final class MainActivity extends Activity {
             showNotice("No active missions or daily challenges are available right now.");
     }
     private void renderShop(JSONObject data) {
+addModeSpotlight("FIRSTLIGHT MARKET", "Trade your earnings for something worthy", "A curated catalogue of supplies and cosmetics, with every purchase checked by the server.", "♢", GOLD_BRIGHT);
+
         JSONArray items = data.optJSONArray("items");
         JSONObject wallet = data.optJSONObject("wallet");
         if (items == null) { renderObjectSummary(data, "SHOP INVENTORY"); return; }
@@ -1570,6 +1729,8 @@ public final class MainActivity extends Activity {
         if (items.length() == 0) showNotice("Your inbox is clear. New messages will appear here.");
     }
     private void renderGuild(JSONObject data) {
+addModeSpotlight("GUILD HALL", "Build a banner. Build a legacy.", "Grow your treasury, welcome collectors and leave your mark on the realm.", "♜", Color.rgb(105, 211, 153));
+
         JSONObject guild = data.optJSONObject("guild");
         if (guild == null) {
             LinearLayout create = sectionPanel();
@@ -1643,6 +1804,18 @@ public final class MainActivity extends Activity {
         }
     }
     private void renderSettings(JSONObject data) {
+addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
+                "Tune the soundtrack, interface feedback and your player account preferences.",
+                "⚙", CYAN);
+        LinearLayout experience = sectionPanel();
+        experience.addView(text("AUDIO & FEEDBACK", 8, CYAN, true));
+        experience.addView(text("These preferences are saved on this device.", 8, MUTED, false));
+        addAudioSetting(experience, "Ambient soundtrack", "Original Firstlight ambience while the game is open.", 0);
+        addAudioSetting(experience, "Sound effects", "Subtle button and reward tones.", 1);
+        addAudioSetting(experience, "Haptic feedback", "Light tactile response on game controls.", 2);
+        content.addView(experience, rowParams());
+        addGap(content, 9);
+
         showPanelHeading("ACCOUNT & PRIVACY");
         TextView name = text(me.optString("display_name", "Collector"), 16, TEXT, true);
         content.addView(name);
@@ -1734,6 +1907,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderCollection(JSONObject data) {
+addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catalogue, filter by rarity and inspect each card in a full-art showcase.", "▧", CYAN);
+
         JSONArray cards = data.optJSONArray("cards");
         if (cards == null) {
             showNotice("No card data was returned.");
@@ -1895,55 +2070,54 @@ public final class MainActivity extends Activity {
         String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
         int copies = card.optInt("owned_count");
         int accent = cardRarityColor(rarity);
-
         LinearLayout tile = new LinearLayout(this);
         tile.setOrientation(LinearLayout.VERTICAL);
-        tile.setPadding(dp(8), dp(8), dp(8), dp(8));
-        tile.setBackground(gradient(PANEL_LIGHT, PANEL, accent, dp(12)));
-        tile.setMinimumHeight(dp(184));
-
+        tile.setPadding(dp(7), dp(7), dp(7), dp(8));
+        GradientDrawable frame = gradient(Color.rgb(31, 42, 73), Color.rgb(10, 16, 32), accent, dp(15));
+        frame.setStroke(dp(1), accent);
+        tile.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(Color.argb(55, 255, 255, 255)), frame, null));
+        tile.setMinimumHeight(dp(224));
+        tile.setElevation(dp(4));
         FrameLayout art = new FrameLayout(this);
-        art.setBackground(gradient(
-                Color.rgb(Color.red(accent) / 3 + 8, Color.green(accent) / 3 + 12,
-                        Color.blue(accent) / 3 + 14),
-                Color.rgb(12, 21, 19), accent, dp(9)));
-        TextView sigil = text(elementSigil(element), 34, accent, true);
+        art.setBackground(gradient(Color.rgb(Color.red(accent) / 3 + 12,
+                Color.green(accent) / 3 + 13, Color.blue(accent) / 3 + 22),
+                Color.rgb(7, 13, 27), accent, dp(11)));
+        TextView sigil = text(elementSigil(element), 39, accent, true);
         sigil.setGravity(Gravity.CENTER);
-        FrameLayout.LayoutParams sigilParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        sigil.setAlpha(0.16f);
-        art.addView(sigil, sigilParams);
+        sigil.setAlpha(0.19f);
+        art.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
         CardArtView illustration = new CardArtView(this);
         illustration.loadArtwork(cardArtworkPath(card));
-        FrameLayout.LayoutParams illustrationParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-        illustrationParams.setMargins(dp(5), dp(2), dp(5), dp(2));
-        art.addView(illustration, illustrationParams);
-        TextView elementLabel = text(element, 7, GOLD_BRIGHT, true);
-        elementLabel.setGravity(Gravity.RIGHT | Gravity.BOTTOM);
-        FrameLayout.LayoutParams elementParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.BOTTOM | Gravity.RIGHT);
-        elementParams.setMargins(0, 0, dp(7), dp(5));
-        art.addView(elementLabel, elementParams);
-        tile.addView(art, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(116)));
-
-        TextView rarityLabel = text(rarity, 7, accent, true);
-        rarityLabel.setPadding(0, dp(6), 0, dp(2));
-        tile.addView(rarityLabel);
-        TextView title = text(name, 11, TEXT, true);
+        FrameLayout.LayoutParams artParams = new FrameLayout.LayoutParams(-1, -1);
+        artParams.setMargins(dp(3), dp(2), dp(3), dp(2));
+        art.addView(illustration, artParams);
+        TextView rarityTag = text(rarity, 7, Color.WHITE, true);
+        rarityTag.setGravity(Gravity.CENTER);
+        rarityTag.setPadding(dp(7), dp(5), dp(7), dp(5));
+        rarityTag.setBackground(gradient(accent, Color.rgb(Color.red(accent) / 2,
+                Color.green(accent) / 2, Color.blue(accent) / 2), accent, dp(8)));
+        FrameLayout.LayoutParams rp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+        rp.setMargins(dp(6), dp(6), 0, 0);
+        art.addView(rarityTag, rp);
+        TextView count = text(copies > 0 ? "×" + copies : "NEW", 7,
+                copies > 0 ? Color.WHITE : Color.rgb(220, 230, 255), true);
+        count.setGravity(Gravity.CENTER);
+        count.setPadding(dp(7), dp(5), dp(7), dp(5));
+        count.setBackground(gradient(Color.rgb(16, 25, 47), Color.rgb(10, 16, 30),
+                copies > 0 ? GREEN : Color.rgb(91, 117, 161), dp(8)));
+        FrameLayout.LayoutParams cp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
+        cp.setMargins(0, dp(6), dp(6), 0);
+        art.addView(count, cp);
+        tile.addView(art, new LinearLayout.LayoutParams(-1, dp(144)));
+        TextView title = text(name, 10, TEXT, true);
         title.setMaxLines(2);
+        title.setPadding(dp(2), dp(7), dp(2), dp(1));
         tile.addView(title);
-        TextView code = text(card.optString("card_code", "CARD"), 7, MUTED, false);
-        code.setPadding(0, dp(2), 0, dp(5));
-        tile.addView(code);
-
-        TextView ownership = text(copies > 0 ? "OWNED  ×" + copies : "NOT COLLECTED",
-                7, copies > 0 ? GREEN : MUTED, true);
-        ownership.setPadding(dp(7), dp(5), dp(7), dp(5));
-        ownership.setBackground(gradient(Color.rgb(10, 20, 16), Color.rgb(10, 20, 16),
-                copies > 0 ? GREEN : Color.rgb(67, 78, 69), dp(6)));
-        tile.addView(ownership);
+        TextView meta = text(card.optString("card_code", "CARD") + "  ·  " + element, 7, MUTED, false);
+        meta.setMaxLines(1);
+        meta.setPadding(dp(2), 0, dp(2), dp(2));
+        tile.addView(meta);
         tile.setOnClickListener(v -> showCardDetails(card));
         return tile;
     }
@@ -2022,6 +2196,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderDungeons(JSONObject data) {
+addModeSpotlight("THE DEEP VAULT", "Descend chamber by chamber", "Choose a route, manage your daily entries and claim the treasure from each expedition.", "⌘", VIOLET);
+
         JSONArray dungeons=data.optJSONArray("dungeons"),claimable=data.optJSONArray("claimableRuns"),history=data.optJSONArray("history");
         JSONObject run=data.optJSONObject("activeRun");
         int used=data.optInt("dailyRuns"),limit=data.optInt("dailyLimit",3),remaining=Math.max(0,limit-used);
@@ -2070,6 +2246,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderRaids(JSONObject data) {
+addModeSpotlight("WORLD BOSS · SHARED HEALTH", "Stand together against the guardian", "Each eligible strike contributes to the realm-wide battle and its reward pool.", "♜", PINK);
+
         JSONArray bosses=data.optJSONArray("bosses");
         if(bosses==null||bosses.length()==0){showNotice("No world raid is scheduled. Return when the next guardian awakens.");return;}
         for(int i=0;i<bosses.length();i++){
@@ -2100,6 +2278,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderTrades(JSONObject data) {
+addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", "Trade eligible cards with other collectors while bound and reserved cards stay protected.", "⇄", CYAN);
+
         JSONArray inventoryRaw=data.optJSONArray("inventory"),tradesRaw=data.optJSONArray("trades");
         final JSONArray inventory=inventoryRaw==null?new JSONArray():inventoryRaw;
         final JSONArray trades=tradesRaw==null?new JSONArray():tradesRaw;
@@ -2167,16 +2347,59 @@ public final class MainActivity extends Activity {
     }
 
     private void renderEvolution(JSONObject data) {
-        JSONObject wallet=data.optJSONObject("wallet");if(wallet==null)wallet=new JSONObject();
-        LinearLayout money=new LinearLayout(this);money.addView(statCard("GOLD",formatNumber(wallet.optLong("coins")),"Training"),weightParams(1));money.addView(statCard("GEMS",formatNumber(wallet.optLong("gems")),"Ascension"),weightParams(1));money.addView(statCard("SHARDS",formatNumber(wallet.optLong("shards")),"Upgrade"),weightParams(1));content.addView(money);
-        JSONArray cards=data.optJSONArray("cards");if(cards==null||cards.length()==0){showNotice("No cards are ready for evolution. Collect cards from Summon Hall first.");return;}
-        content.addView(text("YOUR EVOLUTION ROSTER",8,GOLD,true));
-        for(int i=0;i<cards.length();i++){
-            JSONObject c=cards.optJSONObject(i);if(c==null)continue;
-            String ranks=starMarks(c.optInt("star_rank"));
-            String sub=c.optString("rarity")+" · "+c.optString("element")+" · Lv "+c.optInt("level")+"/"+data.optInt("max_level",30)+" · "+ranks+" · "+c.optInt("copies_available")+" copies";
-            LinearLayout row=dataRow(c.optString("name","Card"),sub,"UPGRADE");JSONObject walletCopy=wallet;
-            row.setOnClickListener(v->showEvolutionCardDialog(c,walletCopy));content.addView(row,rowParams());
+        JSONObject wallet = data.optJSONObject("wallet");
+        if (wallet == null) wallet = new JSONObject();
+        addModeSpotlight("CARD ASCENSION", "Awaken their true potential",
+                "Invest Gold, Gems and Shards to raise the level and star rank of your strongest cards.",
+                "✧", PINK);
+        LinearLayout money = new LinearLayout(this);
+        money.setOrientation(LinearLayout.HORIZONTAL);
+        money.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Training"), weightParams(1));
+        money.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Ascension"), weightParams(1));
+        money.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Awakening"), weightParams(1));
+        content.addView(money);
+        addGap(content, 9);
+        JSONArray cards = data.optJSONArray("cards");
+        if (cards == null || cards.length() == 0) {
+            showNotice("No cards are ready for evolution. Collect cards from Summon Hall first.");
+            return;
+        }
+        content.addView(text("YOUR ASCENSION ROSTER · " + cards.length() + " CARDS", 8, GOLD_BRIGHT, true));
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card == null) continue;
+            LinearLayout row = sectionPanel();
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout artFrame = new FrameLayout(this);
+            int accent = cardRarityColor(card.optString("rarity", "COMMON"));
+            artFrame.setBackground(gradient(Color.rgb(34, 38, 71), Color.rgb(10, 16, 31), accent, dp(10)));
+            CardArtView illustration = new CardArtView(this);
+            illustration.loadArtwork(cardArtworkPath(card));
+            artFrame.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
+            row.addView(artFrame, new LinearLayout.LayoutParams(dp(78), dp(92)));
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setPadding(dp(10), 0, dp(7), 0);
+            copy.addView(text(card.optString("rarity", "COMMON").toUpperCase() + " · "
+                    + card.optString("element", "AETHER").toUpperCase(), 7, accent, true));
+            copy.addView(text(card.optString("name", "Card"), 11, TEXT, true));
+            int level = card.optInt("level", 1);
+            int maxLevel = Math.max(1, data.optInt("max_level", 30));
+            copy.addView(text("LEVEL " + level + " / " + maxLevel + " · "
+                    + starMarks(card.optInt("star_rank")), 8, MUTED, false));
+            ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            progress.setMax(maxLevel);
+            progress.setProgress(Math.min(maxLevel, level));
+            progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+            copy.addView(progress, new LinearLayout.LayoutParams(-1, dp(6)));
+            copy.addView(text(card.optInt("copies_available") + " EVOLUTION COPIES READY", 7, CYAN, true));
+            row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+            TextView ascend = button("ASCEND", true);
+            ascend.setOnClickListener(v -> showEvolutionCardDialog(card, wallet));
+            row.addView(ascend, new LinearLayout.LayoutParams(dp(86), dp(37)));
+            row.setOnClickListener(v -> showEvolutionCardDialog(card, wallet));
+            content.addView(row, rowParams());
         }
     }
 
@@ -2390,23 +2613,89 @@ public final class MainActivity extends Activity {
     }
 
     private void renderBinders(JSONObject data) {
-        JSONArray binders=data.optJSONArray("binders"),cards=data.optJSONArray("cards");JSONObject active=data.optJSONObject("activeBinder");
-        if(binders==null)binders=new JSONArray();if(cards==null)cards=new JSONArray();
-        LinearLayout p=sectionPanel();p.addView(text("PERSONAL CARD BINDERS",8,GOLD,true));
-        p.addView(text(active==null?"Genesis Archive":active.optString("name","Genesis Archive"),18,TEXT,true));
-        p.addView(text("Create up to 12 binders. Select a binder below to switch, rename, change its cover or manage its cards.",8,MUTED,false));
-        TextView create=button("CREATE NEW BINDER",true);create.setOnClickListener(v->showCreateBinderDialog());
-        p.addView(create,new LinearLayout.LayoutParams(dp(180),dp(38)));content.addView(p,rowParams());
-        content.addView(text("YOUR BINDERS",8,GOLD,true));
-        for(int i=0;i<binders.length();i++){
-            JSONObject b=binders.optJSONObject(i);if(b==null)continue;
-            String label=b.optString("name")+(b.optInt("is_active")==1?" · ACTIVE":"")+(b.optInt("is_default")==1?" · DEFAULT":"");
-            LinearLayout row=dataRow(label,b.optString("theme_key")+" theme · "+b.optInt("card_count")+" unique cards","MANAGE");
-            row.setOnClickListener(v->showBinderActions(b));content.addView(row,rowParams());
+        JSONArray binders = data.optJSONArray("binders");
+        JSONArray cards = data.optJSONArray("cards");
+        JSONObject active = data.optJSONObject("activeBinder");
+        if (binders == null) binders = new JSONArray();
+        if (cards == null) cards = new JSONArray();
+
+        addModeSpotlight("ARCHIVE COLLECTION", "Your personal binder vault",
+                "Curate themed shelves, keep prized pulls together and switch your active collection.",
+                "▤", CYAN);
+        LinearLayout activePanel = sectionPanel();
+        activePanel.setOrientation(LinearLayout.HORIZONTAL);
+        activePanel.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout cover = new FrameLayout(this);
+        cover.setBackground(gradient(Color.rgb(45, 61, 102), Color.rgb(13, 20, 42), CYAN, dp(12)));
+        TextView coverMark = text("▤", 38, CYAN, true);
+        coverMark.setGravity(Gravity.CENTER);
+        cover.addView(coverMark, new FrameLayout.LayoutParams(-1, -1));
+        if (cards.length() > 0 && cards.optJSONObject(0) != null) {
+            CardArtView art = new CardArtView(this);
+            art.loadArtwork(cardArtworkPath(cards.optJSONObject(0)));
+            cover.addView(art, new FrameLayout.LayoutParams(-1, -1));
         }
-        content.addView(text("CARDS IN ACTIVE BINDER",8,GOLD,true));
-        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null)content.addView(dataRow(c.optString("name"),c.optString("rarity")+" · "+c.optString("element")+" · ×"+c.optInt("owned_count"),c.optString("card_code")),rowParams());}
-        if(cards.length()==0)showNotice("This binder is empty. Your full archive remains safe under Cards.");
+        activePanel.addView(cover, new LinearLayout.LayoutParams(dp(88), dp(108)));
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(12), 0, 0, 0);
+        copy.addView(text("ACTIVE BINDER", 7, CYAN, true));
+        copy.addView(text(active == null ? "Genesis Archive" : active.optString("name", "Genesis Archive"), 16, TEXT, true));
+        copy.addView(text(cards.length() + " UNIQUE CARDS · " + binders.length() + " BINDERS", 8, GOLD_BRIGHT, true));
+        copy.addView(text("A dedicated home for your favourite cards and themed collections.", 8, MUTED, false));
+        activePanel.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
+        content.addView(activePanel, rowParams());
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        TextView create = button("＋ CREATE BINDER", true);
+        create.setOnClickListener(v -> showCreateBinderDialog());
+        actions.addView(create, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        TextView cardsButton = button("VIEW CARDS", false);
+        cardsButton.setOnClickListener(v -> renderTab("collection"));
+        LinearLayout.LayoutParams vp = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        vp.leftMargin = dp(8);
+        actions.addView(cardsButton, vp);
+        content.addView(actions, rowParams());
+
+        content.addView(text("YOUR BINDER LIBRARY", 8, GOLD_BRIGHT, true));
+        for (int i = 0; i < binders.length(); i++) {
+            JSONObject binder = binders.optJSONObject(i);
+            if (binder == null) continue;
+            boolean selected = binder.optInt("is_active") == 1;
+            LinearLayout row = dataRow(binder.optString("name", "Untitled binder"),
+                    binder.optString("theme_key", "classic").toUpperCase(java.util.Locale.ROOT)
+                            + " THEME · " + binder.optInt("card_count") + " UNIQUE CARDS",
+                    selected ? "ACTIVE" : "MANAGE");
+            if (selected) row.setBackground(gradient(Color.rgb(25, 65, 74), Color.rgb(11, 19, 36), CYAN, dp(13)));
+            row.setOnClickListener(v -> showBinderActions(binder));
+            content.addView(row, rowParams());
+        }
+
+        addGap(content, 6);
+        content.addView(text("CARDS IN ACTIVE BINDER", 8, GOLD_BRIGHT, true));
+        if (cards.length() == 0) {
+            showNotice("This binder is empty. Your full archive remains safe under Cards.");
+        } else {
+            int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels / getResources().getDisplayMetrics().density);
+            int columns = widthDp >= 1100 ? 4 : widthDp >= 760 ? 3 : 2;
+            LinearLayout grid = null;
+            int added = 0;
+            for (int i = 0; i < cards.length(); i++) {
+                JSONObject card = cards.optJSONObject(i);
+                if (card == null) continue;
+                if (added % columns == 0) {
+                    grid = new LinearLayout(this);
+                    grid.setOrientation(LinearLayout.HORIZONTAL);
+                    content.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+                }
+                LinearLayout tile = createCardTile(card);
+                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
+                p.setMargins(dp(3), dp(3), dp(3), dp(6));
+                grid.addView(tile, p);
+                added++;
+            }
+        }
     }
 
 
@@ -2477,6 +2766,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderProgression(JSONObject data) {
+addModeSpotlight("COLLECTOR JOURNEY", "Every level is a milestone", "Track your growth and claim rewards as your account climbs toward the level cap.", "✦", GOLD_BRIGHT);
+
         int level=data.optInt("level",1),xp=data.optInt("xp");
         boolean maxLevel=level>=1000;
         int need=maxLevel?Math.max(1,xp):Math.max(1,data.optInt("xpRequired"));
@@ -2542,6 +2833,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderEvents(JSONObject data) {
+addModeSpotlight("LIVE EVENT CIRCUIT", "Limited-time rewards are waiting", "Check today's login journey and browse the current festival exchange before it closes.", "✺", PINK);
+
         JSONObject login=data.optJSONObject("login_event");
         if(login==null)login=new JSONObject();
         JSONObject loginEvent=login.optJSONObject("event");
@@ -2652,41 +2945,93 @@ public final class MainActivity extends Activity {
     }
 
     private void renderRanked(JSONObject data) {
-        JSONObject season=data.optJSONObject("season"),rating=data.optJSONObject("rating");
-        if(data.optBoolean("rankedBanned")){
-            LinearLayout p=sectionPanel();p.addView(text("RANKED ACCESS SUSPENDED",9,RED,true));
-            p.addView(text(data.optString("rankedBanReason","Moderator review"),12,TEXT,true));
-            p.addView(text(data.optString("rankedBanUntil","Permanent restriction"),8,MUTED,false));content.addView(p);return;
+        JSONObject season = data.optJSONObject("season");
+        JSONObject rating = data.optJSONObject("rating");
+        JSONArray rows = data.optJSONArray("leaderboard");
+        if (rows == null) rows = new JSONArray();
+        boolean adminViewer = isAdminAccount() || data.optBoolean("hidden");
+        addModeSpotlight(adminViewer ? "ADMIN OBSERVER MODE" : "COMPETITIVE SEASON",
+                adminViewer ? "Public Ranked ladder" : (season == null ? "Ranked Season" : season.optString("name", "Ranked Season")),
+                adminViewer ? "Read-only access. Admin accounts are never placed on the public ladder and cannot enter PvP."
+                        : "Climb the seasonal ladder through tactical duels and earn your place among the top collectors.",
+                "♛", GOLD_BRIGHT);
+        if (season == null || season.length() == 0) {
+            showNotice("There is no active Ranked Season at the moment.");
+            return;
         }
-        if(data.optBoolean("hidden")){
-            showNotice("Master Admin accounts are excluded from the public Ranked Season leaderboard. Private administration access remains unchanged.");return;
+        if (adminViewer) {
+            LinearLayout observer = sectionPanel();
+            observer.addView(text("MASTER ADMIN · SPECTATOR ONLY", 8, CYAN, true));
+            observer.addView(text(season.optString("name", "Ranked Season"), 17, TEXT, true));
+            observer.addView(text("Season " + season.optString("starts_at", "") + " · Ends " + season.optString("ends_at", ""),
+                    8, MUTED, false));
+            observer.addView(text("This account has no Ranked rating or ladder placement. The public standings remain visible below.",
+                    8, MUTED, false));
+            content.addView(observer, rowParams());
+            content.addView(text("PUBLIC SEASON LADDER · " + rows.length() + " COLLECTORS", 8, GOLD_BRIGHT, true));
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject player = rows.optJSONObject(i);
+                if (player == null) continue;
+                String rank = i == 0 ? "✦ #1" : i == 1 ? "✧ #2" : i == 2 ? "◆ #3" : "#" + (i + 1);
+                LinearLayout row = dataRow(rank + " · " + player.optString("display_name", "Collector"),
+                        formatNumber(player.optLong("rating")) + " RATING · " + player.optInt("wins") + "W / "
+                                + player.optInt("losses") + "L / " + player.optInt("draws") + "D",
+                        player.optString("tier", "BRONZE"));
+                if (i == 0) row.setBackground(gradient(Color.rgb(79, 62, 41), Color.rgb(22, 25, 43), GOLD, dp(13)));
+                else if (i < 3) row.setBackground(gradient(Color.rgb(42, 49, 83), Color.rgb(13, 20, 38), VIOLET, dp(13)));
+                content.addView(row, rowParams());
+            }
+            if (rows.length() == 0) showNotice("The public Ranked ladder has no listed collectors yet.");
+            return;
         }
-        if(season==null||season.length()==0){showNotice("There is no active Ranked Season at the moment.");return;}
-        if(rating==null){showNotice("Your Ranked rating is not available yet.");return;}
-        LinearLayout hero=sectionPanel();
-        hero.addView(text("COMPETITIVE SEASON",8,GOLD,true));
-        hero.addView(text(season.optString("name","Ranked Season"),20,TEXT,true));
-        hero.addView(text(season.optString("starts_at","")+"  ·  "+season.optString("ends_at",""),8,MUTED,false));
-        hero.addView(text(rating.optString("tier","BRONZE"),25,GOLD_BRIGHT,true));
-        hero.addView(text(formatNumber(rating.optLong("rating"))+" RATING · #"+rating.optInt("position")+" ON THE LADDER",9,TEXT,true));
-        content.addView(hero,rowParams());
-        LinearLayout stats=new LinearLayout(this);
-        stats.addView(statCard("WINS",String.valueOf(rating.optInt("wins")),"Ranked"),weightParams(1));
-        stats.addView(statCard("LOSSES",String.valueOf(rating.optInt("losses")),"Ranked"),weightParams(1));
-        stats.addView(statCard("DRAWS",String.valueOf(rating.optInt("draws")),"Ranked"),weightParams(1));
-        stats.addView(statCard("STREAK",String.valueOf(rating.optInt("win_streak")),"Wins"),weightParams(1));
-        content.addView(stats);addGap(content,10);
-        content.addView(text("SEASON LEADERBOARD",8,GOLD,true));
-        JSONArray rows=data.optJSONArray("leaderboard");
-        if(rows!=null)for(int i=0;i<rows.length();i++){JSONObject p=rows.optJSONObject(i);if(p!=null)content.addView(dataRow("#"+(i+1)+" · "+p.optString("display_name","Collector"),p.optString("rating")+" rating · "+p.optInt("wins")+"W / "+p.optInt("losses")+"L",p.optString("tier","BRONZE")),rowParams());}
-        TextView enter=button("FIND RANKED MATCH",true);
-        enter.setOnClickListener(v->confirmAction("Queue for Ranked Arena?","Ranked matchmaking uses your live rating and season. Master Admin accounts are excluded.",()->{
-            api.post("/api/arena/queue",payload("mode","RANKED"),r->ui.post(()->{
-                if(!r.ok())showResultDialog("Ranked queue unavailable",r.error);
-                else{showResultDialog("RANKED MATCHMAKING",r.data.optString("message",r.data.optBoolean("matched")?"Match found. Open Arena to continue.":"Searching for an opponent. Open Arena to check the queue."));renderTab("arena");}
-            }));
-        }));
-        content.addView(enter,new LinearLayout.LayoutParams(dp(210),dp(38)));
+        if (data.optBoolean("rankedBanned")) {
+            LinearLayout banned = sectionPanel();
+            banned.addView(text("RANKED ACCESS SUSPENDED", 9, RED, true));
+            banned.addView(text(data.optString("rankedBanReason", "Moderator review"), 12, TEXT, true));
+            banned.addView(text(data.optString("rankedBanUntil", "Permanent restriction"), 8, MUTED, false));
+            content.addView(banned, rowParams());
+        }
+        if (rating != null) {
+            LinearLayout hero = sectionPanel();
+            hero.addView(text("COMPETITIVE SEASON", 8, GOLD, true));
+            hero.addView(text(season.optString("name", "Ranked Season"), 20, TEXT, true));
+            hero.addView(text(season.optString("starts_at", "") + " · " + season.optString("ends_at", ""),
+                    8, MUTED, false));
+            hero.addView(text(rating.optString("tier", "BRONZE"), 26, GOLD_BRIGHT, true));
+            hero.addView(text(formatNumber(rating.optLong("rating")) + " RATING · #"
+                    + rating.optInt("position") + " ON THE LADDER", 9, TEXT, true));
+            content.addView(hero, rowParams());
+            LinearLayout stats = new LinearLayout(this);
+            stats.setOrientation(LinearLayout.HORIZONTAL);
+            stats.addView(statCard("WINS", String.valueOf(rating.optInt("wins")), "Ranked"), weightParams(1));
+            stats.addView(statCard("LOSSES", String.valueOf(rating.optInt("losses")), "Ranked"), weightParams(1));
+            stats.addView(statCard("DRAWS", String.valueOf(rating.optInt("draws")), "Ranked"), weightParams(1));
+            stats.addView(statCard("STREAK", String.valueOf(rating.optInt("win_streak")), "Wins"), weightParams(1));
+            content.addView(stats);
+        }
+        content.addView(text("SEASON LEADERBOARD", 8, GOLD_BRIGHT, true));
+        for (int i = 0; i < rows.length(); i++) {
+            JSONObject player = rows.optJSONObject(i);
+            if (player != null) content.addView(dataRow("#" + (i + 1) + " · "
+                    + player.optString("display_name", "Collector"),
+                    player.optString("rating") + " rating · " + player.optInt("wins") + "W / "
+                            + player.optInt("losses") + "L",
+                    player.optString("tier", "BRONZE")), rowParams());
+        }
+        if (!data.optBoolean("rankedBanned")) {
+            TextView enter = button("FIND RANKED MATCH", true);
+            enter.setOnClickListener(v -> confirmAction("Queue for Ranked Arena?",
+                    "Ranked matchmaking uses your live rating and season.", () ->
+                    api.post("/api/arena/queue", payload("mode", "RANKED"), result -> ui.post(() -> {
+                        if (!result.ok()) showResultDialog("Ranked queue unavailable", result.error);
+                        else {
+                            showResultDialog("RANKED MATCHMAKING", result.data.optString("message",
+                                    result.data.optBoolean("matched") ? "Match found." : "Searching for an opponent."));
+                            renderTab("arena");
+                        }
+                    }))));
+            content.addView(enter, new LinearLayout.LayoutParams(dp(210), dp(40)));
+        }
     }
 
     private void showBinderActions(JSONObject binder) {
@@ -3529,9 +3874,9 @@ public final class MainActivity extends Activity {
 
     private LinearLayout statCard(String kicker, String value, String caption) {
         LinearLayout card = sectionPanel();
-        card.addView(text(kicker, 7, GOLD, true));
-        TextView valueView = text(value, 18, TEXT, true);
-        valueView.setPadding(0, dp(3), 0, dp(2));
+        card.addView(text(kicker, 7, CYAN, true));
+        TextView valueView = text(value, 19, TEXT, true);
+        valueView.setPadding(0, dp(4), 0, dp(3));
         card.addView(valueView);
         card.addView(text(caption, 7, MUTED, false));
         return card;
@@ -3539,12 +3884,19 @@ public final class MainActivity extends Activity {
 
     private LinearLayout featureCard(String icon, String title, String description, Runnable action) {
         LinearLayout card = sectionPanel();
-        card.setMinimumHeight(dp(80));
-        card.addView(text(icon, 18, GOLD_BRIGHT, true));
+        card.setMinimumHeight(dp(104));
+        card.addView(text(icon, 21, CYAN, true));
         addGap(card, 2);
         card.addView(text(title, 11, TEXT, true));
-        card.addView(text(description, 8, MUTED, false));
-        card.setOnClickListener(v -> action.run());
+        TextView detail = text(description, 8, MUTED, false);
+        detail.setMaxLines(2);
+        card.addView(detail);
+        card.setClickable(true);
+        card.setFocusable(true);
+        card.setOnClickListener(v -> {
+            if (sfxEnabled && gameAudio != null) gameAudio.playClick();
+            action.run();
+        });
         return card;
     }
 
@@ -3552,21 +3904,31 @@ public final class MainActivity extends Activity {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(dp(11), dp(8), dp(11), dp(8));
-        row.setBackground(gradient(Color.rgb(24, 31, 55), Color.rgb(13, 18, 35), Color.rgb(63, 66, 112), dp(11)));
+        row.setPadding(dp(10), dp(9), dp(10), dp(9));
+        row.setBackground(gradient(Color.rgb(25, 36, 65), Color.rgb(12, 19, 37),
+                Color.rgb(66, 91, 143), dp(13)));
+        View accent = new View(this);
+        accent.setBackground(gradient(CYAN, VIOLET, CYAN, dp(2)));
+        row.addView(accent, new LinearLayout.LayoutParams(dp(3), ViewGroup.LayoutParams.MATCH_PARENT));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
+        copy.setPadding(dp(9), 0, dp(7), 0);
         copy.addView(text(title, 10, TEXT, true));
         TextView details = text(subtitle, 8, MUTED, false);
-        details.setMaxLines(2);
+        details.setMaxLines(3);
+        details.setLineSpacing(dp(1), 1.02f);
         copy.addView(details);
         row.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
         if (trailing != null && !trailing.isEmpty()) {
             TextView badge = text(trailing, 7, GOLD_BRIGHT, true);
-            badge.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-            badge.setMaxWidth(dp(130));
+            badge.setGravity(Gravity.CENTER);
+            badge.setMaxWidth(dp(132));
+            badge.setPadding(dp(8), dp(6), dp(8), dp(6));
+            badge.setBackground(gradient(Color.rgb(48, 42, 76), Color.rgb(23, 27, 50),
+                    Color.rgb(111, 101, 168), dp(9)));
             row.addView(badge);
         }
+        row.setMinimumHeight(dp(52));
         row.setTag(title);
         return row;
     }
@@ -3580,9 +3942,12 @@ public final class MainActivity extends Activity {
     private LinearLayout sectionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(12), dp(10), dp(12), dp(10));
-        panel.setBackground(gradient(PANEL_LIGHT, PANEL, Color.rgb(72, 70, 129), dp(13)));
-        panel.setElevation(dp(2));
+        panel.setPadding(dp(14), dp(12), dp(14), dp(12));
+        GradientDrawable surface = gradient(Color.rgb(29, 40, 72), Color.rgb(12, 18, 36),
+                Color.rgb(76, 101, 161), dp(16));
+        panel.setBackground(surface);
+        panel.setElevation(dp(4));
+        panel.setClipToPadding(false);
         return panel;
     }
 
@@ -3617,22 +3982,29 @@ public final class MainActivity extends Activity {
     }
 
     private TextView button(String label, boolean primary) {
-        int top = primary ? Color.rgb(197, 180, 255) : Color.rgb(34, 40, 68);
-        int bottom = primary ? Color.rgb(126, 102, 219) : Color.rgb(17, 22, 42);
-        int ink = primary ? Color.rgb(13, 14, 29) : Color.rgb(219, 212, 255);
-        TextView control = text(label, 9, ink, true);
+        int top = primary ? Color.rgb(166, 143, 255) : Color.rgb(38, 51, 83);
+        int bottom = primary ? Color.rgb(92, 74, 207) : Color.rgb(16, 25, 47);
+        TextView control = text(label, 9, Color.rgb(250, 248, 255), true);
         control.setGravity(Gravity.CENTER);
-        control.setLetterSpacing(0.07f);
-        control.setPadding(dp(14), 0, dp(14), 0);
+        control.setLetterSpacing(0.045f);
+        control.setPadding(dp(15), 0, dp(15), 0);
         GradientDrawable shape = gradient(top, bottom,
-                primary ? Color.rgb(218, 204, 255) : Color.rgb(93, 85, 145), dp(10));
+                primary ? Color.rgb(206, 190, 255) : Color.rgb(86, 122, 177), dp(11));
+        shape.setStroke(dp(1), primary ? Color.rgb(195, 178, 255) : Color.rgb(73, 99, 153));
         control.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(Color.argb(74, 255, 255, 255)),
+                android.content.res.ColorStateList.valueOf(Color.argb(85, 255, 255, 255)),
                 shape, null));
-        control.setMinimumHeight(dp(40));
-        control.setElevation(dp(2));
+        control.setMinimumHeight(dp(42));
+        control.setElevation(dp(3));
         control.setClickable(true);
         control.setFocusable(true);
+        control.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_UP) {
+                if (sfxEnabled && gameAudio != null) gameAudio.playClick();
+                if (hapticsEnabled) view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+            }
+            return false;
+        });
         return control;
     }
 
@@ -3712,11 +4084,13 @@ public final class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         startAutoSync();
+        if (bgmEnabled && gameAudio != null) gameAudio.startAmbient();
     }
 
     @Override
     protected void onPause() {
         ui.removeCallbacks(autoSyncTick);
+        if (gameAudio != null) gameAudio.stopAmbient();
         super.onPause();
     }
 
@@ -3736,6 +4110,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         ui.removeCallbacks(autoSyncTick);
+        if (gameAudio != null) gameAudio.release();
         super.onDestroy();
     }
 }
