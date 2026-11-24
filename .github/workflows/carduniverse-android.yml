@@ -16,14 +16,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Check permanent release signing secrets
+      - name: Check permanent release signing bundle
         id: signing
         env:
-          CU_RELEASE_KEYSTORE_BASE64: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
+          CU_RELEASE_SIGNING_BUNDLE: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$CU_RELEASE_KEYSTORE_BASE64" ]; then
+          if [ -z "$CU_RELEASE_SIGNING_BUNDLE" ] || ! printf '%s' "$CU_RELEASE_SIGNING_BUNDLE" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert all(d.get(k) for k in ("keystoreBase64","storePassword","keyAlias","keyPassword"))' >/dev/null 2>&1; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::APK build skipped. Add the four CU_RELEASE_* GitHub Actions secrets to enable permanent update signing."
+            echo "::notice::APK build skipped. Update the existing CU_RELEASE_KEYSTORE_BASE64 secret using the new one-secret signing bundle."
           else
             echo "configured=true" >> "$GITHUB_OUTPUT"
           fi
@@ -55,31 +55,43 @@ jobs:
       - name: Restore permanent signing key
         if: steps.signing.outputs.configured == 'true'
         env:
-          CU_RELEASE_KEYSTORE_BASE64: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
-          CU_KEYSTORE_PASSWORD: "DLauMOvD5uYfEgdipDuvol0ON2sSI1SM7aa4OUYZ"
-          CU_KEY_ALIAS: "carduniverse-release"
+          CU_RELEASE_SIGNING_BUNDLE: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
           export CU_KEYSTORE_PATH="$RUNNER_TEMP/carduniverse-release.jks"
-          printf '%s' "$CU_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$CU_KEYSTORE_PATH"
-          chmod 600 "$CU_KEYSTORE_PATH"
-          keytool -list -keystore "$CU_KEYSTORE_PATH" -storepass "$CU_KEYSTORE_PASSWORD" -alias "$CU_KEY_ALIAS" >/dev/null
-          echo "CU_KEYSTORE_PATH=$CU_KEYSTORE_PATH" >> "$GITHUB_ENV"
-          echo "CU_KEYSTORE_PASSWORD=$CU_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
-          echo "CU_KEY_ALIAS=$CU_KEY_ALIAS" >> "$GITHUB_ENV"
+          python3 - <<'PY'
+          import base64, json, os
+          bundle = json.loads(os.environ["CU_RELEASE_SIGNING_BUNDLE"])
+          raw = base64.b64decode(bundle["keystoreBase64"], validate=True)
+          with open(os.environ["CU_KEYSTORE_PATH"], "wb") as handle:
+              handle.write(raw)
+          os.chmod(os.environ["CU_KEYSTORE_PATH"], 0o600)
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write("CU_KEYSTORE_PASSWORD=" + bundle["storePassword"] + "\\n")
+              env.write("CU_KEY_ALIAS=" + bundle["keyAlias"] + "\\n")
+              env.write("CU_KEY_PASSWORD=" + bundle["keyPassword"] + "\\n")
+              env.write("CU_KEYSTORE_PATH=" + os.environ["CU_KEYSTORE_PATH"] + "\\n")
+          PY
+          keytool -list -keystore "$CU_KEYSTORE_PATH" -storepass "$(python3 -c 'import json,os; print(json.loads(os.environ["CU_RELEASE_SIGNING_BUNDLE"])["storePassword"])')" -alias "$(python3 -c 'import json,os; print(json.loads(os.environ["CU_RELEASE_SIGNING_BUNDLE"])["keyAlias"])')" >/dev/null
 
       - name: Build native release APK
         if: steps.signing.outputs.configured == 'true'
-        env:
-          CU_KEY_PASSWORD: "E9UNhjn4pzQyqhDcufjSlnRkZ9bhpYQNLi9jX6oW"
         run: gradle -p carduniverse-android :app:assembleRelease
+
+      - name: Name and verify APK
+        if: steps.signing.outputs.configured == 'true'
+        run: |
+          set -euo pipefail
+          cp carduniverse-android/app/build/outputs/apk/release/app-release.apk CardUniverse-v2.10.0.apk
+          apksigner verify --verbose CardUniverse-v2.10.0.apk
+          aapt dump badging CardUniverse-v2.10.0.apk | grep -F "package: name='com.carduniverse.game' versionCode='14' versionName='2.10.0'"
 
       - name: Upload APK artifact
         if: steps.signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: CardUniverse-Native-Android-2.9.0
-          path: carduniverse-android/app/build/outputs/apk/release/app-release.apk
+          name: CardUniverse-Android-v2.10.0
+          path: CardUniverse-v2.10.0.apk
           if-no-files-found: error
           retention-days: 30
 
@@ -87,14 +99,14 @@ jobs:
         if: github.ref == 'refs/heads/carduniverse-android' && steps.signing.outputs.configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v2.9.0-build-${{ github.run_number }}
-          name: CardUniverse Native Android v2.9.0 (build ${{ github.run_number }})
+          tag_name: carduniverse-android-v2.10.0-build-${{ github.run_number }}
+          name: CardUniverse Android v2.10.0 (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
-          files: carduniverse-android/app/build/outputs/apk/release/app-release.apk
+          files: CardUniverse-v2.10.0.apk
 
       - name: Explain skipped APK build
         if: steps.signing.outputs.configured != 'true'
         run: |
-          echo "Release build was intentionally skipped because permanent signing secrets are not configured."
-          echo "No APK was uploaded and no GitHub Release was created. Configure secrets and run this workflow again."
+          echo "Release build was intentionally skipped because the permanent signing bundle is missing or invalid."
+          echo "Update the existing CU_RELEASE_KEYSTORE_BASE64 secret with the private JSON bundle, then run this workflow again."

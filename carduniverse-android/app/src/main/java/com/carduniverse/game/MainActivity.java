@@ -41,15 +41,15 @@ import java.util.Map;
 import java.util.UUID;
 
 public final class MainActivity extends Activity {
-    private static final int BG = Color.rgb(7, 13, 14);
-    private static final int PANEL = Color.rgb(17, 29, 27);
-    private static final int PANEL_LIGHT = Color.rgb(24, 39, 35);
-    private static final int GOLD = Color.rgb(216, 184, 119);
-    private static final int GOLD_BRIGHT = Color.rgb(244, 218, 164);
-    private static final int TEXT = Color.rgb(240, 237, 224);
-    private static final int MUTED = Color.rgb(157, 169, 158);
-    private static final int GREEN = Color.rgb(115, 184, 139);
-    private static final int RED = Color.rgb(224, 126, 111);
+    private static final int BG = Color.rgb(8, 11, 24);
+    private static final int PANEL = Color.rgb(20, 26, 45);
+    private static final int PANEL_LIGHT = Color.rgb(29, 37, 62);
+    private static final int GOLD = Color.rgb(157, 135, 238);
+    private static final int GOLD_BRIGHT = Color.rgb(211, 201, 255);
+    private static final int TEXT = Color.rgb(241, 242, 255);
+    private static final int MUTED = Color.rgb(158, 169, 198);
+    private static final int GREEN = Color.rgb(104, 219, 190);
+    private static final int RED = Color.rgb(255, 112, 142);
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private ApiClient api;
@@ -64,6 +64,7 @@ public final class MainActivity extends Activity {
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
     private JSONObject arenaLeaderCard;
     private JSONObject arenaOpponentCard;
+    private JSONObject adminProfile;
     private JSONObject me;
     private JSONObject progression;
     private String activeTab = "home";
@@ -72,7 +73,16 @@ public final class MainActivity extends Activity {
     private boolean syncingAccount = false;
     private boolean compactLayout = false;
     private boolean showingAuth = false;
-    private TextView syncControl;
+    private long lastAutoSyncAt = 0L;
+    private static final long AUTO_SYNC_INTERVAL_MS = 60_000L;
+    private final Runnable autoSyncTick = new Runnable() {
+        @Override public void run() {
+            if (!isFinishing() && api != null && me != null && appRoot != null) {
+                syncWithSharedBackend(false);
+                ui.postDelayed(this, AUTO_SYNC_INTERVAL_MS);
+            }
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -489,15 +499,17 @@ public final class MainActivity extends Activity {
         avp.leftMargin = dp(compact ? 6 : 10);
         right.addView(account);
 
-        syncControl = button(compact ? "↻" : "↻ SYNC", false);
-        syncControl.setTextSize(compact ? 11 : 7);
-        syncControl.setPadding(dp(compact ? 4 : 8), 0, dp(compact ? 4 : 8), 0);
-        syncControl.setContentDescription("Sync latest CardUniverse data from the web backend");
-        syncControl.setOnClickListener(v -> syncWithSharedBackend(true, true));
-        LinearLayout.LayoutParams syncParams = new LinearLayout.LayoutParams(
-                dp(compact ? 30 : 58), dp(compact ? 28 : 30));
-        syncParams.leftMargin = dp(compact ? 6 : 9);
-        right.addView(syncControl, syncParams);
+        if ("admin".equalsIgnoreCase(me.optString("role", ""))) {
+            TextView adminPill = text("GOD MODE", 7, Color.rgb(220, 207, 255), true);
+            adminPill.setGravity(Gravity.CENTER);
+            adminPill.setPadding(dp(8), dp(5), dp(8), dp(5));
+            adminPill.setBackground(gradient(Color.rgb(52, 39, 91),
+                    Color.rgb(28, 24, 58), Color.rgb(149, 117, 255), dp(20)));
+            LinearLayout.LayoutParams pillParams = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(27));
+            pillParams.leftMargin = dp(8);
+            right.addView(adminPill, pillParams);
+        }
         right.addView(avatar, avp);
         top.addView(right);
         mainColumn.addView(top, new LinearLayout.LayoutParams(
@@ -530,6 +542,8 @@ public final class MainActivity extends Activity {
         setContentView(appRoot);
         refreshNav();
         renderTab(activeTab == null ? "home" : activeTab);
+        loadAdminProfile();
+        startAutoSync();
     }
 
     private void addCompactNavItem(LinearLayout target, String key, String icon, String label) {
@@ -671,18 +685,41 @@ public final class MainActivity extends Activity {
         heroCopy.addView(level);
         hero.addView(heroCopy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
-        LinearLayout heroMark = new LinearLayout(this);
-        heroMark.setGravity(Gravity.CENTER);
-        heroMark.setBackground(gradient(Color.rgb(78, 76, 49), Color.rgb(36, 49, 34), Color.rgb(172, 144, 91), dp(14)));
-        TextView star = text("✦", 40, GOLD_BRIGHT, true);
+        FrameLayout heroMark = new FrameLayout(this);
+        heroMark.setBackground(gradient(Color.rgb(44, 34, 79), Color.rgb(13, 17, 37),
+                Color.rgb(152, 126, 255), dp(16)));
+        TextView star = text("✦", 42, GOLD_BRIGHT, true);
         star.setGravity(Gravity.CENTER);
-        heroMark.addView(star);
-        LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(dp(86), dp(86));
-        hmp.leftMargin = dp(12);
+        heroMark.addView(star, new FrameLayout.LayoutParams(-1, -1));
+        CardArtView fox = new CardArtView(this);
+        fox.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        fox.loadArtwork("/art/cinder-fox.webp");
+        FrameLayout.LayoutParams foxParams = new FrameLayout.LayoutParams(-1, -1);
+        foxParams.setMargins(dp(5), dp(5), dp(5), dp(5));
+        heroMark.addView(fox, foxParams);
+        LinearLayout.LayoutParams hmp = new LinearLayout.LayoutParams(dp(104), dp(104));
+        hmp.leftMargin = dp(14);
         hero.addView(heroMark, hmp);
         content.addView(hero, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         addGap(content, 12);
+        if (isGodModeEnabled()) {
+            LinearLayout god = sectionPanel();
+            god.setOrientation(LinearLayout.HORIZONTAL);
+            god.setGravity(Gravity.CENTER_VERTICAL);
+            TextView mark = text("✦", 25, Color.rgb(205, 185, 255), true);
+            god.addView(mark, new LinearLayout.LayoutParams(dp(42), dp(42)));
+            LinearLayout godCopy = new LinearLayout(this);
+            godCopy.setOrientation(LinearLayout.VERTICAL);
+            godCopy.addView(text("MASTER ADMIN · GOD MODE ONLINE", 9,
+                    Color.rgb(215, 200, 255), true));
+            godCopy.addView(text("Access Level 100 · Level 1,000 · Admin privileges active",
+                    8, MUTED, false));
+            god.addView(godCopy, new LinearLayout.LayoutParams(0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+            content.addView(god, rowParams());
+            addGap(content, 8);
+        }
         TextView statTitle = text("YOUR COLLECTION AT A GLANCE", 8, GOLD, true);
         statTitle.setLetterSpacing(0.12f);
         content.addView(statTitle);
@@ -797,7 +834,7 @@ public final class MainActivity extends Activity {
     private void renderPacks(JSONObject data) {
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
-        boolean unlimited = data.optBoolean("unlimited");
+        boolean unlimited = data.optBoolean("unlimited") || isGodModeEnabled();
         content.addView(statCard("AVAILABLE PACK TYPES", String.valueOf(packs.length()),
                 unlimited ? "Master Admin inventory" : "Your current summon inventory"));
         addGap(content, 10);
@@ -2440,15 +2477,17 @@ public final class MainActivity extends Activity {
     }
 
     private void renderProgression(JSONObject data) {
-        int level=data.optInt("level",1),xp=data.optInt("xp"),need=Math.max(1,data.optInt("xpRequired"));
+        int level=data.optInt("level",1),xp=data.optInt("xp");
+        boolean maxLevel=level>=1000;
+        int need=maxLevel?Math.max(1,xp):Math.max(1,data.optInt("xpRequired"));
         int page=data.optInt("rewardPage"),pageSize=data.optInt("rewardPageSize",30),total=data.optInt("rewardTotal");
         int pages=Math.max(1,(int)Math.ceil(total/(double)Math.max(1,pageSize)));
-        LinearLayout hero=sectionPanel();hero.addView(text("COLLECTOR LEVEL "+level,9,GOLD,true));
-        hero.addView(text(formatNumber(xp)+" / "+formatNumber(need)+" XP TO NEXT LEVEL",13,TEXT,true));
+        LinearLayout hero=sectionPanel();hero.addView(text(maxLevel?"✦ MAX COLLECTOR LEVEL":"COLLECTOR LEVEL "+level,9,GOLD,true));
+        hero.addView(text(maxLevel?"LEVEL CAP REACHED · "+formatNumber(xp)+" TOTAL XP":formatNumber(xp)+" / "+formatNumber(need)+" XP TO NEXT LEVEL",13,TEXT,true));
         ProgressBar xpBar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);xpBar.setMax(100);
-        xpBar.setProgress(Math.min(100,Math.round(xp*100f/need)));xpBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
+        xpBar.setProgress(maxLevel?100:Math.min(100,Math.round(xp*100f/need)));xpBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
         hero.addView(xpBar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(8)));
-        hero.addView(text(data.optInt("claimableCount")+" milestone rewards ready · up to level 1,000",8,MUTED,false));
+        hero.addView(text((maxLevel?"MAX RANK · ":"")+data.optInt("claimableCount")+" milestone rewards ready · level cap 1,000",8,MUTED,false));
         content.addView(hero,rowParams());
         JSONArray rewards=data.optJSONArray("rewards");if(rewards==null)rewards=new JSONArray();
         content.addView(text("LEVEL MILESTONES",8,GOLD,true));
@@ -2767,20 +2806,68 @@ public final class MainActivity extends Activity {
     }
 
     private void confirmAction(String title, String message, Runnable action) {
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(message)
-                .setNegativeButton("CANCEL", (dialog, which) -> dialog.dismiss())
-                .setPositiveButton("CONTINUE", (dialog, which) -> action.run())
-                .show();
+        showGameDialog("ACTION REQUIRED", title, message, true, action);
     }
 
     private void showResultDialog(String title, String message) {
-        new AlertDialog.Builder(this)
-                .setTitle(title)
-                .setMessage(message == null || message.trim().isEmpty() ? "Action completed." : message)
-                .setPositiveButton("CONTINUE", (dialog, which) -> dialog.dismiss())
-                .show();
+        showGameDialog("REALM UPDATE", title,
+                message == null || message.trim().isEmpty() ? "Action completed." : message,
+                false, null);
+    }
+
+    private void showGameDialog(String eyebrow, String title, String message,
+                                boolean confirm, Runnable action) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(20), dp(17), dp(20), dp(17));
+        shell.setBackground(gradient(Color.rgb(29, 30, 59), Color.rgb(9, 13, 29),
+                Color.rgb(133, 111, 228), dp(18)));
+
+        TextView label = text(eyebrow, 8, Color.rgb(181, 164, 255), true);
+        label.setLetterSpacing(0.18f);
+        shell.addView(label);
+        TextView heading = text(title == null ? "REALM MESSAGE" :
+                title.toUpperCase(java.util.Locale.ROOT), 17, TEXT, true);
+        heading.setPadding(0, dp(6), 0, dp(7));
+        heading.setMaxLines(2);
+        shell.addView(heading);
+        View rule = new View(this);
+        rule.setBackgroundColor(Color.rgb(69, 67, 108));
+        shell.addView(rule, new LinearLayout.LayoutParams(-1, dp(1)));
+        TextView body = text(message == null ? "" : message, 10, MUTED, false);
+        body.setLineSpacing(dp(4), 1.05f);
+        body.setPadding(0, dp(12), 0, dp(16));
+        shell.addView(body);
+
+        LinearLayout actions = new LinearLayout(this);
+        actions.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        if (confirm) {
+            TextView cancel = button("CANCEL", false);
+            actions.addView(cancel, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, dp(42)));
+            View gap = new View(this);
+            actions.addView(gap, new LinearLayout.LayoutParams(dp(8), 1));
+            cancel.setOnClickListener(v -> dialog.dismiss());
+        }
+        TextView proceed = button(confirm ? "CONTINUE" : "GOT IT", true);
+        actions.addView(proceed, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, dp(42)));
+        proceed.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (action != null) action.run();
+        });
+        shell.addView(actions);
+        dialog.setContentView(shell);
+        dialog.setCanceledOnTouchOutside(!confirm);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            int width = Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(36));
+            window.setLayout(width, ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     private void showPackRevealDialog(JSONArray cards) {
@@ -2927,29 +3014,28 @@ public final class MainActivity extends Activity {
         }));
     }
 
-    // Web Admin and Android read the same live backend. Refresh account and progression
-    // whenever the app returns to the foreground or the player requests a manual sync.
-    private void syncWithSharedBackend(boolean refreshVisibleTab, boolean showMessage) {
+    // Refresh shared account data quietly while the game stays in the foreground.
+    private void startAutoSync() {
+        ui.removeCallbacks(autoSyncTick);
+        if (api == null || me == null || appRoot == null) return;
+        syncWithSharedBackend(false);
+        ui.postDelayed(autoSyncTick, AUTO_SYNC_INTERVAL_MS);
+    }
+
+    private void syncWithSharedBackend(boolean force) {
         if (api == null || me == null || syncingAccount) return;
+        long now = android.os.SystemClock.elapsedRealtime();
+        if (!force && now - lastAutoSyncAt < 45_000L) return;
+        lastAutoSyncAt = now;
         syncingAccount = true;
-        if (syncControl != null) {
-            syncControl.setEnabled(false);
-            syncControl.setText("SYNC...");
-        }
         api.get("/api/me", result -> ui.post(() -> {
             if (!result.ok()) {
                 syncingAccount = false;
-                if (syncControl != null) {
-                    syncControl.setEnabled(true);
-                    syncControl.setText("↻ SYNC");
-                }
                 if (result.status == 401) {
                     api.clearSession();
                     me = null;
+                    adminProfile = null;
                     showAuth(false, "Your session expired. Please sign in again.");
-                } else if (showMessage) {
-                    Toast.makeText(this, "Sync failed: " + (result.error == null ? "connection unavailable" : result.error),
-                            Toast.LENGTH_LONG).show();
                 }
                 return;
             }
@@ -2959,15 +3045,34 @@ public final class MainActivity extends Activity {
             api.get("/api/progression", progressResult -> ui.post(() -> {
                 if (progressResult.ok()) progression = progressResult.data;
                 syncingAccount = false;
-                if (syncControl != null) {
-                    syncControl.setEnabled(true);
-                    syncControl.setText("↻ SYNC");
-                }
-                if (refreshVisibleTab && content != null && me != null) renderTab(activeTab);
-                if (showMessage) {
-                    Toast.makeText(this, "CardUniverse account data refreshed.", Toast.LENGTH_SHORT).show();
-                }
+                if (isAdminAccount()) loadAdminProfile();
             }));
+        }));
+    }
+
+    private boolean isAdminAccount() {
+        return me != null && "admin".equalsIgnoreCase(me.optString("role", ""));
+    }
+
+    private boolean isGodModeEnabled() {
+        if (!isAdminAccount()) return false;
+        int access = me.optInt("admin_access_level", 0);
+        if (adminProfile != null) {
+            JSONObject profile = adminProfile.optJSONObject("profile");
+            if (profile != null) access = Math.max(access, profile.optInt("access_level", 0));
+        }
+        return access >= 100;
+    }
+
+    private void loadAdminProfile() {
+        if (!isAdminAccount() || api == null) {
+            adminProfile = null;
+            return;
+        }
+        api.get("/api/admin/profile", result -> ui.post(() -> {
+            if (!result.ok()) return;
+            adminProfile = result.data;
+            if ("home".equals(activeTab) && content != null) renderTab("home");
         }));
     }
 
@@ -3511,16 +3616,23 @@ public final class MainActivity extends Activity {
     }
 
     private TextView button(String label, boolean primary) {
-        TextView button = text(label, 9, primary ? Color.rgb(24, 28, 20) : GOLD_BRIGHT, true);
-        button.setGravity(Gravity.CENTER);
-        button.setLetterSpacing(0.1f);
-        button.setBackground(gradient(
-                primary ? GOLD_BRIGHT : Color.rgb(32, 46, 35),
-                primary ? GOLD : Color.rgb(18, 31, 25),
-                primary ? GOLD_BRIGHT : Color.rgb(113, 99, 67), dp(9)));
-        button.setClickable(true);
-        button.setFocusable(true);
-        return button;
+        int top = primary ? Color.rgb(197, 180, 255) : Color.rgb(34, 40, 68);
+        int bottom = primary ? Color.rgb(126, 102, 219) : Color.rgb(17, 22, 42);
+        int ink = primary ? Color.rgb(13, 14, 29) : Color.rgb(219, 212, 255);
+        TextView control = text(label, 9, ink, true);
+        control.setGravity(Gravity.CENTER);
+        control.setLetterSpacing(0.07f);
+        control.setPadding(dp(14), 0, dp(14), 0);
+        GradientDrawable shape = gradient(top, bottom,
+                primary ? Color.rgb(218, 204, 255) : Color.rgb(93, 85, 145), dp(10));
+        control.setBackground(new android.graphics.drawable.RippleDrawable(
+                android.content.res.ColorStateList.valueOf(Color.argb(74, 255, 255, 255)),
+                shape, null));
+        control.setMinimumHeight(dp(40));
+        control.setElevation(dp(2));
+        control.setClickable(true);
+        control.setFocusable(true);
+        return control;
     }
 
     private TextView text(String value, float size, int color, boolean bold) {
@@ -3598,9 +3710,13 @@ public final class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (api != null && me != null && appRoot != null) {
-            syncWithSharedBackend(true, false);
-        }
+        startAutoSync();
+    }
+
+    @Override
+    protected void onPause() {
+        ui.removeCallbacks(autoSyncTick);
+        super.onPause();
     }
 
     @Override
@@ -3618,6 +3734,7 @@ public final class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        ui.removeCallbacks(autoSyncTick);
         super.onDestroy();
     }
 }

@@ -1,5 +1,5 @@
 <resources>
-    <color name="app_bg">#0B1023</color>
-    <color name="app_accent">#7C5CFF</color>
-    <color name="app_accent_bright">#36D8FF</color>
+    <color name="app_bg">#080B18</color>
+    <color name="app_accent">#8D78E8</color>
+    <color name="app_accent_bright">#B7A5FF</color>
 </resources>
