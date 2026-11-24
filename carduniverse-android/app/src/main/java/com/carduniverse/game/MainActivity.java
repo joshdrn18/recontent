@@ -436,7 +436,7 @@ public final class MainActivity extends Activity {
             rail.setOrientation(LinearLayout.VERTICAL);
             rail.setPadding(dp(7), dp(9), dp(7), dp(8));
             rail.setGravity(Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-            rail.setBackground(gradient(Color.rgb(17, 29, 25), Color.rgb(9, 17, 15), Color.rgb(49, 65, 51), 0));
+            rail.setBackground(gradient(Color.rgb(20, 22, 47), Color.rgb(8, 11, 25), Color.rgb(72, 65, 125), 0));
             appRoot.addView(rail, new LinearLayout.LayoutParams(dp(82), ViewGroup.LayoutParams.MATCH_PARENT));
 
             TextView emblem = text("✦", 25, GOLD_BRIGHT, true);
@@ -598,8 +598,8 @@ public final class MainActivity extends Activity {
             label.setTextColor(active ? GOLD_BRIGHT : MUTED);
             View parent = (View) label.getParent();
             if (parent != null) parent.setBackground(gradient(
-                    active ? Color.rgb(54, 61, 43) : PANEL,
-                    active ? Color.rgb(30, 46, 34) : PANEL,
+                    active ? Color.rgb(55, 45, 94) : PANEL,
+                    active ? Color.rgb(28, 25, 56) : PANEL,
                     active ? GOLD : Color.TRANSPARENT, dp(9)));
         }
     }
@@ -672,7 +672,7 @@ public final class MainActivity extends Activity {
         hero.setOrientation(LinearLayout.HORIZONTAL);
         hero.setGravity(Gravity.CENTER_VERTICAL);
         hero.setPadding(dp(18), dp(15), dp(18), dp(15));
-        hero.setBackground(gradient(Color.rgb(41, 67, 48), Color.rgb(17, 33, 27), Color.rgb(143, 116, 73), dp(16)));
+        hero.setBackground(gradient(Color.rgb(47, 40, 91), Color.rgb(13, 18, 39), Color.rgb(147, 124, 231), dp(16)));
 
         LinearLayout heroCopy = new LinearLayout(this);
         heroCopy.setOrientation(LinearLayout.VERTICAL);
@@ -3418,7 +3418,7 @@ public final class MainActivity extends Activity {
         description.setMinLines(4);
         description.setGravity(Gravity.TOP);
         description.setPadding(dp(10), dp(10), dp(10), dp(10));
-        description.setBackground(gradient(Color.rgb(9, 18, 15), Color.rgb(9, 18, 15), Color.rgb(70, 83, 67), dp(9)));
+        description.setBackground(gradient(Color.rgb(10, 14, 30), Color.rgb(10, 14, 30), Color.rgb(73, 75, 122), dp(10)));
         EditText evidence = editField("Evidence URL (optional)", false);
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
@@ -3553,7 +3553,7 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setPadding(dp(11), dp(8), dp(11), dp(8));
-        row.setBackground(gradient(Color.rgb(19, 31, 28), Color.rgb(14, 24, 21), Color.rgb(51, 66, 53), dp(10)));
+        row.setBackground(gradient(Color.rgb(24, 31, 55), Color.rgb(13, 18, 35), Color.rgb(63, 66, 112), dp(11)));
         LinearLayout copy = new LinearLayout(this);
         copy.setOrientation(LinearLayout.VERTICAL);
         copy.addView(text(title, 10, TEXT, true));
@@ -3581,7 +3581,8 @@ public final class MainActivity extends Activity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(12), dp(10), dp(12), dp(10));
-        panel.setBackground(gradient(PANEL_LIGHT, PANEL, Color.rgb(56, 73, 58), dp(12)));
+        panel.setBackground(gradient(PANEL_LIGHT, PANEL, Color.rgb(72, 70, 129), dp(13)));
+        panel.setElevation(dp(2));
         return panel;
     }
 
@@ -3604,7 +3605,7 @@ public final class MainActivity extends Activity {
         edit.setHintTextColor(MUTED);
         edit.setHint(hint);
         edit.setPadding(dp(12), 0, dp(12), 0);
-        edit.setBackground(gradient(Color.rgb(9, 18, 15), Color.rgb(9, 18, 15), Color.rgb(70, 83, 67), dp(9)));
+        edit.setBackground(gradient(Color.rgb(10, 14, 30), Color.rgb(10, 14, 30), Color.rgb(73, 75, 122), dp(10)));
         edit.setSelectAllOnFocus(false);
         return edit;
     }
