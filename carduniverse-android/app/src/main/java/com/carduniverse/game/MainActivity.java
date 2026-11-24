@@ -2573,16 +2573,14 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         boolean canManageGuildSettings = leader || (inGuild && guild.optBoolean("canAnnounce"))
                 || (inGuild && guild.optBoolean("canManageRecruitment"));
 
-        addRealmScene("guild", inGuild ? guild.optString("name", "GUILD HALL")
-                : "GUILD FRONTIER",
-                inGuild ? "Your community headquarters · build a shared legacy."
-                        : "Find your banner or found a new guild.",
-                inGuild ? guild.optInt("member_count") : 0,
-                inGuild ? Math.max(1, guild.optInt("member_limit")) : 1);
+        // The guild's own identity banner below replaces the generic realm scene.
 
         if (!inGuild) {
             LinearLayout create = sectionPanel();
             create.setGravity(Gravity.CENTER);
+            create.setPadding(dp(16), dp(17), dp(16), dp(17));
+            create.setBackground(gradient(Color.rgb(37, 68, 68), Color.rgb(10, 18, 33),
+                    CYAN, dp(18)));
             FrameLayout crest = new FrameLayout(this);
             crest.setBackground(gradient(Color.rgb(44, 97, 78), Color.rgb(13, 30, 38), CYAN, dp(16)));
             TextView sigil = text("♜", 43, Color.rgb(170, 255, 220), true);
@@ -5340,7 +5338,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             int maxLevel = Math.max(1, data.optInt("max_level", 30));
             copy.addView(text("LEVEL " + level + " / " + maxLevel + " · "
                     + starMarks(card.optInt("star_rank")), 8, MUTED, false));
-            TextView cardPower = text("CARD POWER  +" + formatNumber(card.optLong("evolution_power")),
+            TextView cardPower = text("CARD POWER  " + formatNumber(card.optLong("card_power")),
                     8, GOLD_BRIGHT, true);
             cardPower.setPadding(0, dp(2), 0, dp(2));
             copy.addView(cardPower);
@@ -5363,7 +5361,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         String message=c.optString("card_code")+" · "+c.optString("element")+" · "+c.optString("rarity")
             +"\\nLevel "+c.optInt("level")+" · Ascension "+c.optInt("star_rank")+"★"
             +"\\nAvailable copies: "+c.optInt("copies_available")
-            +"\\nCurrent formation power: +"+formatNumber(c.optLong("evolution_power"))
+            +"\\nCard power: "+formatNumber(c.optLong("card_power"))
             +"\\n\\nLevel-up: "+formatNumber(c.optLong("level_cost"))+" Gold + "+formatNumber(c.optLong("level_shards"))+" Shards"
             +"\\n\\nSignature: "+c.optString("skill_name","Firstlight Gift")+"\\n"+c.optString("skill_description","Unlocks at 2★");
         String[] actions={"LEVEL UP","ASCEND"};
@@ -5716,7 +5714,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         illustration.loadArtwork(cardArtworkPath(card));
         name.setText(card.optString("name", "Unknown Card"));
         name.setTextColor(TEXT);
-        meta.setText(rarity + " · " + element + " · POWER +"
+        meta.setText(rarity + " · " + element + " · POWER "
                 + formatNumber(card.optLong("formation_power")) + " · ×"
                 + card.optInt("owned_count"));
         meta.setTextColor(accent);
