@@ -2555,8 +2555,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                                     if (!result.ok()) showResultDialog("Cannot enter dungeon", result.error);
                                     else refreshAccount(() -> renderTab("dungeons"));
                                 }))));
-                gate.addView(enter, new LinearLayout.LayoutParams(dp(75), dp(36)));
-                content.addView(gate, rowParams());
+                gate.addView(enter, new LinearLayout.LayoutParams(-1, dp(36)));
+                LinearLayout.LayoutParams gateParams = new LinearLayout.LayoutParams(dp(220), -2);
+                gateParams.setMargins(dp(4), dp(4), dp(7), dp(7));
+                gateShelf.addView(gate, gateParams);
             }
             content.addView(gateScroll,rowParams());
         }
