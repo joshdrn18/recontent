@@ -65,7 +65,7 @@ public final class ApiClient {
                 connection.setUseCaches(false);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.7.0");
+                connection.setRequestProperty("X-Client-Version", "2.8.0");
                 if (session != null && !session.isEmpty()) {
                     connection.setRequestProperty("Cookie", "cu_session=" + session);
                 }
