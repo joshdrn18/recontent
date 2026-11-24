@@ -6263,7 +6263,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
             if (result.ok()) {
                 acceptMe(result.data);
                 if (accountLabel != null) accountLabel.setText(me.optString("display_name", "Collector"));
-                if (currencyLabel != null) currencyLabel.setText(walletLine());
+                if (currencyLabel != null) currencyLabel.setText("LV " + formatNumber(me.optLong("collector_level", 1)) + "  ·  " + walletLine());
             }
             if (after != null) after.run();
         }));
@@ -6296,7 +6296,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
             }
             acceptMe(result.data);
             if (accountLabel != null) accountLabel.setText(me.optString("display_name", "Collector"));
-            if (currencyLabel != null) currencyLabel.setText(walletLine());
+            if (currencyLabel != null) currencyLabel.setText("LV " + formatNumber(me.optLong("collector_level", 1)) + "  ·  " + walletLine());
             api.get("/api/progression", progressResult -> ui.post(() -> {
                 if (progressResult.ok()) progression = progressResult.data;
                 syncingAccount = false;
