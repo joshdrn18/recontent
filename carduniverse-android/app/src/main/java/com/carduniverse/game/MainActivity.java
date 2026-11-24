@@ -5340,6 +5340,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             int maxLevel = Math.max(1, data.optInt("max_level", 30));
             copy.addView(text("LEVEL " + level + " / " + maxLevel + " · "
                     + starMarks(card.optInt("star_rank")), 8, MUTED, false));
+            TextView cardPower = text("CARD POWER  +" + formatNumber(card.optLong("evolution_power")),
+                    8, GOLD_BRIGHT, true);
+            cardPower.setPadding(0, dp(2), 0, dp(2));
+            copy.addView(cardPower);
             ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
             progress.setMax(maxLevel);
             progress.setProgress(Math.min(maxLevel, level));
@@ -5359,6 +5363,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         String message=c.optString("card_code")+" · "+c.optString("element")+" · "+c.optString("rarity")
             +"\\nLevel "+c.optInt("level")+" · Ascension "+c.optInt("star_rank")+"★"
             +"\\nAvailable copies: "+c.optInt("copies_available")
+            +"\\nCurrent formation power: +"+formatNumber(c.optLong("evolution_power"))
             +"\\n\\nLevel-up: "+formatNumber(c.optLong("level_cost"))+" Gold + "+formatNumber(c.optLong("level_shards"))+" Shards"
             +"\\n\\nSignature: "+c.optString("skill_name","Firstlight Gift")+"\\n"+c.optString("skill_description","Unlocks at 2★");
         String[] actions={"LEVEL UP","ASCEND"};
@@ -5711,7 +5716,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         illustration.loadArtwork(cardArtworkPath(card));
         name.setText(card.optString("name", "Unknown Card"));
         name.setTextColor(TEXT);
-        meta.setText(rarity + " · " + element + " · ×" + card.optInt("owned_count"));
+        meta.setText(rarity + " · " + element + " · POWER +"
+                + formatNumber(card.optLong("formation_power")) + " · ×"
+                + card.optInt("owned_count"));
         meta.setTextColor(accent);
     }
 
