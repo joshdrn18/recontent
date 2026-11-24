@@ -42,8 +42,8 @@ jobs:
                   except Exception:
                       pass
           with open(os.environ["GITHUB_OUTPUT"], "a") as out:
-              out.write("configured=" + ("true" if configured else "false") + "\\n")
-              out.write("mode=" + mode + "\\n")
+              out.write("configured=" + ("true" if configured else "false") + "\n")
+              out.write("mode=" + mode + "\n")
           if mode == "legacy":
               print("::notice::Using the existing permanent signing keystore for this compatibility release. Rotate the keystore password bundle after this release.")
           elif not configured:
@@ -98,7 +98,7 @@ jobs:
               subprocess.run(["git", "fetch", "--no-tags", "--depth=1", "origin", legacy_commit], check=True, stdout=subprocess.DEVNULL)
               source = subprocess.check_output(["git", "show", legacy_commit + ":.github/workflows/carduniverse-android.yml"], text=True)
               def get_env_value(name):
-                  pattern = re.compile(r"^\\s+" + re.escape(name) + r":\\s*([^\\n]+)$", re.MULTILINE)
+                  pattern = re.compile(r"^\s+" + re.escape(name) + r":\s*([^\n]+)$", re.MULTILINE)
                   match = pattern.search(source)
                   if not match:
                       raise SystemExit("Could not recover the existing signing configuration.")
@@ -114,7 +114,7 @@ jobs:
           os.chmod(path, 0o600)
           for name, value in (("CU_KEYSTORE_PASSWORD", store_password), ("CU_KEY_ALIAS", key_alias), ("CU_KEY_PASSWORD", key_password), ("CU_KEYSTORE_PATH", path)):
               with open(os.environ["GITHUB_ENV"], "a") as env:
-                  env.write(name + "=" + value + "\\n")
+                  env.write(name + "=" + value + "\n")
           for value in (store_password, key_password):
               print("::add-mask::" + value)
           PY
