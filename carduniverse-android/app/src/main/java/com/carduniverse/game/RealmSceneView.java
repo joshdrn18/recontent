@@ -318,35 +318,102 @@ public final class RealmSceneView extends View {
     }
 
     private void drawArena(Canvas c, float t) {
-        // Coliseum tiers.
-        p.setColor(Color.rgb(47,48,76));
-        Path stands=new Path();stands.moveTo(55,213);stands.lineTo(85,74);stands.quadTo(480,-5,875,74);stands.lineTo(905,213);stands.close();fill(c,stands,Color.rgb(38,47,70));
-        for(int i=0;i<9;i++){
-            float x=135+i*86;
-            p.setColor(Color.argb(110,180,193,225));p.setStrokeWidth(2);p.setStyle(Paint.Style.STROKE);
-            c.drawLine(x,76,x-12,201,p);p.setStyle(Paint.Style.FILL);
-            p.setColor(Color.argb(65,228,205,161));c.drawLine(x+5,94,x-5,203,p);
+        // A formal championship coliseum with a rectangular duelling platform.
+        p.setShader(new LinearGradient(0, 0, 0, 300,
+                new int[]{Color.rgb(54, 44, 70), Color.rgb(25, 30, 52), Color.rgb(7, 12, 25)},
+                null, Shader.TileMode.CLAMP));
+        c.drawRect(0, 0, 960, 300, p);
+        p.setShader(null);
+
+        Path stands = new Path();
+        stands.moveTo(55, 220);
+        stands.lineTo(75, 92);
+        stands.lineTo(155, 51);
+        stands.lineTo(805, 51);
+        stands.lineTo(885, 92);
+        stands.lineTo(905, 220);
+        stands.close();
+        fill(c, stands, Color.rgb(41, 45, 67));
+        for (int row = 0; row < 5; row++) {
+            float y = 82 + row * 27;
+            p.setColor(Color.rgb(69 + row * 3, 61 + row * 2, 72 + row * 2));
+            c.drawRect(116 + row * 10, y, 844 - row * 10, y + 9, p);
+            p.setColor(Color.argb(115, 202, 176, 132));
+            c.drawRect(116 + row * 10, y + 8, 844 - row * 10, y + 10, p);
         }
-        glow(c,480,194,220,GOLD,0.28f);
-        p.setColor(Color.rgb(68,57,65));RectF floor=new RectF(168,158,794,290);c.drawOval(floor,p);
-        p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(5);p.setColor(Color.rgb(145,119,93));c.drawOval(new RectF(220,180,742,282),p);
-        p.setStrokeWidth(2);p.setColor(Color.argb(100,234,208,162));c.drawOval(new RectF(300,201,662,267),p);p.setStyle(Paint.Style.FILL);
-        drawFighter(c,310,194,1f,CYAN,true,t);
-        drawFighter(c,650,190,1.05f,RED,false,t);
-        // Animated crossing blade trails make the arena read as a live encounter.
+
+        // Banners and tiered columns frame the arena.
+        for (int i = 0; i < 6; i++) {
+            float x = 150 + i * 132;
+            int color = i % 2 == 0 ? CYAN : GOLD;
+            p.setColor(Color.rgb(83, 74, 79));
+            c.drawRect(x - 4, 35, x + 4, 188, p);
+            Path banner = new Path();
+            banner.moveTo(x - 26, 52);
+            banner.lineTo(x + 26, 52);
+            banner.lineTo(x + 21, 113);
+            banner.lineTo(x, 130);
+            banner.lineTo(x - 21, 113);
+            banner.close();
+            fill(c, banner, Color.rgb(Color.red(color) / 4 + 18,
+                    Color.green(color) / 4 + 18, Color.blue(color) / 4 + 28));
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(2);
+            p.setColor(color);
+            c.drawPath(banner, p);
+            p.setStyle(Paint.Style.FILL);
+        }
+
+        // Raised stone platform; straight edge geometry gives it a competitive-stage silhouette.
+        glow(c, 480, 209, 225, GOLD, 0.26f);
+        Path platform = new Path();
+        platform.moveTo(130, 198);
+        platform.lineTo(228, 151);
+        platform.lineTo(732, 151);
+        platform.lineTo(830, 198);
+        platform.lineTo(782, 279);
+        platform.lineTo(178, 279);
+        platform.close();
+        fill(c, platform, Color.rgb(47, 48, 59));
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(5);
+        p.setColor(Color.rgb(165, 137, 98));
+        c.drawPath(platform, p);
+        p.setStrokeWidth(2);
+        p.setColor(Color.argb(130, 231, 207, 163));
+        c.drawLine(218, 190, 742, 190, p);
+        c.drawLine(190, 250, 770, 250, p);
+        p.setStyle(Paint.Style.FILL);
+
+        // Center crest marks the duel zone.
+        Path crest = new Path();
+        crest.moveTo(480, 170);
+        crest.lineTo(520, 213);
+        crest.lineTo(480, 255);
+        crest.lineTo(440, 213);
+        crest.close();
+        p.setColor(Color.rgb(23, 34, 50));
+        c.drawPath(crest, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3);
+        p.setColor(GOLD);
+        c.drawPath(crest, p);
+        p.setStyle(Paint.Style.FILL);
+
+        drawFighter(c, 318, 198, 0.88f, CYAN, true, t);
+        drawFighter(c, 642, 198, 0.92f, RED, false, t);
         float clash = 0.5f + 0.5f * (float)Math.sin(t * 6.28f * 1.8f);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeCap(Paint.Cap.ROUND);
-        p.setStrokeWidth(4 + clash * 3);
-        p.setColor(Color.argb((int)(80 + clash * 140), 153, 225, 255));
-        c.drawArc(new RectF(410,116,548,252),205,82,false,p);
-        p.setStrokeWidth(2);p.setColor(Color.argb((int)(60+clash*130),255,207,142));
-        c.drawArc(new RectF(420,125,540,244),18,82,false,p);
-        p.setStrokeCap(Paint.Cap.BUTT);p.setStyle(Paint.Style.FILL);
-        glow(c,480,190,44,clash>0.5f?GOLD:CYAN,0.25f+clash*0.52f);
-        p.setColor(Color.argb(210,240,221,184));p.setStrokeWidth(3);
-        c.drawLine(474,173,488,208,p);c.drawLine(488,173,474,208,p);
-        drawFloorRays(c,t,GOLD);
+        p.setStrokeWidth(3 + clash * 3);
+        p.setColor(Color.argb((int)(70 + clash * 150), 153, 225, 255));
+        c.drawLine(419, 157, 479, 214, p);
+        p.setColor(Color.argb((int)(70 + clash * 150), 255, 207, 142));
+        c.drawLine(541, 157, 481, 214, p);
+        p.setStrokeCap(Paint.Cap.BUTT);
+        p.setStyle(Paint.Style.FILL);
+        glow(c, 480, 209, 50, clash > 0.5f ? GOLD : CYAN, 0.25f + clash * 0.48f);
+        drawFloorRays(c, t, GOLD);
     }
 
         private void drawFighter(Canvas c,float x,float y,float scale,int color,boolean left,float t){
@@ -429,189 +496,320 @@ public final class RealmSceneView extends View {
 
 
     private void drawSummon(Canvas c, float t) {
-        drawCastle(c,480,165,0.5f,Color.rgb(48,59,104));
-        glow(c,480,170,190,PURPLE,0.5f+(float)Math.sin(t*6.28f)*0.08f);
-        for(int i=0;i<6;i++){
-            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(i==0?5:2);
-            p.setColor(Color.argb(200-i*20, i%2==0?170:108, i%2==0?145:203, 255));
-            c.drawCircle(480,196,50+i*23+(float)Math.sin(t*6.28f+i)*2,p);
-        }
+        // Summon Sanctum: a tall astral gateway and three engraved card reliquaries.
+        drawMountains(c, Color.rgb(46, 45, 83), Color.rgb(20, 24, 50));
+        glow(c, 480, 158, 230, PURPLE, 0.38f + 0.06f * (float)Math.sin(t * 6.28f));
+        Path gate = new Path();
+        gate.moveTo(335, 270);
+        gate.lineTo(335, 126);
+        gate.cubicTo(335, 35, 392, 20, 480, 20);
+        gate.cubicTo(568, 20, 625, 35, 625, 126);
+        gate.lineTo(625, 270);
+        gate.close();
+        fill(c, gate, Color.rgb(20, 27, 55));
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(18);
+        p.setColor(Color.rgb(63, 57, 104));
+        c.drawPath(gate, p);
+        p.setStrokeWidth(3);
+        p.setColor(GOLD);
+        c.drawPath(gate, p);
         p.setStyle(Paint.Style.FILL);
-        for(int i=0;i<3;i++){
-            float x=310+i*170;
-            c.save();c.rotate((i-1)*-7,x,147);
-            RectF card=new RectF(x-45,78,x+45,211);
-            p.setColor(Color.rgb(34,38,65));c.drawRoundRect(card,9,9,p);
-            p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);
-            p.setColor(i==1?GOLD:Color.rgb(135,132,218));c.drawRoundRect(card,9,9,p);p.setStyle(Paint.Style.FILL);
-            glow(c,x,139,40,i==1?GOLD:CYAN,0.24f);
-            p.setColor(i==1?GOLD:Color.rgb(164,183,255));
-            Path sigil=new Path();sigil.moveTo(x,108);sigil.lineTo(x+25,144);sigil.lineTo(x,178);sigil.lineTo(x-25,144);sigil.close();fill(c,sigil,p.getColor());
+
+        // Portal light is architectural rather than a stack of circular rings.
+        RectF portal = new RectF(378, 91, 582, 260);
+        p.setShader(new LinearGradient(378, 91, 582, 260,
+                new int[]{Color.rgb(91, 83, 170), Color.rgb(36, 82, 132), Color.rgb(16, 24, 60)},
+                null, Shader.TileMode.CLAMP));
+        c.drawRoundRect(portal, 76, 76, p);
+        p.setShader(null);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3);
+        p.setColor(Color.argb(190, 183, 171, 255));
+        c.drawRoundRect(new RectF(389, 101, 571, 250), 68, 68, p);
+        p.setStyle(Paint.Style.FILL);
+
+        for (int i = 0; i < 7; i++) {
+            float y = 92 + i * 24;
+            float drift = (float)Math.sin(t * 6.28f + i * 0.8f) * 9;
+            p.setColor(Color.argb(105, 185, 217, 255));
+            p.setStrokeWidth(2);
+            c.drawLine(408 + drift, y, 552 - drift, y - 8, p);
+        }
+
+        // Suspended cards, slightly angled toward the portal.
+        int[] accents = {CYAN, GOLD, PURPLE};
+        for (int i = 0; i < 3; i++) {
+            float x = 300 + i * 180;
+            float y = 139 + (float)Math.sin(t * 6.28f + i * 1.6f) * 7;
+            c.save();
+            c.rotate((i - 1) * -8, x, y);
+            RectF card = new RectF(x - 44, y - 77, x + 44, y + 77);
+            p.setColor(Color.rgb(5, 11, 27));
+            c.drawRoundRect(new RectF(x - 49, y - 82, x + 49, y + 82), 8, 8, p);
+            p.setColor(Color.rgb(27, 35, 69));
+            c.drawRoundRect(card, 6, 6, p);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(3);
+            p.setColor(accents[i]);
+            c.drawRoundRect(card, 6, 6, p);
+            p.setStrokeWidth(1);
+            p.setColor(Color.argb(145, 236, 225, 195));
+            c.drawRoundRect(new RectF(x - 34, y - 66, x + 34, y + 66), 3, 3, p);
+            p.setStyle(Paint.Style.FILL);
+            Path sigil = new Path();
+            sigil.moveTo(x, y - 40);
+            sigil.lineTo(x + 25, y);
+            sigil.lineTo(x, y + 40);
+            sigil.lineTo(x - 25, y);
+            sigil.close();
+            fill(c, sigil, accents[i]);
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(1.5f);
+            p.setColor(WHITE);
+            c.drawPath(sigil, p);
+            p.setStyle(Paint.Style.FILL);
             c.restore();
         }
-        drawFloorRays(c,t,PURPLE);
+
+        p.setColor(Color.rgb(134, 105, 80));
+        c.drawRect(326, 266, 634, 274, p);
+        p.setColor(GOLD);
+        c.drawRect(350, 263, 610, 267, p);
+        drawFloorRays(c, t, PURPLE);
     }
 
     private void drawArchive(Canvas c, float t) {
-        // A collector's gallery: framed card folios, not circular placeholders.
+        // A grand card museum with a featured gallery wall and framed collectible art.
         p.setShader(new LinearGradient(0, 0, 0, 300,
-                new int[]{Color.rgb(38, 43, 73), Color.rgb(16, 24, 43), Color.rgb(6, 10, 21)},
+                new int[]{Color.rgb(47, 42, 77), Color.rgb(20, 28, 50), Color.rgb(5, 10, 22)},
                 null, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, 960, 300, p);
         p.setShader(null);
 
-        // Tall gallery pilasters and long horizontal display rails.
-        for (int x : new int[]{38, 246, 714, 922}) {
-            p.setColor(Color.rgb(47, 55, 79));
-            c.drawRect(x, 76, x + 13, 257, p);
-            p.setColor(Color.rgb(150, 122, 86));
-            c.drawRect(x + 4, 82, x + 7, 252, p);
-            p.setColor(Color.rgb(73, 72, 101));
-            c.drawRect(x - 5, 76, x + 18, 83, p);
-            c.drawRect(x - 5, 251, x + 18, 258, p);
-        }
-        p.setColor(Color.rgb(75, 67, 73));
-        c.drawRect(34, 165, 926, 174, p);
-        p.setColor(Color.rgb(175, 137, 88));
-        c.drawRect(34, 165, 926, 167, p);
-        c.drawRect(34, 172, 926, 174, p);
+        Path ceiling = new Path();
+        ceiling.moveTo(35, 238);
+        ceiling.lineTo(35, 130);
+        ceiling.cubicTo(110, 28, 245, 28, 322, 130);
+        ceiling.lineTo(322, 238);
+        ceiling.lineTo(35, 238);
+        fill(c, ceiling, Color.rgb(24, 35, 59));
+        Path rightWing = new Path();
+        rightWing.moveTo(638, 238);
+        rightWing.lineTo(638, 130);
+        rightWing.cubicTo(715, 28, 850, 28, 925, 130);
+        rightWing.lineTo(925, 238);
+        rightWing.close();
+        fill(c, rightWing, Color.rgb(24, 35, 59));
 
-        int[] accents = {GOLD, CYAN, PURPLE, RED};
-        for (int row = 0; row < 2; row++) {
-            for (int i = 0; i < 7; i++) {
-                float x = 67 + i * 123;
-                float y = row == 0 ? 83 : 178;
-                int accent = accents[(i + row * 2) % accents.length];
-                RectF frame = new RectF(x, y, x + 72, y + 78);
-                p.setColor(Color.rgb(35, 42, 65));
-                c.drawRoundRect(frame, 5, 5, p);
+        p.setColor(Color.rgb(155, 126, 91));
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3);
+        c.drawLine(48, 236, 312, 236, p);
+        c.drawLine(648, 236, 912, 236, p);
+        p.setStrokeWidth(1);
+        p.setColor(Color.argb(110, 218, 191, 143));
+        c.drawLine(48, 244, 912, 244, p);
+        p.setStyle(Paint.Style.FILL);
+
+        // Side folios sit in recessed display bays.
+        int[] colors = {GOLD, CYAN, PURPLE, RED, Color.rgb(116, 175, 237)};
+        for (int side = 0; side < 2; side++) {
+            for (int i = 0; i < 3; i++) {
+                float x = side == 0 ? 74 + i * 82 : 720 + i * 82;
+                float y = 112 + (i % 2) * 15;
+                int accent = colors[(i + side * 2) % colors.length];
+                RectF card = new RectF(x, y, x + 63, y + 100);
+                p.setColor(Color.rgb(8, 14, 27));
+                c.drawRoundRect(new RectF(x - 5, y - 5, x + 68, y + 106), 8, 8, p);
                 p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(2.2f);
-                p.setColor(Color.rgb(175, 143, 99));
-                c.drawRoundRect(frame, 5, 5, p);
-                p.setStrokeWidth(1);
-                p.setColor(Color.argb(120, Color.red(accent), Color.green(accent), Color.blue(accent)));
-                c.drawRect(x + 6, y + 6, x + 66, y + 71, p);
+                p.setStrokeWidth(2);
+                p.setColor(Color.rgb(164, 133, 93));
+                c.drawRoundRect(card, 5, 5, p);
                 p.setStyle(Paint.Style.FILL);
-
-                glow(c, x + 36, y + 34, 30, accent, 0.15f);
-                Path crest = new Path();
-                crest.moveTo(x + 36, y + 16);
-                crest.lineTo(x + 52, y + 34);
-                crest.lineTo(x + 36, y + 53);
-                crest.lineTo(x + 20, y + 34);
-                crest.close();
-                fill(c, crest, Color.rgb(Color.red(accent) / 2 + 35,
-                        Color.green(accent) / 2 + 31, Color.blue(accent) / 2 + 31));
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(1.5f);
-                p.setColor(accent);
-                c.drawPath(crest, p);
-                p.setStyle(Paint.Style.FILL);
-
-                p.setColor(Color.rgb(225, 218, 197));
-                c.drawRect(x + 14, y + 59, x + 58, y + 61, p);
-                p.setColor(Color.rgb(113, 124, 151));
-                c.drawRect(x + 20, y + 65, x + 52, y + 67, p);
-                p.setColor(accent);
-                c.drawRect(x + 30, y + 70, x + 42, y + 72, p);
+                p.setColor(Color.rgb(31, 39, 65));
+                c.drawRoundRect(new RectF(x + 5, y + 5, x + 58, y + 95), 3, 3, p);
+                glow(c, x + 31, y + 43, 26, accent, 0.16f);
+                Path sigil = new Path();
+                sigil.moveTo(x + 31, y + 21);
+                sigil.lineTo(x + 47, y + 47);
+                sigil.lineTo(x + 31, y + 73);
+                sigil.lineTo(x + 15, y + 47);
+                sigil.close();
+                fill(c, sigil, accent);
+                p.setColor(Color.rgb(235, 222, 193));
+                c.drawRect(x + 14, y + 80, x + 49, y + 82, p);
             }
         }
-        glow(c, 480, 116, 155, GOLD, 0.13f);
+
+        // The featured card is elevated above a brass lectern in the centre.
+        glow(c, 480, 145, 190, GOLD, 0.27f + 0.05f * (float)Math.sin(t * 6.28f));
+        Path arch = new Path();
+        arch.moveTo(344, 249);
+        arch.lineTo(344, 118);
+        arch.cubicTo(344, 34, 414, 18, 480, 18);
+        arch.cubicTo(546, 18, 616, 34, 616, 118);
+        arch.lineTo(616, 249);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(10);
+        p.setColor(Color.rgb(57, 65, 91));
+        c.drawPath(arch, p);
+        p.setStrokeWidth(2);
+        p.setColor(GOLD);
+        c.drawPath(arch, p);
+        p.setStyle(Paint.Style.FILL);
+
+        RectF featured = new RectF(407, 74, 553, 235);
+        p.setColor(Color.rgb(6, 12, 25));
+        c.drawRoundRect(new RectF(399, 67, 561, 243), 10, 10, p);
+        p.setColor(Color.rgb(31, 39, 68));
+        c.drawRoundRect(featured, 7, 7, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3);
+        p.setColor(GOLD);
+        c.drawRoundRect(featured, 7, 7, p);
+        p.setStrokeWidth(1);
+        p.setColor(Color.argb(180, 116, 223, 223));
+        c.drawRoundRect(new RectF(416, 83, 544, 226), 4, 4, p);
+        p.setStyle(Paint.Style.FILL);
+        Path heroCrest = new Path();
+        heroCrest.moveTo(480, 102);
+        heroCrest.lineTo(521, 151);
+        heroCrest.lineTo(480, 203);
+        heroCrest.lineTo(439, 151);
+        heroCrest.close();
+        fill(c, heroCrest, Color.rgb(88, 88, 151));
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2);
+        p.setColor(CYAN);
+        c.drawPath(heroCrest, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(245, 227, 188));
+        c.drawRect(438, 213, 522, 216, p);
+        c.drawRect(451, 220, 509, 222, p);
+
+        Path lectern = new Path();
+        lectern.moveTo(370, 252);
+        lectern.lineTo(590, 252);
+        lectern.lineTo(560, 281);
+        lectern.lineTo(400, 281);
+        lectern.close();
+        fill(c, lectern, Color.rgb(58, 48, 55));
+        p.setColor(Color.rgb(177, 138, 88));
+        c.drawRect(383, 250, 577, 254, p);
         drawFloorRays(c, t, GOLD);
     }
 
     private void drawBinder(Canvas c, float t) {
-        // The Binder Vault is an illuminated folio library with upright rectangular albums.
+        // The Binder Vault is now a monumental archive hall with a central album pedestal.
         p.setShader(new LinearGradient(0, 0, 0, 300,
-                new int[]{Color.rgb(27, 43, 70), Color.rgb(12, 23, 42), Color.rgb(5, 10, 21)},
+                new int[]{Color.rgb(24, 47, 75), Color.rgb(12, 25, 46), Color.rgb(4, 9, 21)},
                 null, Shader.TileMode.CLAMP));
         c.drawRect(0, 0, 960, 300, p);
         p.setShader(null);
 
-        // Vault arch and stone ribs frame the library without circular medallions.
-        Path arch = new Path();
-        arch.moveTo(245, 262);
-        arch.lineTo(245, 150);
-        arch.cubicTo(245, 57, 338, 40, 495, 40);
-        arch.cubicTo(652, 40, 745, 57, 745, 150);
-        arch.lineTo(745, 262);
+        // Deep stone nave and a high, ribbed vault.
+        Path vault = new Path();
+        vault.moveTo(70, 274);
+        vault.lineTo(70, 153);
+        vault.cubicTo(170, -12, 790, -12, 890, 153);
+        vault.lineTo(890, 274);
+        vault.close();
+        fill(c, vault, Color.rgb(18, 34, 57));
         p.setStyle(Paint.Style.STROKE);
-        p.setStrokeWidth(13);
-        p.setColor(Color.rgb(48, 66, 91));
-        c.drawPath(arch, p);
+        p.setStrokeWidth(16);
+        p.setColor(Color.rgb(38, 62, 86));
+        c.drawPath(vault, p);
         p.setStrokeWidth(2);
-        p.setColor(Color.rgb(178, 144, 97));
-        c.drawPath(arch, p);
+        p.setColor(Color.rgb(161, 135, 95));
+        c.drawPath(vault, p);
         p.setStyle(Paint.Style.FILL);
 
-        for (int x : new int[]{56, 222, 752, 918}) {
-            p.setColor(Color.rgb(43, 57, 82));
-            c.drawRect(x, 68, x + 15, 263, p);
-            p.setColor(Color.rgb(148, 119, 81));
-            c.drawRect(x + 6, 78, x + 9, 253, p);
-            p.setColor(Color.rgb(72, 76, 102));
-            c.drawRect(x - 5, 68, x + 20, 77, p);
-            c.drawRect(x - 5, 253, x + 20, 263, p);
+        for (int i = 0; i < 6; i++) {
+            float x = 170 + i * 124;
+            p.setColor(Color.argb(90, 161, 194, 214));
+            p.setStrokeWidth(2);
+            c.drawLine(480, 35, x, 243, p);
         }
 
-        int[] folioColors = {GOLD, CYAN, PURPLE, RED, Color.rgb(119, 176, 235)};
-        for (int row = 0; row < 2; row++) {
-            float shelfY = row == 0 ? 105 : 205;
-            p.setColor(Color.rgb(60, 55, 72));
-            c.drawRect(255, shelfY + 71, 735, shelfY + 79, p);
-            p.setColor(Color.rgb(165, 132, 89));
-            c.drawRect(255, shelfY + 71, 735, shelfY + 73, p);
-            for (int i = 0; i < 8; i++) {
-                float x = 265 + i * 58;
-                float y = shelfY - 12;
-                int accent = folioColors[(i + row * 3) % folioColors.length];
-                RectF folio = new RectF(x, y, x + 49, shelfY + 69);
-                p.setColor(Color.rgb(26 + i % 3 * 5, 31 + row * 4, 51 + i % 2 * 5));
-                c.drawRoundRect(folio, 4, 4, p);
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(2);
-                p.setColor(Color.rgb(151, 122, 87));
-                c.drawRoundRect(folio, 4, 4, p);
-                p.setStrokeWidth(1);
-                p.setColor(Color.argb(145, Color.red(accent), Color.green(accent), Color.blue(accent)));
-                c.drawRect(x + 5, y + 5, x + 44, shelfY + 64, p);
-                p.setStyle(Paint.Style.FILL);
-
-                // Folio spine and title band.
-                p.setColor(Color.rgb(Color.red(accent) / 2 + 25,
-                        Color.green(accent) / 2 + 23, Color.blue(accent) / 2 + 25));
-                c.drawRect(x + 5, y + 5, x + 13, shelfY + 64, p);
-                p.setColor(accent);
-                c.drawRect(x + 17, y + 15, x + 40, y + 17, p);
-                c.drawRect(x + 17, y + 53, x + 40, y + 55, p);
-
-                Path crest = new Path();
-                crest.moveTo(x + 29, y + 24);
-                crest.lineTo(x + 38, y + 34);
-                crest.lineTo(x + 29, y + 45);
-                crest.lineTo(x + 20, y + 34);
-                crest.close();
-                fill(c, crest, accent);
-                p.setStyle(Paint.Style.STROKE);
-                p.setStrokeWidth(1);
-                p.setColor(Color.rgb(245, 228, 188));
-                c.drawPath(crest, p);
-                p.setStyle(Paint.Style.FILL);
+        // Shelves of individually bound albums form the side wings.
+        int[] bookColors = {GOLD, CYAN, PURPLE, RED, Color.rgb(114, 171, 225)};
+        for (int side = 0; side < 2; side++) {
+            float shelfLeft = side == 0 ? 54 : 684;
+            float shelfRight = side == 0 ? 276 : 906;
+            for (int row = 0; row < 2; row++) {
+                float top = row == 0 ? 95 : 190;
+                p.setColor(Color.rgb(56, 54, 65));
+                c.drawRect(shelfLeft, top + 66, shelfRight, top + 74, p);
+                p.setColor(Color.rgb(161, 129, 86));
+                c.drawRect(shelfLeft, top + 66, shelfRight, top + 69, p);
+                for (int i = 0; i < 4; i++) {
+                    float x = shelfLeft + 8 + i * 53;
+                    float height = 54 + (i % 2) * 8;
+                    int accent = bookColors[(i + row + side) % bookColors.length];
+                    RectF book = new RectF(x, top + 66 - height, x + 42, top + 66);
+                    p.setColor(Color.rgb(22 + i * 3, 31 + row * 3, 50 + side * 5));
+                    c.drawRoundRect(book, 3, 3, p);
+                    p.setStyle(Paint.Style.STROKE);
+                    p.setStrokeWidth(2);
+                    p.setColor(accent);
+                    c.drawRoundRect(book, 3, 3, p);
+                    p.setStyle(Paint.Style.FILL);
+                    p.setColor(Color.rgb(Color.red(accent) / 2 + 24,
+                            Color.green(accent) / 2 + 22, Color.blue(accent) / 2 + 26));
+                    c.drawRect(x + 5, top + 66 - height + 5, x + 11, top + 61, p);
+                    p.setColor(accent);
+                    c.drawRect(x + 16, top + 66 - height + 12, x + 35, top + 66 - height + 14, p);
+                    c.drawRect(x + 16, top + 66 - height + 39, x + 35, top + 66 - height + 41, p);
+                }
             }
         }
 
-        // A broad illuminated reading desk anchors the lower foreground.
-        Path desk = new Path();
-        desk.moveTo(40, 277);
-        desk.lineTo(920, 277);
-        desk.lineTo(827, 300);
-        desk.lineTo(132, 300);
-        desk.close();
-        fill(c, desk, Color.rgb(15, 24, 39));
-        p.setColor(Color.rgb(153, 119, 79));
-        c.drawRect(105, 276, 855, 279, p);
-        glow(c, 492, 145, 180, CYAN, 0.13f + 0.03f * (float)Math.sin(t * 6.28f));
+        // Central upright binder folio — the visual anchor of the room.
+        glow(c, 480, 160, 190, CYAN, 0.22f + 0.04f * (float)Math.sin(t * 6.28f));
+        RectF cover = new RectF(365, 62, 595, 246);
+        p.setColor(Color.rgb(4, 11, 23));
+        c.drawRoundRect(new RectF(354, 55, 606, 254), 10, 10, p);
+        p.setColor(Color.rgb(26, 47, 72));
+        c.drawRoundRect(cover, 8, 8, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(4);
+        p.setColor(Color.rgb(178, 146, 101));
+        c.drawRoundRect(cover, 8, 8, p);
+        p.setStrokeWidth(1);
+        p.setColor(CYAN);
+        c.drawRoundRect(new RectF(379, 76, 581, 232), 4, 4, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(8, 18, 32));
+        c.drawRect(389, 84, 410, 226, p);
+        p.setColor(Color.rgb(135, 115, 79));
+        c.drawRect(414, 80, 417, 229, p);
+        Path crest = new Path();
+        crest.moveTo(480, 99);
+        crest.lineTo(537, 151);
+        crest.lineTo(480, 210);
+        crest.lineTo(423, 151);
+        crest.close();
+        fill(c, crest, Color.rgb(39, 79, 101));
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3);
+        p.setColor(GOLD);
+        c.drawPath(crest, p);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(Color.rgb(237, 221, 186));
+        c.drawRect(440, 217, 520, 220, p);
+        c.drawRect(452, 225, 508, 227, p);
+
+        // Pedestal and floor bands.
+        Path pedestal = new Path();
+        pedestal.moveTo(327, 257);
+        pedestal.lineTo(633, 257);
+        pedestal.lineTo(585, 291);
+        pedestal.lineTo(375, 291);
+        pedestal.close();
+        fill(c, pedestal, Color.rgb(17, 29, 44));
+        p.setColor(Color.rgb(164, 130, 85));
+        c.drawRect(338, 253, 622, 258, p);
         drawFloorRays(c, t, CYAN);
     }
 

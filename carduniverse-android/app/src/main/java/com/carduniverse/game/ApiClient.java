@@ -11,6 +11,8 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -47,6 +49,74 @@ public final class ApiClient {
     public void patch(String path, JSONObject body, Callback callback) { request("POST", path, body, callback); }
     public void delete(String path, Callback callback) { request("DELETE", path, null, callback); }
 
+    public static final class UploadFile {
+        public final String filename;
+        public final String mimeType;
+        public final byte[] bytes;
+        public UploadFile(String filename, String mimeType, byte[] bytes) {
+            this.filename = filename;
+            this.mimeType = mimeType;
+            this.bytes = bytes;
+        }
+    }
+
+    public void postMultipart(String path, List<UploadFile> files, Callback callback) {
+        executor.execute(() -> {
+            HttpURLConnection connection = null;
+            Result result;
+            try {
+                String boundary = "----CardUniverse" + UUID.randomUUID().toString().replace("-", "");
+                connection = (HttpURLConnection) new URL(API_ROOT + path).openConnection();
+                connection.setRequestMethod("POST");
+                connection.setConnectTimeout(20000);
+                connection.setReadTimeout(45000);
+                connection.setUseCaches(false);
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Accept", "application/json");
+                connection.setRequestProperty("X-Client-Platform", "android-native");
+                connection.setRequestProperty("X-Client-Version", "2.17.0");
+                connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+                if (session != null && !session.isEmpty()) {
+                    connection.setRequestProperty("Cookie", "cu_session=" + session);
+                }
+                try (OutputStream output = connection.getOutputStream()) {
+                    if (files != null) for (UploadFile file : files) {
+                        if (file == null || file.bytes == null || file.bytes.length == 0) continue;
+                        String filename = file.filename == null ? "artwork.webp"
+                                : file.filename.replace("\\", "_").replace("/", "_")
+                                .replace("\"", "_").replace("\r", "").replace("\n", "");
+                        String mime = file.mimeType == null || file.mimeType.isEmpty()
+                                ? "application/octet-stream" : file.mimeType;
+                        output.write(("--" + boundary + "\r\n"
+                                + "Content-Disposition: form-data; name=\"artwork\"; filename=\""
+                                + filename + "\"\r\n"
+                                + "Content-Type: " + mime + "\r\n\r\n")
+                                .getBytes(StandardCharsets.UTF_8));
+                        output.write(file.bytes);
+                        output.write("\r\n".getBytes(StandardCharsets.UTF_8));
+                    }
+                    output.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+                    output.flush();
+                }
+                int status = connection.getResponseCode();
+                captureSession(connection.getHeaderField("Set-Cookie"));
+                InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+                String response = stream == null ? "" : readAll(stream);
+                JSONObject json = response.isEmpty() ? new JSONObject() : new JSONObject(response);
+                String error = json.optString("error",
+                        status >= 400 ? "Artwork upload failed (" + status + ")" : "");
+                result = new Result(status, json, error);
+            } catch (Exception ex) {
+                result = new Result(0, null, ex.getMessage() == null
+                        ? "Unable to upload card artwork." : ex.getMessage());
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+            Result finalResult = result;
+            if (callback != null) callback.complete(finalResult);
+        });
+    }
+
     public void clearSession() {
         session = null;
         sessionStore.clear();
@@ -65,7 +135,7 @@ public final class ApiClient {
                 connection.setUseCaches(false);
                 connection.setRequestProperty("Accept", "application/json");
                 connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.16.0");
+                connection.setRequestProperty("X-Client-Version", "2.17.0");
                 if (session != null && !session.isEmpty()) {
                     connection.setRequestProperty("Cookie", "cu_session=" + session);
                 }

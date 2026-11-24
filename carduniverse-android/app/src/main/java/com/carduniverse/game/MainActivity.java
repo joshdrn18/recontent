@@ -20,6 +20,8 @@ import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
 import android.content.Context;
+import android.database.Cursor;
+import android.provider.OpenableColumns;
 import android.content.SharedPreferences;
 import android.view.MotionEvent;
 import android.view.HapticFeedbackConstants;
@@ -39,6 +41,10 @@ import android.widget.Toast;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -73,6 +79,12 @@ public final class MainActivity extends Activity {
     private boolean bgmEnabled = true;
     private boolean sfxEnabled = true;
     private boolean hapticsEnabled = true;
+    private boolean autoSyncEnabled = true;
+    private boolean reduceMotionEnabled = false;
+    private boolean purchaseConfirmationsEnabled = true;
+    private int chatRefreshSeconds = 5;
+    private static final int REQUEST_CARD_ARTWORK = 7301;
+    private TextView pendingArtworkUpload;
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
     private JSONObject arenaLeaderCard;
     private JSONObject arenaOpponentCard;
@@ -96,7 +108,7 @@ public final class MainActivity extends Activity {
     private static final long AUTO_SYNC_INTERVAL_MS = 60_000L;
     private final Runnable autoSyncTick = new Runnable() {
         @Override public void run() {
-            if (!isFinishing() && api != null && me != null && appRoot != null) {
+            if (!isFinishing() && api != null && me != null && appRoot != null && autoSyncEnabled) {
                 syncWithSharedBackend(false);
                 ui.postDelayed(this, AUTO_SYNC_INTERVAL_MS);
             }
@@ -119,6 +131,10 @@ public final class MainActivity extends Activity {
         bgmEnabled = gamePrefs.getBoolean("bgm_enabled", true);
         sfxEnabled = gamePrefs.getBoolean("sfx_enabled", true);
         hapticsEnabled = gamePrefs.getBoolean("haptics_enabled", true);
+        autoSyncEnabled = gamePrefs.getBoolean("auto_sync_enabled", true);
+        reduceMotionEnabled = gamePrefs.getBoolean("reduce_motion_enabled", false);
+        purchaseConfirmationsEnabled = gamePrefs.getBoolean("purchase_confirmations_enabled", true);
+        chatRefreshSeconds = Math.max(3, Math.min(15, gamePrefs.getInt("chat_refresh_seconds", 5)));
         gameAudio = new GameAudioEngine();
         configureWindow();
         showSplash();
@@ -742,26 +758,46 @@ public final class MainActivity extends Activity {
         addGap(content, 9);
     }
 
+    private long chatRefreshIntervalMs() {
+        return Math.max(3, Math.min(15, chatRefreshSeconds)) * 1000L;
+    }
+
+    private void confirmPurchaseAction(String title, String message, Runnable action) {
+        if (purchaseConfirmationsEnabled) confirmAction(title, message, action);
+        else action.run();
+    }
+
     private void addAudioSetting(LinearLayout parent, String title, String description, int kind) {
-        boolean enabled = kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled : hapticsEnabled;
+        boolean enabled = kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled
+                : kind == 2 ? hapticsEnabled : kind == 3 ? autoSyncEnabled
+                : kind == 4 ? reduceMotionEnabled : purchaseConfirmationsEnabled;
         LinearLayout row = dataRow(title, description, "");
         TextView toggle = button(enabled ? "ON" : "OFF", enabled);
         toggle.setOnClickListener(v -> {
-            boolean next = !(kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled : hapticsEnabled);
+            boolean next = !(kind == 0 ? bgmEnabled : kind == 1 ? sfxEnabled
+                    : kind == 2 ? hapticsEnabled : kind == 3 ? autoSyncEnabled
+                    : kind == 4 ? reduceMotionEnabled : purchaseConfirmationsEnabled);
             if (kind == 0) {
                 bgmEnabled = next;
                 gamePrefs.edit().putBoolean("bgm_enabled", next).apply();
-                if (gameAudio != null) {
-                    if (next) gameAudio.startAmbient();
-                    else gameAudio.stopAmbient();
-                }
+                if (gameAudio != null) { if (next) gameAudio.startAmbient(); else gameAudio.stopAmbient(); }
             } else if (kind == 1) {
                 sfxEnabled = next;
                 gamePrefs.edit().putBoolean("sfx_enabled", next).apply();
                 if (next && gameAudio != null) gameAudio.playSuccess();
-            } else {
+            } else if (kind == 2) {
                 hapticsEnabled = next;
                 gamePrefs.edit().putBoolean("haptics_enabled", next).apply();
+            } else if (kind == 3) {
+                autoSyncEnabled = next;
+                gamePrefs.edit().putBoolean("auto_sync_enabled", next).apply();
+                if (next) startAutoSync(); else ui.removeCallbacks(autoSyncTick);
+            } else if (kind == 4) {
+                reduceMotionEnabled = next;
+                gamePrefs.edit().putBoolean("reduce_motion_enabled", next).apply();
+            } else {
+                purchaseConfirmationsEnabled = next;
+                gamePrefs.edit().putBoolean("purchase_confirmations_enabled", next).apply();
             }
             toggle.setText(next ? "ON" : "OFF");
             toggle.setBackground(gradient(next ? Color.rgb(46, 112, 101) : Color.rgb(40, 48, 72),
@@ -1781,93 +1817,228 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     private void renderMissions(JSONObject data) {
         JSONArray missions = data.optJSONArray("missions");
         JSONArray challenges = data.optJSONArray("daily_challenges");
-        addRealmScene("adventure", "QUEST BOARD", "Daily contracts and long-term objectives for your collector.", 0, 0);
-        if (missions == null && challenges == null) { renderObjectSummary(data, "MISSION STATUS"); return; }
+        addRealmScene("adventure", "QUEST BOARD",
+                "Daily contracts, weekly trials and long-term collector objectives.",
+                0, 0);
+        if (missions == null && challenges == null) {
+            renderObjectSummary(data, "MISSION STATUS");
+            return;
+        }
+
+        ArrayList<String> claimPaths = new ArrayList<>();
+        if (challenges != null) for (int i = 0; i < challenges.length(); i++) {
+            JSONObject item = challenges.optJSONObject(i);
+            if (item == null) continue;
+            int target = item.optInt("target_count");
+            if (target > 0 && item.optInt("progress") >= target && item.isNull("claimed_at")) {
+                String slug = item.optString("slug", "");
+                if (!slug.isEmpty()) claimPaths.add("/api/daily-challenges/" + slug + "/claim");
+            }
+        }
+        if (missions != null) for (int i = 0; i < missions.length(); i++) {
+            JSONObject item = missions.optJSONObject(i);
+            if (item == null || !item.isNull("claimed_at")) continue;
+            int target = item.optInt("target_count");
+            if (item.optBoolean("completed") || (target > 0 && item.optInt("progress") >= target)) {
+                String slug = item.optString("slug", "");
+                if (!slug.isEmpty()) claimPaths.add("/api/missions/" + slug + "/claim");
+            }
+        }
+
+        LinearLayout overview = sectionPanel();
+        overview.setBackground(gradient(Color.rgb(57, 46, 83), Color.rgb(11, 17, 34), VIOLET, dp(15)));
+        overview.addView(text("COLLECTOR CONTRACTS", 8, GOLD_BRIGHT, true));
+        overview.addView(text((missions == null ? 0 : missions.length())
+                + " ACTIVE MISSIONS  ·  " + (challenges == null ? 0 : challenges.length())
+                + " DAILY CHALLENGES", 13, TEXT, true));
+        if (!claimPaths.isEmpty()) {
+            TextView claimAll = button("✦  CLAIM ALL AVAILABLE  ·  " + claimPaths.size(), true);
+            claimAll.setOnClickListener(v -> confirmAction("Claim all completed rewards?",
+                    "The game will claim each eligible reward from the server one at a time.",
+                    () -> claimAllMissions(new ArrayList<>(claimPaths), 0, 0, 0, claimAll)));
+            LinearLayout.LayoutParams allParams = new LinearLayout.LayoutParams(-1, dp(42));
+            allParams.topMargin = dp(8);
+            overview.addView(claimAll, allParams);
+        } else {
+            overview.addView(text("Complete an objective to unlock claimable rewards.", 8, MUTED, false));
+        }
+        content.addView(overview, rowParams());
 
         if (challenges != null) {
-            content.addView(text("DAILY CHALLENGES", 8, GOLD, true));
-            addGap(content, 5);
+            content.addView(text("DAILY CHALLENGES  ·  " + challenges.length(), 8, GOLD, true));
+            addGap(content, 4);
             for (int i = 0; i < challenges.length(); i++) {
                 JSONObject challenge = challenges.optJSONObject(i);
                 if (challenge == null) continue;
-                String title = challenge.optString("title", "Daily challenge");
-                int progress = challenge.optInt("progress");
-                int target = challenge.optInt("target_count");
+                String slug = challenge.optString("slug", "");
+                int progress = challenge.optInt("progress"), target = challenge.optInt("target_count");
                 boolean claimed = !challenge.isNull("claimed_at");
                 LinearLayout card = sectionPanel();
-                card.addView(text(title, 11, TEXT, true));
+                card.addView(text(challenge.optString("title", "Daily challenge"), 11, TEXT, true));
                 card.addView(text(challenge.optString("description", "Daily challenge"), 8, MUTED, false));
-                card.addView(text(progress + " / " + target + "  ·  REWARD "
+                ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                bar.setMax(Math.max(1, target));
+                bar.setProgress(Math.min(target, progress));
+                bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
+                LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(-1, dp(7));
+                barParams.topMargin = dp(7);
+                card.addView(bar, barParams);
+                card.addView(text(progress + " / " + target + "  ·  "
                         + formatNumber(challenge.optLong("reward_coins")) + " GOLD  +  "
                         + formatNumber(challenge.optLong("reward_xp")) + " XP",
                         8, GOLD_BRIGHT, true));
-                if (claimed) {
-                    card.addView(text("REWARD CLAIMED", 7, GREEN, true));
-                } else if (progress >= target && target > 0) {
+                if (claimed) card.addView(text("REWARD CLAIMED", 7, GREEN, true));
+                else if (target > 0 && progress >= target) {
                     TextView claim = button("CLAIM CHALLENGE REWARD", true);
-                    claim.setOnClickListener(v -> claimChallenge(challenge.optString("slug", ""), claim));
-                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(205), dp(34));
-                    cp.topMargin = dp(7);
-                    card.addView(claim, cp);
-                } else {
-                    card.addView(text("KEEP GOING TO UNLOCK THE REWARD", 7, MUTED, true));
-                }
+                    claim.setOnClickListener(v -> claimChallenge(slug, claim));
+                    card.addView(claim, new LinearLayout.LayoutParams(-1, dp(36)));
+                } else card.addView(text("KEEP GOING TO UNLOCK THE REWARD", 7, MUTED, true));
                 content.addView(card, rowParams());
             }
-            addGap(content, 8);
         }
 
         if (missions != null) {
-            content.addView(text("REALM MISSIONS", 8, GOLD, true));
             addGap(content, 5);
+            content.addView(text("REALM MISSIONS  ·  " + missions.length(), 8, GOLD, true));
             for (int i = 0; i < missions.length(); i++) {
                 JSONObject mission = missions.optJSONObject(i);
                 if (mission == null) continue;
                 String slug = mission.optString("slug", "");
-                String title = mission.optString("title", mission.optString("name", "Mission"));
-                String sub = mission.optString("description", mission.optString("period_type", "MISSION"));
-                int progress = mission.optInt("progress");
-                int target = mission.optInt("target_count");
+                int progress = mission.optInt("progress"), target = mission.optInt("target_count");
                 boolean claimed = !mission.isNull("claimed_at");
+                boolean completed = mission.optBoolean("completed") || (target > 0 && progress >= target);
                 LinearLayout card = sectionPanel();
-                card.addView(text(title, 11, TEXT, true));
-                card.addView(text(sub, 8, MUTED, false));
+                LinearLayout top = new LinearLayout(this);
+                top.setGravity(Gravity.CENTER_VERTICAL);
+                top.addView(text(mission.optString("title", mission.optString("name", "Mission")),
+                        11, TEXT, true), new LinearLayout.LayoutParams(0, -2, 1f));
+                top.addView(text(humanize(mission.optString("period_type", "MISSION")),
+                        7, VIOLET, true));
+                card.addView(top);
+                card.addView(text(mission.optString("description", "Collector objective"),
+                        8, MUTED, false));
+                ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                bar.setMax(Math.max(1, target));
+                bar.setProgress(Math.min(target, progress));
+                bar.setProgressTintList(android.content.res.ColorStateList.valueOf(completed ? GREEN : GOLD));
+                LinearLayout.LayoutParams barParams = new LinearLayout.LayoutParams(-1, dp(7));
+                barParams.topMargin = dp(7);
+                card.addView(bar, barParams);
                 String reward = formatNumber(mission.optLong("reward_coins")) + " GOLD  ·  "
                         + formatNumber(mission.optLong("reward_xp")) + " XP";
-                if (mission.optInt("reward_pack_quantity") > 0) reward += "  ·  +" + mission.optInt("reward_pack_quantity") + " PACK";
+                if (mission.optInt("reward_pack_quantity") > 0)
+                    reward += "  ·  +" + mission.optInt("reward_pack_quantity") + " PACK";
                 card.addView(text(progress + " / " + target + "  ·  " + reward, 8, GOLD_BRIGHT, true));
                 if (claimed) card.addView(text("REWARD CLAIMED", 7, GREEN, true));
-                else if (mission.optBoolean("completed") || (target > 0 && progress >= target)) {
+                else if (completed) {
                     TextView claim = button("CLAIM MISSION REWARD", true);
                     claim.setOnClickListener(v -> claimMission(slug, claim));
-                    LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(dp(190), dp(34));
-                    cp.topMargin = dp(7);
-                    card.addView(claim, cp);
+                    card.addView(claim, new LinearLayout.LayoutParams(-1, dp(36)));
                 }
                 content.addView(card, rowParams());
             }
         }
-        if ((missions == null || missions.length() == 0) && (challenges == null || challenges.length() == 0))
+        if ((missions == null || missions.length() == 0)
+                && (challenges == null || challenges.length() == 0))
             showNotice("No active missions or daily challenges are available right now.");
+    }
+
+    private void claimAllMissions(ArrayList<String> paths, int index, int succeeded,
+                                  int failed, TextView button) {
+        if (index >= paths.size()) {
+            button.setEnabled(true);
+            button.setText("CLAIM ALL AVAILABLE");
+            showResultDialog("CLAIM ALL COMPLETE",
+                    succeeded + " reward(s) claimed" + (failed > 0 ? " · " + failed + " could not be claimed" : "") + ".");
+            refreshAccount(() -> renderTab("missions"));
+            return;
+        }
+        button.setText("CLAIMING " + (index + 1) + " / " + paths.size());
+        api.post(paths.get(index), new JSONObject(), result -> ui.post(() ->
+                claimAllMissions(paths, index + 1, succeeded + (result.ok() ? 1 : 0),
+                        failed + (result.ok() ? 0 : 1), button)));
     }
     private void renderShop(JSONObject data) {
         JSONArray items = data.optJSONArray("items");
         JSONObject wallet = data.optJSONObject("wallet");
         if (items == null) { renderObjectSummary(data, "SHOP INVENTORY"); return; }
         if (wallet == null) wallet = new JSONObject();
-        addRealmScene("market", "FIRSTLIGHT MARKET", "A realm bazaar for cards, supplies and collector cosmetics.", items.length(), Math.max(1, items.length()));
+
+        addRealmScene("market", "THE FIRSTLIGHT EXCHANGE",
+                "A rotating catalogue of summon seals, card items and collector supplies.",
+                items.length(), Math.max(1, items.length()));
+
+        LinearLayout hero = sectionPanel();
+        hero.setBackground(gradient(Color.rgb(56, 43, 78), Color.rgb(11, 17, 33), GOLD, dp(15)));
+        hero.addView(text("FIRSTLIGHT MARKET · LIVE CATALOGUE", 8, GOLD_BRIGHT, true));
+        hero.addView(text("Find your next upgrade", 18, TEXT, true));
+        hero.addView(text(items.length() + " listed item(s) are supplied by the game server. Prices, stock and purchase limits are checked when you buy.",
+                8, MUTED, false));
         LinearLayout balances = new LinearLayout(this);
         balances.setOrientation(LinearLayout.HORIZONTAL);
         balances.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Available"), weightParams(1));
         balances.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Premium"), weightParams(1));
         balances.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Upgrade"), weightParams(1));
-        content.addView(balances);
-        addGap(content, 10);
-        content.addView(text("MARKET CATALOGUE · " + items.length() + " LISTINGS", 8, GOLD_BRIGHT, true));
+        hero.addView(balances);
+        content.addView(hero, rowParams());
+
+        final String[] filters = {"ALL", "PACKS", "CARDS", "COSMETICS", "SUPPLIES"};
+        final int[] currentFilter = {0};
+        LinearLayout filterPanel = sectionPanel();
+        filterPanel.addView(text("BROWSE BY CATEGORY", 7, GOLD_BRIGHT, true));
+        HorizontalScrollView filterScroll = new HorizontalScrollView(this);
+        filterScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout filterRow = new LinearLayout(this);
+        filterRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
+        TextView[] chips = new TextView[filters.length];
+        for (int i = 0; i < filters.length; i++) {
+            final int index = i;
+            TextView chip = button(filters[i], i == 0);
+            chip.setTextSize(8);
+            chips[i] = chip;
+            chip.setOnClickListener(v -> {
+                currentFilter[0] = index;
+                for (int j = 0; j < chips.length; j++) {
+                    chips[j].setBackground(gradient(j == index
+                            ? Color.rgb(213, 169, 91) : Color.rgb(26, 36, 56),
+                            Color.rgb(13, 20, 35), j == index ? GOLD_BRIGHT
+                                    : Color.rgb(67, 87, 117), dp(8)));
+                    chips[j].setTextColor(j == index ? BG : TEXT);
+                }
+                renderShopItems(items, currentFilter[0], results);
+            });
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(-2, dp(37));
+            cp.rightMargin = dp(6);
+            filterRow.addView(chip, cp);
+        }
+        filterScroll.addView(filterRow);
+        filterPanel.addView(filterScroll);
+        content.addView(filterPanel, rowParams());
+
+        content.addView(results);
+        renderShopItems(items, 0, results);
+    }
+
+    private void renderShopItems(JSONArray items, int filter, LinearLayout holder) {
+        holder.removeAllViews();
+        java.util.ArrayList<JSONObject> visible = new java.util.ArrayList<>();
         for (int i = 0; i < items.length(); i++) {
             JSONObject item = items.optJSONObject(i);
             if (item == null) continue;
-            final JSONObject selectedItem = item;
+            String type = item.optString("item_type", "ITEM").toUpperCase(java.util.Locale.ROOT);
+            boolean match = filter == 0
+                    || (filter == 1 && type.contains("PACK"))
+                    || (filter == 2 && type.contains("CARD"))
+                    || (filter == 3 && type.contains("COSMETIC"))
+                    || (filter == 4 && !type.contains("PACK") && !type.contains("CARD")
+                        && !type.contains("COSMETIC"));
+            if (match) visible.add(item);
+        }
+        holder.addView(text(filtersLabel(filter) + "  ·  " + visible.size() + " ITEM(S)",
+                8, GOLD_BRIGHT, true));
+        for (JSONObject item : visible) {
             String itemId = item.optString("item_id", "");
             String title = item.optString("title", item.optString("name", "Realm item"));
             String description = item.optString("description", item.optString("item_type", "REALM ITEM"));
@@ -1884,60 +2055,62 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             FrameLayout icon = new FrameLayout(this);
             icon.setBackground(gradient(Color.rgb(Color.red(accent) / 3 + 22,
                     Color.green(accent) / 3 + 22, Color.blue(accent) / 3 + 30),
-                    Color.rgb(11, 17, 34), accent, dp(13)));
+                    Color.rgb(8, 15, 30), accent, dp(13)));
             String type = item.optString("item_type", "ITEM").toUpperCase(java.util.Locale.ROOT);
             TextView glyph = text(type.contains("PACK") ? "✧" : type.contains("CARD") ? "▧"
-                    : type.contains("COSMETIC") ? "✦" : "◇", 31, accent, true);
+                    : type.contains("COSMETIC") ? "✦" : "◇", 29, accent, true);
             glyph.setGravity(Gravity.CENTER);
             icon.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
-            card.addView(icon, new LinearLayout.LayoutParams(dp(72), dp(82)));
+            card.addView(icon, new LinearLayout.LayoutParams(dp(78), dp(88)));
+
             LinearLayout copy = new LinearLayout(this);
             copy.setOrientation(LinearLayout.VERTICAL);
             copy.setPadding(dp(11), 0, dp(7), 0);
             copy.addView(text(type + " · " + currency, 7, accent, true));
-            copy.addView(text(title, 12, TEXT, true));
+            TextView name = text(title, 12, TEXT, true);
+            name.setMaxLines(2);
+            copy.addView(name);
             TextView details = text(description, 8, MUTED, false);
             details.setMaxLines(2);
             copy.addView(details);
             copy.addView(text(formatNumber(price) + " " + currency, 10, GOLD_BRIGHT, true));
-            copy.addView(text(stock < 0 ? "OPEN STOCK" : stock == 0 ? "SOLD OUT" : stock + " UNITS LEFT",
-                    7, stock == 0 ? RED : MUTED, true));
+            copy.addView(text(stock < 0 ? "OPEN STOCK" : stock == 0 ? "SOLD OUT"
+                    : formatNumber(stock) + " UNITS LEFT", 7, stock == 0 ? RED : MUTED, true));
             card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-            if (owned) {
-                TextView status = text("OWNED", 8, GREEN, true);
-                card.addView(status);
-            } else {
-                TextView buy = button(canBuy ? "PURCHASE" : stock == 0 ? "SOLD OUT" : "UNAVAILABLE", true);
+            if (owned) card.addView(text("OWNED", 8, GREEN, true));
+            else {
+                TextView buy = button(canBuy ? "PURCHASE" : stock == 0 ? "SOLD OUT" : "LOCKED", true);
                 buy.setEnabled(canBuy);
-                buy.setOnClickListener(v -> confirmAction("Purchase " + title + "?",
+                buy.setOnClickListener(v -> confirmPurchaseAction("Purchase " + title + "?",
                         "Cost: " + formatNumber(price) + " " + currency
                                 + ". Stock and purchase limits are verified securely by the server.", () -> {
-                    JSONObject request = new JSONObject();
-                    try {
-                        request.put("itemId", itemId);
-                        request.put("requestId", newActionId());
-                        request.put("quantity", 1);
-                    } catch (Exception ignored) {}
+                    JSONObject request = payload("itemId", itemId, "requestId", newActionId(), "quantity", 1);
                     buy.setEnabled(false);
-                    buy.setText("PROCESSING...");
+                    buy.setText("PROCESSING…");
                     api.post("/api/shop/purchase", request, result -> ui.post(() -> {
-                        buy.setEnabled(true);
+                        buy.setEnabled(canBuy);
                         buy.setText("PURCHASE");
                         if (!result.ok()) {
                             if (sfxEnabled && gameAudio != null) gameAudio.playError();
                             showResultDialog("Purchase failed", result.error);
                         } else {
                             if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
-                            showResultDialog("PURCHASE COMPLETE", result.data.optString("message", "Your item has been delivered."));
+                            showResultDialog("PURCHASE COMPLETE",
+                                    result.data.optString("message", "Your item has been delivered."));
                             refreshAccount(() -> renderTab("shop"));
                         }
                     }));
                 }));
-                card.addView(buy, new LinearLayout.LayoutParams(dp(104), dp(38)));
+                card.addView(buy, new LinearLayout.LayoutParams(dp(100), dp(38)));
             }
-            content.addView(card, rowParams());
+            holder.addView(card, rowParams());
         }
-        if (items.length() == 0) showNotice("The market has no active listings right now.");
+        if (visible.isEmpty()) holder.addView(text("No items match this category.", 8, MUTED, false));
+    }
+
+    private String filtersLabel(int filter) {
+        String[] labels = {"ALL ITEMS", "SUMMON PACKS", "CARD ITEMS", "COSMETICS", "SUPPLIES"};
+        return labels[Math.max(0, Math.min(labels.length - 1, filter))];
     }
     private void renderInbox(JSONObject data) {
         JSONArray items = data.optJSONArray("items");
@@ -1985,6 +2158,9 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         boolean inGuild = guild != null;
         String role = inGuild ? guild.optString("my_role", "MEMBER").toUpperCase(java.util.Locale.ROOT) : "";
         boolean leader = "LEADER".equals(role);
+        boolean canManageMembers = leader || (inGuild && guild.optBoolean("canManageMembers"));
+        boolean canManageGuildSettings = leader || (inGuild && guild.optBoolean("canAnnounce"))
+                || (inGuild && guild.optBoolean("canManageRecruitment"));
 
         addRealmScene("guild", inGuild ? guild.optString("name", "GUILD HALL")
                 : "GUILD FRONTIER",
@@ -2070,12 +2246,31 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             state.addView(text("YOUR ROLE  ·  " + role, 7, GOLD_BRIGHT, true));
             home.addView(state);
 
+            LinearLayout roleAccessSummary = sectionPanel();
+            roleAccessSummary.addView(text("GUILD ACCESS", 7, CYAN, true));
+            if (leader) {
+                roleAccessSummary.addView(text("LEADER · Full guild management, Officer delegation and leadership transfer.",
+                        8, MUTED, false));
+            } else if ("OFFICER".equals(role)) {
+                String enabled = (guild.optBoolean("canAnnounce") ? "ANNOUNCEMENTS  " : "")
+                        + (guild.optBoolean("canManageRecruitment") ? "RECRUITMENT  " : "")
+                        + (guild.optBoolean("canManageMembers") ? "ROSTER" : "");
+                roleAccessSummary.addView(text("OFFICER · " + (enabled.isEmpty() ? "NO EXTRA PERMISSIONS" : enabled),
+                        8, GOLD_BRIGHT, false));
+            } else {
+                roleAccessSummary.addView(text("MEMBER · Contribute Gold, view activity and roster, and read guild notices.",
+                        8, MUTED, false));
+                roleAccessSummary.addView(text("You can leave the guild whenever you choose.",
+                        7, GOLD_BRIGHT, false));
+            }
+            home.addView(roleAccessSummary);
+
             LinearLayout actions = new LinearLayout(this);
             actions.setOrientation(LinearLayout.HORIZONTAL);
             TextView contribute = button("CONTRIBUTE GOLD", true);
             contribute.setOnClickListener(v -> chooseGuildContribution());
             actions.addView(contribute, new LinearLayout.LayoutParams(0, dp(40), 1f));
-            if (leader) {
+            if (canManageGuildSettings) {
                 TextView settings = button("GUILD SETTINGS", false);
                 settings.setOnClickListener(v -> showGuildSettingsDialog(guild));
                 LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0, dp(40), 1f);
@@ -2112,7 +2307,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                                     + "  ·  CONTRIBUTION "
                                     + formatNumber(member.optLong("contribution")),
                             memberRole);
-                    if (leader && !"LEADER".equals(memberRole)) {
+                    if (canManageMembers && !"LEADER".equals(memberRole)) {
                         TextView manage = button("MANAGE", false);
                         manage.setOnClickListener(v -> showGuildMemberRoleDialog(member));
                         row.addView(manage, new LinearLayout.LayoutParams(dp(86), dp(34)));
@@ -2193,62 +2388,135 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     }
 
     private void showGuildSettingsDialog(JSONObject guild) {
+        boolean leader = "LEADER".equalsIgnoreCase(guild.optString("my_role", "MEMBER"));
+        boolean canAnnounce = leader || guild.optBoolean("canAnnounce");
+        boolean canRecruit = leader || guild.optBoolean("canManageRecruitment");
+        boolean canManageMembers = leader || guild.optBoolean("canManageMembers");
+
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(12), dp(8), dp(12), dp(2));
+        form.setPadding(dp(13), dp(10), dp(13), dp(5));
 
-        EditText description = editField("Guild description (max 240 characters)", false);
+        LinearLayout access = sectionPanel();
+        access.setBackground(gradient(Color.rgb(33, 51, 69), Color.rgb(10, 19, 33), CYAN, dp(12)));
+        access.addView(text(leader ? "GUILD LEADER CONTROL PANEL" : "DELEGATED OFFICER ACCESS",
+                7, CYAN, true));
+        String rights = (canAnnounce ? "ANNOUNCE" : "")
+                + (canRecruit ? (canAnnounce ? "  ·  " : "") + "RECRUITMENT" : "")
+                + (canManageMembers ? ((canAnnounce || canRecruit) ? "  ·  " : "") + "ROSTER" : "");
+        access.addView(text(leader ? "Manage the guild identity and decide exactly what Officers are allowed to control."
+                : "Your leader has granted these permissions: " + (rights.isEmpty() ? "NONE" : rights) + ".",
+                8, MUTED, false));
+        form.addView(access);
+
+        addGap(form, 8);
+        form.addView(text("PUBLIC GUILD DESCRIPTION", 7, GOLD_BRIGHT, true));
+        EditText description = editField("Explain your guild to new collectors", false);
         description.setSingleLine(false);
         description.setMinLines(2);
         description.setMaxLines(3);
         description.setText(guild.optString("description", ""));
-        description.setFilters(new android.text.InputFilter[]{
-                new android.text.InputFilter.LengthFilter(240)
-        });
-        EditText announcement = editField("Guild announcement (max 240 characters)", false);
+        description.setEnabled(leader);
+        description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(240)});
+        form.addView(description, new LinearLayout.LayoutParams(-1, dp(76)));
+
+        addGap(form, 5);
+        form.addView(text("ANNOUNCEMENT BOARD", 7, GOLD_BRIGHT, true));
+        EditText announcement = editField("Notice shown to every guild member", false);
         announcement.setSingleLine(false);
         announcement.setMinLines(2);
         announcement.setMaxLines(4);
         announcement.setText(guild.optString("announcement", ""));
-        announcement.setFilters(new android.text.InputFilter[]{
-                new android.text.InputFilter.LengthFilter(240)
-        });
-        form.addView(text("PUBLIC GUILD DESCRIPTION", 7, GOLD_BRIGHT, true));
-        form.addView(description, new LinearLayout.LayoutParams(-1, dp(70)));
-        addGap(form, 7);
-        form.addView(text("NOTICE SHOWN TO ALL GUILD MEMBERS", 7, GOLD_BRIGHT, true));
-        form.addView(announcement, new LinearLayout.LayoutParams(-1, dp(82)));
+        announcement.setEnabled(canAnnounce);
+        announcement.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(240)});
+        form.addView(announcement, new LinearLayout.LayoutParams(-1, dp(86)));
 
+        addGap(form, 5);
+        LinearLayout recruitment = sectionPanel();
+        recruitment.addView(text("RECRUITMENT STATUS", 7, GOLD_BRIGHT, true));
         android.widget.CheckBox recruiting = new android.widget.CheckBox(this);
-        recruiting.setText("Allow new collectors to find and join this guild");
+        recruiting.setText("Allow collectors to discover and join this guild");
         recruiting.setTextColor(TEXT);
         recruiting.setTextSize(9);
         recruiting.setButtonTintList(android.content.res.ColorStateList.valueOf(GREEN));
         recruiting.setChecked(guild.optInt("is_recruiting", 1) == 1);
-        form.addView(recruiting);
+        recruiting.setEnabled(canRecruit);
+        recruitment.addView(recruiting);
+        form.addView(recruitment);
 
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
-        scroll.addView(form);
-        new AlertDialog.Builder(this).setTitle("Guild settings")
-                .setMessage("Only the guild leader can change these settings.")
-                .setView(scroll)
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("SAVE SETTINGS", (dialog, which) -> {
-                    JSONObject body = payload(
-                            "description", description.getText().toString().trim(),
-                            "announcement", announcement.getText().toString().trim(),
-                            "is_recruiting", recruiting.isChecked() ? 1 : 0);
-                    api.patch("/api/guilds/settings", body, result -> ui.post(() -> {
-                        if (!result.ok()) {
-                            showResultDialog("Guild settings not saved", result.error);
-                        } else {
-                            showResultDialog("GUILD SETTINGS SAVED",
-                                    "Your description, notice and recruitment status have been updated.");
-                            refreshAccount(() -> renderTab("guild"));
-                        }
-                    }));
-                }).show();
+        if (leader) {
+            addGap(form, 6);
+            LinearLayout delegation = sectionPanel();
+            delegation.setBackground(gradient(Color.rgb(43, 41, 77), Color.rgb(12, 17, 35), VIOLET, dp(12)));
+            delegation.addView(text("OFFICER PERMISSION DELEGATION", 7, VIOLET, true));
+            delegation.addView(text("Grant only the controls needed. Officers can never transfer leadership or change the guild owner.",
+                    8, MUTED, false));
+
+            android.widget.CheckBox announceAccess = new android.widget.CheckBox(this);
+            announceAccess.setText("Officer can publish and edit announcements");
+            announceAccess.setTextColor(TEXT);
+            announceAccess.setTextSize(9);
+            announceAccess.setChecked(guild.optInt("officer_can_announce") == 1);
+            delegation.addView(announceAccess);
+
+            android.widget.CheckBox recruitmentAccess = new android.widget.CheckBox(this);
+            recruitmentAccess.setText("Officer can open or close recruitment");
+            recruitmentAccess.setTextColor(TEXT);
+            recruitmentAccess.setTextSize(9);
+            recruitmentAccess.setChecked(guild.optInt("officer_can_manage_recruitment") == 1);
+            delegation.addView(recruitmentAccess);
+
+            android.widget.CheckBox memberAccess = new android.widget.CheckBox(this);
+            memberAccess.setText("Officer can promote or demote regular members");
+            memberAccess.setTextColor(TEXT);
+            memberAccess.setTextSize(9);
+            memberAccess.setChecked(guild.optInt("officer_can_manage_members") == 1);
+            delegation.addView(memberAccess);
+            form.addView(delegation);
+
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(false);
+            scroll.addView(form);
+            new AlertDialog.Builder(this).setTitle("Guild settings")
+                    .setView(scroll)
+                    .setNegativeButton("CANCEL", null)
+                    .setPositiveButton("SAVE CHANGES", (dialog, which) -> {
+                        JSONObject body = payload(
+                                "description", description.getText().toString().trim(),
+                                "announcement", announcement.getText().toString().trim(),
+                                "is_recruiting", recruiting.isChecked() ? 1 : 0,
+                                "officer_can_announce", announceAccess.isChecked() ? 1 : 0,
+                                "officer_can_manage_recruitment", recruitmentAccess.isChecked() ? 1 : 0,
+                                "officer_can_manage_members", memberAccess.isChecked() ? 1 : 0);
+                        saveGuildSettings(body);
+                    }).show();
+        } else {
+            ScrollView scroll = new ScrollView(this);
+            scroll.setFillViewport(false);
+            scroll.addView(form);
+            new AlertDialog.Builder(this).setTitle("Guild settings")
+                    .setView(scroll)
+                    .setNegativeButton("CLOSE", null)
+                    .setPositiveButton(canAnnounce || canRecruit ? "SAVE CHANGES" : "CLOSE",
+                            (dialog, which) -> {
+                                JSONObject body = payload(
+                                        "description", guild.optString("description", ""),
+                                        "announcement", announcement.getText().toString().trim(),
+                                        "is_recruiting", recruiting.isChecked() ? 1 : 0);
+                                saveGuildSettings(body);
+                            }).show();
+        }
+    }
+
+    private void saveGuildSettings(JSONObject body) {
+        api.patch("/api/guilds/settings", body, result -> ui.post(() -> {
+            if (!result.ok()) showResultDialog("Guild settings not saved", result.error);
+            else {
+                showResultDialog("GUILD SETTINGS SAVED",
+                        "Your guild settings and delegated Officer access are updated.");
+                refreshAccount(() -> renderTab("guild"));
+            }
+        }));
     }
 
     private void showGuildMemberRoleDialog(JSONObject member) {
@@ -2300,6 +2568,30 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         addAudioSetting(experience, "Sound effects", "Subtle button and reward tones.", 1);
         addAudioSetting(experience, "Haptic feedback", "Light tactile response on game controls.", 2);
         content.addView(experience, rowParams());
+        addGap(content, 8);
+
+        LinearLayout gameplayPrefs = sectionPanel();
+        gameplayPrefs.addView(text("GAMEPLAY & PERFORMANCE", 8, CYAN, true));
+        addAudioSetting(gameplayPrefs, "Background account sync",
+                "Keep wallet, profile and account status updated while the game is open.", 3);
+        addAudioSetting(gameplayPrefs, "Reduced motion",
+                "Skip card flip and decorative movement effects for a calmer experience.", 4);
+        addAudioSetting(gameplayPrefs, "Purchase confirmations",
+                "Ask before spending Gold, Gems or other shop currencies.", 5);
+        LinearLayout refreshRow = dataRow("Chat refresh interval",
+                "Current interval: " + chatRefreshSeconds + " seconds. Messages remain saved on the server.",
+                "CHANGE");
+        refreshRow.setOnClickListener(v -> new AlertDialog.Builder(this)
+                .setTitle("Chat refresh interval")
+                .setItems(new String[]{"3 seconds", "5 seconds", "10 seconds", "15 seconds"},
+                        (dialog, which) -> {
+                            int[] values = {3, 5, 10, 15};
+                            chatRefreshSeconds = values[which];
+                            gamePrefs.edit().putInt("chat_refresh_seconds", chatRefreshSeconds).apply();
+                            renderTab("settings");
+                        }).show());
+        gameplayPrefs.addView(refreshRow, rowParams());
+        content.addView(gameplayPrefs, rowParams());
         addGap(content, 9);
 
         showPanelHeading("ACCOUNT & PRIVACY");
@@ -2499,53 +2791,54 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         totals.addView(statCard("CATALOGUE", formatNumber(cards.length()),
                 "Released designs"), weightParams(1));
         content.addView(totals);
+        addAdminArtworkStudio(content, cards);
         addGap(content, 9);
 
-        LinearLayout filters = sectionPanel();
-        filters.addView(text("SEARCH THE ARCHIVE", 8, GOLD, true));
-        EditText search = editField("Name, element, rarity or card code", false);
-        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT
-                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        filters.addView(search, fieldParams());
-
-        String[] ownershipOptions = {"ALL CARDS", "OWNED ONLY", "NOT OWNED"};
-        String[] rarityOptions = {"ALL RARITIES", "COMMON", "UNCOMMON", "RARE",
+        String[][] selectorOptions = new String[4][];
+        selectorOptions[0] = new String[]{"ALL CARDS", "OWNED ONLY", "NOT OWNED"};
+        selectorOptions[1] = new String[]{"ALL RARITIES", "COMMON", "UNCOMMON", "RARE",
                 "EPIC", "LEGENDARY", "MYTHIC"};
         java.util.ArrayList<String> elementValues = new java.util.ArrayList<>();
         elementValues.add("ALL ELEMENTS");
         elementValues.addAll(elementSet);
-        String[] elementOptions = elementValues.toArray(new String[0]);
-        String[] sortOptions = {"CARD CODE", "NAME A–Z", "MOST COPIES", "RARITY"};
+        selectorOptions[2] = elementValues.toArray(new String[0]);
+        selectorOptions[3] = new String[]{"CARD CODE", "NAME A–Z", "MOST COPIES", "RARITY"};
+        final int[] filterState = {0, 0, 0, 0};
+        final String[] filterNames = {"SCOPE", "RARITY", "ELEMENT", "SORT"};
+        final TextView[] filterButtons = new TextView[4];
+        final Runnable[] updateGridRef = new Runnable[1];
 
-        Spinner ownership = new Spinner(this);
-        Spinner rarity = new Spinner(this);
-        Spinner element = new Spinner(this);
-        Spinner sort = new Spinner(this);
-        Spinner[] selectors = {ownership, rarity, element, sort};
-        String[][] selectorOptions = {ownershipOptions, rarityOptions, elementOptions, sortOptions};
-        for (int i = 0; i < selectors.length; i++) {
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-                    android.R.layout.simple_spinner_item, selectorOptions[i]);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            selectors[i].setAdapter(adapter);
-        }
+        LinearLayout filters = sectionPanel();
+        filters.addView(text("FIND A RELIC", 8, GOLD, true));
+        EditText search = editField("Search name, element, rarity, set or code…", false);
+        search.setInputType(android.text.InputType.TYPE_CLASS_TEXT
+                | android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        filters.addView(search, fieldParams());
 
         HorizontalScrollView filterScroll = new HorizontalScrollView(this);
         filterScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout filterRow = new LinearLayout(this);
         filterRow.setOrientation(LinearLayout.HORIZONTAL);
         filterRow.setGravity(Gravity.CENTER_VERTICAL);
-        int[] filterWidths = {dp(124), dp(132), dp(126), dp(126)};
-        for (int i = 0; i < selectors.length; i++) {
-            LinearLayout.LayoutParams selectorParams = new LinearLayout.LayoutParams(
-                    filterWidths[i], dp(42));
-            selectorParams.rightMargin = dp(6);
-            filterRow.addView(selectors[i], selectorParams);
+        for (int i = 0; i < 4; i++) {
+            final int index = i;
+            TextView chip = button(filterNames[i] + "  ·  " + selectorOptions[i][0], false);
+            chip.setTextSize(8);
+            chip.setPadding(dp(12), 0, dp(12), 0);
+            filterButtons[i] = chip;
+            chip.setOnClickListener(v -> new AlertDialog.Builder(this)
+                    .setTitle("FILTER · " + filterNames[index])
+                    .setItems(selectorOptions[index], (dialog, selected) -> {
+                        filterState[index] = selected;
+                        chip.setText(filterNames[index] + "  ·  " + selectorOptions[index][selected]);
+                        if (updateGridRef[0] != null) updateGridRef[0].run();
+                    }).show());
+            LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(-2, dp(39));
+            chipParams.rightMargin = dp(7);
+            filterRow.addView(chip, chipParams);
         }
         filterScroll.addView(filterRow);
-        LinearLayout.LayoutParams filterScrollParams = new LinearLayout.LayoutParams(-1, dp(45));
-        filterScrollParams.topMargin = dp(3);
-        filters.addView(filterScroll, filterScrollParams);
+        filters.addView(filterScroll, new LinearLayout.LayoutParams(-1, dp(43)));
         content.addView(filters, rowParams());
 
         TextView resultCount = text("INDEXING CARDS…", 8, GOLD_BRIGHT, true);
@@ -2560,12 +2853,12 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             grid.removeAllViews();
             String query = search.getText().toString().trim()
                     .toLowerCase(java.util.Locale.ROOT);
-            int scope = ownership.getSelectedItemPosition();
-            String selectedRarity = rarityOptions[Math.max(0,
-                    Math.min(rarityOptions.length - 1, rarity.getSelectedItemPosition()))];
-            String selectedElement = elementOptions[Math.max(0,
-                    Math.min(elementOptions.length - 1, element.getSelectedItemPosition()))];
-            int sortMode = sort.getSelectedItemPosition();
+            int scope = filterState[0];
+            String selectedRarity = selectorOptions[1][Math.max(0,
+                    Math.min(selectorOptions[1].length - 1, filterState[1]))];
+            String selectedElement = selectorOptions[2][Math.max(0,
+                    Math.min(selectorOptions[2].length - 1, filterState[2]))];
+            int sortMode = filterState[3];
 
             java.util.ArrayList<JSONObject> filtered = new java.util.ArrayList<>();
             int ownedInFilter = 0;
@@ -2651,6 +2944,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
         };
 
+        updateGridRef[0] = updateGrid;
         search.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -2658,19 +2952,267 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
             @Override public void afterTextChanged(Editable s) {}
         });
-        AdapterView.OnItemSelectedListener filterListener = new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                updateGrid.run();
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        };
-        for (Spinner selector : selectors) selector.setOnItemSelectedListener(filterListener);
         updateGrid.run();
 
         addGap(content, 9);
         TextView duplicates = button("OPEN DUPLICATE CONVERTER", false);
         duplicates.setOnClickListener(v -> loadDuplicateConversionPanel());
         content.addView(duplicates, new LinearLayout.LayoutParams(dp(220), dp(36)));
+    }
+
+    private void addAdminArtworkStudio(LinearLayout parent, JSONArray cards) {
+        if (!isAdminAccount()) return;
+        LinearLayout panel = sectionPanel();
+        panel.setBackground(gradient(Color.rgb(41, 47, 79), Color.rgb(9, 16, 31), VIOLET, dp(14)));
+        panel.addView(text("MASTER ADMIN · ARTWORK STUDIO", 8, VIOLET, true));
+        panel.addView(text("Generate new card illustrations or upload finished art to the shared collection catalogue.",
+                9, TEXT, true));
+
+        LinearLayout aiPanel = sectionPanel();
+        aiPanel.setBackground(gradient(Color.rgb(37, 39, 74), Color.rgb(10, 17, 34), VIOLET, dp(12)));
+        aiPanel.addView(text("✦  AI CARD ART GENERATOR", 8, GOLD_BRIGHT, true));
+        aiPanel.addView(text("Select an existing catalogue card, describe the visual direction and generate a portrait illustration. The result replaces that card's current artwork for every player.",
+                8, MUTED, false));
+
+        final JSONObject[] selectedCard = {null};
+        final TextView[] selectedLabel = new TextView[1];
+        TextView selectCard = button("CHOOSE A CARD TO ILLUSTRATE", false);
+        selectedLabel[0] = selectCard;
+        selectCard.setOnClickListener(v -> {
+            if (cards == null || cards.length() == 0) {
+                showResultDialog("No catalogue cards", "There are no cards available for artwork generation.");
+                return;
+            }
+            ArrayList<JSONObject> eligible = new ArrayList<>();
+            ArrayList<String> labels = new ArrayList<>();
+            for (int i = 0; i < cards.length(); i++) {
+                JSONObject card = cards.optJSONObject(i);
+                if (card == null) continue;
+                String cardId = card.optString("card_id", card.optString("id", ""));
+                if (cardId.isEmpty()) continue;
+                eligible.add(card);
+                labels.add(card.optString("card_code", "CARD") + "  ·  "
+                        + card.optString("name", "Unknown card") + "  ·  "
+                        + card.optString("rarity", "COMMON") + " / "
+                        + card.optString("element", "AETHER"));
+            }
+            if (eligible.isEmpty()) {
+                showResultDialog("Card IDs unavailable",
+                        "The collection catalogue did not return card IDs required to safely update an artwork record.");
+                return;
+            }
+            new AlertDialog.Builder(this).setTitle("SELECT CATALOGUE CARD")
+                    .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                        selectedCard[0] = eligible.get(which);
+                        selectCard.setText(selectedCard[0].optString("card_code", "CARD")
+                                + "  ·  " + selectedCard[0].optString("name", "Selected card"));
+                        selectCard.setTextColor(CYAN);
+                    }).setNegativeButton("CANCEL", null).show();
+        });
+        aiPanel.addView(selectCard, new LinearLayout.LayoutParams(-1, dp(40)));
+
+        addGap(aiPanel, 7);
+        aiPanel.addView(text("ART DIRECTION / PROMPT", 7, GOLD_BRIGHT, true));
+        EditText prompt = editField("Example: A silver-winged guardian fox standing above a moonlit frozen lake, elegant cyan spirit flames, detailed fantasy anime key art…", false);
+        prompt.setSingleLine(false);
+        prompt.setMinLines(3);
+        prompt.setMaxLines(5);
+        prompt.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(700)
+        });
+        aiPanel.addView(prompt, new LinearLayout.LayoutParams(-1, dp(104)));
+
+        TextView quota = text("CHECKING DAILY IMAGE QUOTA…", 8, MUTED, true);
+        quota.setPadding(0, dp(7), 0, dp(5));
+        aiPanel.addView(quota);
+        Runnable refreshQuota = () -> api.get("/api/admin/cards/artwork-quota", result -> ui.post(() -> {
+            if (!result.ok()) {
+                quota.setText("AI IMAGE QUOTA UNAVAILABLE · " + result.error);
+                return;
+            }
+            quota.setText("SHARED QUOTA  ·  " + result.data.optInt("remaining")
+                    + " / " + result.data.optInt("daily_limit") + " LEFT"
+                    + "     YOUR QUOTA  ·  " + result.data.optInt("personal_remaining")
+                    + " / " + result.data.optInt("personal_limit") + " LEFT  ·  UTC");
+        }));
+        refreshQuota.run();
+
+        TextView generate = button("✦  GENERATE CARD ARTWORK", true);
+        LinearLayout.LayoutParams generateParams = new LinearLayout.LayoutParams(-1, dp(42));
+        generateParams.topMargin = dp(7);
+        aiPanel.addView(generate, generateParams);
+        generate.setOnClickListener(v -> {
+            JSONObject target = selectedCard[0];
+            String cardId = target == null ? "" : target.optString("card_id",
+                    target.optString("id", ""));
+            String direction = prompt.getText().toString().trim();
+            if (cardId.isEmpty()) {
+                showResultDialog("Choose a card first", "Select the catalogue card you want to illustrate.");
+                return;
+            }
+            if (direction.length() < 8) {
+                prompt.setError("Describe the artwork in at least 8 characters.");
+                return;
+            }
+            if (direction.length() > 700) {
+                prompt.setError("Keep the artwork direction below 700 characters.");
+                return;
+            }
+            confirmAction("Generate artwork for " + target.optString("name", "this card") + "?",
+                    "This uses one image from the daily CardUniverse generation quota and replaces the current artwork for every player.",
+                    () -> {
+                generate.setEnabled(false);
+                generate.setText("GENERATING ARTWORK…");
+                api.post("/api/admin/cards/" + Uri.encode(cardId) + "/artwork/generate",
+                        payload("prompt", direction), result -> ui.post(() -> {
+                    generate.setEnabled(true);
+                    generate.setText("✦  GENERATE CARD ARTWORK");
+                    if (!result.ok()) {
+                        showResultDialog("Artwork generation failed", result.error);
+                        refreshQuota.run();
+                        return;
+                    }
+                    showResultDialog("CARD ARTWORK GENERATED",
+                            result.data.optString("message", "The new card illustration is now shared with all players.")
+                                    + "\n\n" + result.data.optInt("remaining") + " shared image(s) left today"
+                                    + " · " + result.data.optInt("personal_remaining") + " in your quota");
+                    refreshQuota.run();
+                    refreshAccount(() -> renderTab("collection"));
+                }));
+            });
+        });
+        aiPanel.addView(text("10 images per admin per day · 50 images shared per day (UTC reset) · Each successful render replaces the selected card artwork.",
+                7, MUTED, false));
+        panel.addView(aiPanel, rowParams());
+
+        addGap(panel, 10);
+        panel.addView(text("BULK ARTWORK UPLOAD", 8, GOLD_BRIGHT, true));
+        panel.addView(text("Upload finished art using the exact card code in each file name, for example FL-001.webp.",
+                8, MUTED, false));
+        TextView rules = text("1–20 images per batch  ·  5 MB each  ·  40 MB total  ·  JPG / PNG / WEBP",
+                7, MUTED, false);
+        rules.setPadding(0, dp(4), 0, dp(8));
+        panel.addView(rules);
+        TextView upload = button("＋  CHOOSE CARD ARTWORK FILES", false);
+        upload.setOnClickListener(v -> {
+            pendingArtworkUpload = upload;
+            Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            pick.addCategory(Intent.CATEGORY_OPENABLE);
+            pick.setType("image/*");
+            pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+            pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try { startActivityForResult(pick, REQUEST_CARD_ARTWORK); }
+            catch (Exception error) {
+                showResultDialog("Artwork picker unavailable", "Unable to open the image picker on this device.");
+            }
+        });
+        LinearLayout.LayoutParams uploadParams = new LinearLayout.LayoutParams(-1, dp(40));
+        uploadParams.topMargin = dp(8);
+        panel.addView(upload, uploadParams);
+        parent.addView(panel, rowParams());
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_CARD_ARTWORK || resultCode != RESULT_OK || data == null) return;
+        ArrayList<Uri> selected = new ArrayList<>();
+        if (data.getClipData() != null) {
+            for (int i = 0; i < data.getClipData().getItemCount() && selected.size() < 20; i++) {
+                Uri uri = data.getClipData().getItemAt(i).getUri();
+                if (uri != null) selected.add(uri);
+            }
+        } else if (data.getData() != null) selected.add(data.getData());
+        if (selected.isEmpty()) return;
+        if (selected.size() > 20) {
+            showResultDialog("Too many images", "Choose up to 20 card artworks per batch.");
+            return;
+        }
+        TextView button = pendingArtworkUpload;
+        if (button != null) {
+            button.setEnabled(false);
+            button.setText("PREPARING " + selected.size() + " FILE(S)…");
+        }
+        uploadArtworkFiles(selected, button);
+    }
+
+    private String artworkFilename(Uri uri) {
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri,
+                    new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) return cursor.getString(index);
+            }
+        } catch (Exception ignored) {
+        } finally {
+            if (cursor != null) cursor.close();
+        }
+        String segment = uri.getLastPathSegment();
+        return segment == null ? "artwork.webp" : segment;
+    }
+
+    private void uploadArtworkFiles(ArrayList<Uri> uris, TextView button) {
+        new Thread(() -> {
+            ArrayList<ApiClient.UploadFile> files = new ArrayList<>();
+            long total = 0L;
+            String problem = "";
+            for (Uri uri : uris) {
+                try (InputStream input = getContentResolver().openInputStream(uri);
+                     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+                    if (input == null) throw new IllegalStateException("Unable to read selected image.");
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while ((count = input.read(buffer)) != -1) {
+                        total += count;
+                        if (output.size() + count > 5 * 1024 * 1024 || total > 40L * 1024 * 1024) {
+                            throw new IllegalArgumentException("Image size exceeds the upload limit.");
+                        }
+                        output.write(buffer, 0, count);
+                    }
+                    String filename = artworkFilename(uri);
+                    String mime = getContentResolver().getType(uri);
+                    if (mime == null) {
+                        String lower = filename.toLowerCase(java.util.Locale.ROOT);
+                        mime = lower.endsWith(".png") ? "image/png"
+                                : lower.endsWith(".jpg") || lower.endsWith(".jpeg") ? "image/jpeg"
+                                : lower.endsWith(".webp") ? "image/webp" : "";
+                    }
+                    if ("image/jpg".equalsIgnoreCase(mime)) mime = "image/jpeg";
+                    if (!"image/jpeg".equalsIgnoreCase(mime)
+                            && !"image/png".equalsIgnoreCase(mime)
+                            && !"image/webp".equalsIgnoreCase(mime)) {
+                        throw new IllegalArgumentException("Use JPEG, PNG or WebP files. Unsupported: " + filename);
+                    }
+                    files.add(new ApiClient.UploadFile(filename, mime, output.toByteArray()));
+                } catch (Exception error) {
+                    problem = error.getMessage() == null ? "Unable to read selected artwork." : error.getMessage();
+                    break;
+                }
+            }
+            if (!problem.isEmpty()) {
+                String message = problem;
+                ui.post(() -> {
+                    if (button != null) { button.setEnabled(true); button.setText("＋  CHOOSE CARD ARTWORK"); }
+                    showResultDialog("Artwork not uploaded", message);
+                });
+                return;
+            }
+            api.postMultipart("/api/admin/cards/artwork-bulk", files,
+                    result -> ui.post(() -> {
+                        if (button != null) { button.setEnabled(true); button.setText("＋  CHOOSE CARD ARTWORK"); }
+                        if (!result.ok()) {
+                            showResultDialog("Artwork upload failed", result.error);
+                            return;
+                        }
+                        showResultDialog("ARTWORK STUDIO",
+                                result.data.optString("message", "Card artwork upload processed.")
+                                        + "\n\nUploaded: " + result.data.optInt("uploaded")
+                                        + "  ·  Needs attention: " + result.data.optInt("failed"));
+                        refreshAccount(() -> renderTab("collection"));
+                    }));
+        }, "cu-artwork-upload").start();
     }
 
     private String cardArtworkPath(JSONObject card) {
@@ -2911,7 +3453,21 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         int limit = data.optInt("dailyLimit", 3);
         int remaining = Math.max(0, limit - used);
 
-        addRealmScene("dungeon", run == null ? "THE DEEP VAULT" : run.optString("dungeon_name", "ACTIVE EXPEDITION"), "Explore the chambers. Choose your route. Bring the treasure home.", run == null ? used : run.optInt("floor_reached"), run == null ? Math.max(1, limit) : 6);
+        addRealmScene("dungeon", run == null ? "THE DEEP VAULT"
+                : run.optString("dungeon_name", "ACTIVE EXPEDITION"),
+                "Choose a gate, descend through its chambers and bring the treasure home.",
+                run == null ? used : run.optInt("floor_reached"),
+                run == null ? Math.max(1, limit) : 6);
+        LinearLayout dungeonOverview = sectionPanel();
+        dungeonOverview.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(15)));
+        dungeonOverview.addView(text("THE DEEP VAULT · EXPEDITION DIRECTORY", 8, VIOLET, true));
+        dungeonOverview.addView(text((dungeons == null ? 0 : dungeons.length())
+                + " GATES AVAILABLE  ·  " + remaining + " DAILY ENTRY(IES) LEFT",
+                13, TEXT, true));
+        dungeonOverview.addView(text("Each gate has its own difficulty, floor count and reward tier. Your run and rewards are stored on the server.",
+                8, MUTED, false));
+        content.addView(dungeonOverview, rowParams());
+
         LinearLayout daily = sectionPanel();
         daily.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(16)));
         daily.addView(text("EXPEDITION ENERGY", 8, CYAN, true));
@@ -3068,12 +3624,33 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private void renderRaids(JSONObject data) {
         JSONArray bosses = data.optJSONArray("bosses");
         if (bosses == null || bosses.length() == 0) {
+            addRealmScene("raid", "WORLD RAID", "The next guardian has not been summoned yet.", 0, 0);
             showNotice("No world raid is scheduled. Return when the next guardian awakens.");
             return;
         }
         JSONObject featuredBoss = bosses.optJSONObject(0);
         if (featuredBoss != null) addRealmScene("raid", featuredBoss.optString("name", "WORLD BOSS"),
-                "The realm shares one health pool. Every strike matters.", featuredBoss.optInt("progress_percent"), 100);
+                "A shared world health pool. Every collector strike pushes the realm forward.",
+                featuredBoss.optInt("progress_percent"), 100);
+        int liveCount = 0, scheduledCount = 0, defeatedCount = 0;
+        for (int i = 0; i < bosses.length(); i++) {
+            JSONObject boss = bosses.optJSONObject(i);
+            if (boss == null) continue;
+            if (boss.optBoolean("is_event_open")) liveCount++;
+            else if (boss.optBoolean("defeated")) defeatedCount++;
+            else scheduledCount++;
+        }
+        LinearLayout raidOverview = sectionPanel();
+        raidOverview.setBackground(gradient(Color.rgb(68, 37, 65), Color.rgb(10, 16, 31), PINK, dp(15)));
+        raidOverview.addView(text("WORLD RAID ROTATION · SEASON 1", 8, PINK, true));
+        raidOverview.addView(text(bosses.length() + " GUARDIANS IN THE ROTATION", 14, TEXT, true));
+        LinearLayout raidStats = new LinearLayout(this);
+        raidStats.setOrientation(LinearLayout.HORIZONTAL);
+        raidStats.addView(statCard("LIVE", String.valueOf(liveCount), "Attack now"), weightParams(1));
+        raidStats.addView(statCard("SCHEDULED", String.valueOf(scheduledCount), "Upcoming"), weightParams(1));
+        raidStats.addView(statCard("DEFEATED", String.valueOf(defeatedCount), "World records"), weightParams(1));
+        raidOverview.addView(raidStats);
+        content.addView(raidOverview, rowParams());
         for (int i = 0; i < bosses.length(); i++) {
             JSONObject boss = bosses.optJSONObject(i);
             if (boss == null) continue;
@@ -3295,35 +3872,25 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (visibleTrades == 0) showNotice("No offers are waiting. Create your first contract to start exchanging cards.");
 
         addGap(content, 8);
-        content.addView(text("AVAILABLE FOR TRADE · " + inventory.length(), 8, GOLD_BRIGHT, true));
-        if (inventory.length() == 0) {
-            showNotice("No cards are currently available. Bound cards and cards reserved in open offers cannot be traded.");
-        } else {
-            int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
-                    / getResources().getDisplayMetrics().density);
-            int columns = widthDp >= 1350 ? 6 : widthDp >= 1000 ? 5 : widthDp >= 700 ? 4 : 3;
-            LinearLayout grid = null;
-            int visible = 0;
-            for (int i = 0; i < inventory.length(); i++) {
-                JSONObject card = inventory.optJSONObject(i);
-                if (card == null) continue;
-                if (visible % columns == 0) {
-                    grid = new LinearLayout(this);
-                    grid.setOrientation(LinearLayout.HORIZONTAL);
-                    content.addView(grid, new LinearLayout.LayoutParams(-1, -2));
-                }
-                LinearLayout tile = createCardTile(card);
-                LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
-                p.setMargins(dp(3), dp(3), dp(3), dp(6));
-                grid.addView(tile, p);
-                visible++;
-            }
-        }
+        LinearLayout privateDesk = sectionPanel();
+        privateDesk.setBackground(gradient(Color.rgb(27, 50, 70), Color.rgb(9, 17, 31), CYAN, dp(14)));
+        privateDesk.addView(text("YOUR COLLECTION STAYS PRIVATE", 8, CYAN, true));
+        privateDesk.addView(text(formatNumber(inventory.length()) + " AVAILABLE CARD INSTANCE(S)", 14, TEXT, true));
+        privateDesk.addView(text("Your full collection is hidden from the Trade Desk. Choose exactly which card you want to publish; only that selected card becomes visible on the public board.",
+                8, MUTED, false));
+        TextView listPublic = button("＋  CHOOSE CARD TO LIST PUBLICLY", true);
+        listPublic.setEnabled(inventory.length() > 0);
+        listPublic.setOnClickListener(v -> showTradeListingDialog(inventory));
+        LinearLayout.LayoutParams listParams = new LinearLayout.LayoutParams(-1, dp(40));
+        listParams.topMargin = dp(8);
+        privateDesk.addView(listPublic, listParams);
+        content.addView(privateDesk, rowParams());
+        addGap(content, 7);
         loadPublicTradeBoard(inventory);
     }
 
         private void renderChat(JSONObject data) {
-        addRealmScene("guild", "THE COLLECTOR LOUNGE",
+        addRealmScene("trade", "THE COLLECTOR LOUNGE",
                 "Meet collectors, talk builds and arrange trades without leaving the game.",
                 0, 0);
 
@@ -3407,7 +3974,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         renderChatMessages(data);
         if (chatScroll != null) chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
         ui.removeCallbacks(chatRefreshTick);
-        ui.postDelayed(chatRefreshTick, 5000L);
+        ui.postDelayed(chatRefreshTick, chatRefreshIntervalMs());
     }
 
     private void switchChatChannel(String channel) {
@@ -3442,7 +4009,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 chatStatus.setTextColor(RED);
             }
             ui.removeCallbacks(chatRefreshTick);
-            ui.postDelayed(chatRefreshTick, 5000L);
+            ui.postDelayed(chatRefreshTick, chatRefreshIntervalMs());
         }));
     }
 
@@ -3452,15 +4019,19 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (messages == null) messages = new JSONArray();
         chatMessagesPanel.removeAllViews();
         if (chatStatus != null) {
-            chatStatus.setText(activeChatChannel + " CHANNEL  ·  " + messages.length()
-                    + " RECENT MESSAGES  ·  REFRESHES AUTOMATICALLY");
+            chatStatus.setText(activeChatChannel + "  ·  " + messages.length()
+                    + " RECENT MESSAGES  ·  AUTO-REFRESH " + chatRefreshSeconds + "S");
             chatStatus.setTextColor(MUTED);
         }
         if (messages.length() == 0) {
-            TextView empty = text("No messages yet. Start the conversation with the first hello.",
-                    9, MUTED, false);
+            LinearLayout empty = sectionPanel();
             empty.setGravity(Gravity.CENTER);
-            empty.setPadding(dp(16), dp(28), dp(16), dp(28));
+            TextView mark = text("✦", 24, CYAN, true);
+            mark.setGravity(Gravity.CENTER);
+            empty.addView(mark);
+            empty.addView(text("THE LOUNGE IS QUIET", 9, TEXT, true));
+            empty.addView(text("Start a conversation or find another collector to trade with.",
+                    8, MUTED, false));
             chatMessagesPanel.addView(empty, new LinearLayout.LayoutParams(-1, -2));
             return;
         }
@@ -3469,38 +4040,58 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             JSONObject message = messages.optJSONObject(i);
             if (message == null) continue;
             boolean own = ownId.equals(message.optString("user_id"));
+            String playerName = message.optString("display_name", "Collector");
+            String level = "LV." + formatNumber(message.optLong("collector_level", 1));
             LinearLayout messageBlock = new LinearLayout(this);
             messageBlock.setOrientation(LinearLayout.VERTICAL);
             messageBlock.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
             LinearLayout.LayoutParams blockParams = new LinearLayout.LayoutParams(-1, -2);
-            blockParams.bottomMargin = dp(7);
+            blockParams.bottomMargin = dp(10);
             chatMessagesPanel.addView(messageBlock, blockParams);
 
-            String playerName = message.optString("display_name", "Collector");
-            String level = "LV." + formatNumber(message.optLong("collector_level", 1));
+            LinearLayout messageRow = new LinearLayout(this);
+            messageRow.setGravity(Gravity.BOTTOM | (own ? Gravity.RIGHT : Gravity.LEFT));
+            if (own) messageRow.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
+            FrameLayout avatar = new FrameLayout(this);
+            int avatarAccent = own ? CYAN : VIOLET;
+            avatar.setBackground(gradient(Color.rgb(39, 62, 83), Color.rgb(13, 24, 42),
+                    avatarAccent, dp(20)));
+            TextView initialsView = text(initials(playerName), 9, avatarAccent, true);
+            initialsView.setGravity(Gravity.CENTER);
+            avatar.addView(initialsView, new FrameLayout.LayoutParams(-1, -1));
+            LinearLayout.LayoutParams avatarParams = new LinearLayout.LayoutParams(dp(31), dp(31));
+            if (own) avatarParams.leftMargin = dp(7); else avatarParams.rightMargin = dp(7);
+
+            LinearLayout copy = new LinearLayout(this);
+            copy.setOrientation(LinearLayout.VERTICAL);
+            copy.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
             TextView author = text((own ? "YOU" : playerName) + "  ·  " + level,
                     7, own ? CYAN : GOLD_BRIGHT, true);
             author.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
-            author.setPadding(dp(6), dp(1), dp(6), dp(3));
-            messageBlock.addView(author);
-
+            author.setPadding(dp(5), 0, dp(5), dp(4));
+            copy.addView(author);
             LinearLayout bubble = new LinearLayout(this);
             bubble.setOrientation(LinearLayout.VERTICAL);
-            bubble.setPadding(dp(11), dp(8), dp(11), dp(8));
-            bubble.setBackground(gradient(own ? Color.rgb(30, 63, 76) : Color.rgb(27, 34, 55),
-                    Color.rgb(11, 18, 32), own ? CYAN : Color.rgb(67, 83, 112), dp(11)));
+            bubble.setPadding(dp(12), dp(9), dp(12), dp(9));
+            bubble.setBackground(gradient(own ? Color.rgb(34, 74, 87) : Color.rgb(29, 39, 65),
+                    own ? Color.rgb(13, 38, 52) : Color.rgb(13, 21, 39),
+                    own ? CYAN : Color.rgb(85, 102, 151), dp(12)));
             TextView body = text(message.optString("message", ""), 9, TEXT, false);
-            body.setLineSpacing(dp(2), 1.02f);
-            body.setMaxWidth(dp(430));
+            body.setLineSpacing(dp(2), 1.04f);
+            body.setMaxWidth(dp(480));
             bubble.addView(body);
-            messageBlock.addView(bubble, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            copy.addView(bubble);
+            LinearLayout.LayoutParams copyParams = new LinearLayout.LayoutParams(0, -2, 1f);
+            copyParams.width = Math.min(dp(500), (int)(getResources().getDisplayMetrics().widthPixels * 0.74f));
+            messageRow.addView(avatar, avatarParams);
+            messageRow.addView(copy, copyParams);
+            messageBlock.addView(messageRow, new LinearLayout.LayoutParams(-1, -2));
 
             String created = message.optString("created_at", "");
             if (created.length() > 16) created = created.substring(0, 16).replace("T", " ");
             TextView time = text(created, 6, MUTED, false);
             time.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
-            time.setPadding(dp(5), dp(2), dp(5), 0);
+            time.setPadding(dp(42), dp(3), dp(4), 0);
             messageBlock.addView(time);
         }
     }
@@ -3529,79 +4120,156 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (myListings == null) myListings = new JSONArray();
         if (inventory == null) inventory = fallbackInventory == null ? new JSONArray() : fallbackInventory;
         final JSONArray tradeInventory = inventory;
+        final JSONArray communityListings = listings;
 
-        addGap(content, 12);
+        addGap(content, 9);
         LinearLayout market = sectionPanel();
-        market.setBackground(gradient(Color.rgb(48, 41, 76), Color.rgb(11, 17, 34), VIOLET, dp(15)));
+        market.setPadding(dp(14), dp(13), dp(14), dp(13));
+        market.setBackground(gradient(Color.rgb(47, 43, 81), Color.rgb(9, 17, 34),
+                VIOLET, dp(16)));
         LinearLayout marketHead = new LinearLayout(this);
         marketHead.setGravity(Gravity.CENTER_VERTICAL);
+        FrameLayout mark = new FrameLayout(this);
+        mark.setBackground(gradient(Color.rgb(76, 65, 119), Color.rgb(19, 29, 56), GOLD, dp(13)));
+        TextView glyph = text("✧", 27, GOLD_BRIGHT, true);
+        glyph.setGravity(Gravity.CENTER);
+        mark.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
+        marketHead.addView(mark, new LinearLayout.LayoutParams(dp(55), dp(58)));
         LinearLayout marketCopy = new LinearLayout(this);
         marketCopy.setOrientation(LinearLayout.VERTICAL);
-        marketCopy.addView(text("PUBLIC TRADE BOARD", 8, VIOLET, true));
-        marketCopy.addView(text("Browse cards listed by every collector.", 9, TEXT, true));
+        marketCopy.setPadding(dp(10), 0, dp(6), 0);
+        marketCopy.addView(text("FIRSTLIGHT EXCHANGE", 7, VIOLET, true));
+        marketCopy.addView(text("Public Trade Board", 17, TEXT, true));
+        marketCopy.addView(text("Collector-to-collector card listings", 8, MUTED, false));
         marketHead.addView(marketCopy, new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView create = button("＋ LIST A CARD", true);
+        TextView create = button("＋ LIST CARD", true);
+        create.setTextSize(8);
         create.setOnClickListener(v -> showTradeListingDialog(tradeInventory));
         marketHead.addView(create);
         market.addView(marketHead);
-        market.addView(text("Each listing reserves the exact tradable card instance until it is removed, expires or changes hands.",
-                7, MUTED, false));
+
+        LinearLayout stats = new LinearLayout(this);
+        stats.setOrientation(LinearLayout.HORIZONTAL);
+        stats.addView(statCard("COMMUNITY", formatNumber(communityListings.length()),
+                "Public listings"), weightParams(1));
+        stats.addView(statCard("YOUR LISTINGS", formatNumber(myListings.length()),
+                "Your published cards"), weightParams(1));
+        stats.addView(statCard("PRIVATE", formatNumber(tradeInventory.length()),
+                "Available to list"), weightParams(1));
+        market.addView(stats);
+        market.addView(text("Only cards you explicitly publish appear here. Your unlisted collection remains private.",
+                8, MUTED, false));
         content.addView(market, rowParams());
 
-        content.addView(text("YOUR LISTINGS  ·  " + myListings.length(), 8, GOLD_BRIGHT, true));
+        LinearLayout ownPanel = sectionPanel();
+        ownPanel.addView(text("YOUR PUBLIC LISTINGS  ·  " + myListings.length(), 8, GOLD_BRIGHT, true));
         if (myListings.length() == 0) {
-            TextView none = text("You have no active listings. Put a tradable card on the public board.",
-                    8, MUTED, false);
-            none.setPadding(dp(4), dp(7), dp(4), dp(7));
-            content.addView(none);
+            ownPanel.addView(text("Nothing published yet. Your collection stays private until you choose a card to list.",
+                    8, MUTED, false));
+            TextView publish = button("CHOOSE A CARD TO PUBLISH", false);
+            publish.setOnClickListener(v -> showTradeListingDialog(tradeInventory));
+            ownPanel.addView(publish, new LinearLayout.LayoutParams(-1, dp(37)));
         } else {
             for (int i = 0; i < myListings.length(); i++) {
                 JSONObject listing = myListings.optJSONObject(i);
                 if (listing == null) continue;
-                LinearLayout row = dataRow(listing.optString("name", "Listed card"),
-                        listing.optString("rarity", "CARD") + " · " + listing.optString("wanted_text", "Open to offers"),
+                LinearLayout item = dataRow(listing.optString("name", "Listed card"),
+                        listing.optString("rarity", "CARD") + "  ·  "
+                                + listing.optString("wanted_text", "Open to offers"),
                         listing.optString("status", "OPEN"));
-                if ("OPEN".equalsIgnoreCase(listing.optString("status"))) {
+                String listingId = listing.optString("listing_id", "");
+                if ("OPEN".equalsIgnoreCase(listing.optString("status")) && !listingId.isEmpty()) {
                     TextView remove = button("REMOVE", false);
                     remove.setOnClickListener(v -> confirmAction("Remove public listing?",
-                            "The card will be returned to your available inventory.",
-                            () -> api.post("/api/trade-board/" + listing.optString("listing_id") + "/cancel",
+                            "The reserved card will return to your private available inventory.",
+                            () -> api.post("/api/trade-board/" + Uri.encode(listingId) + "/cancel",
                                     new JSONObject(), result -> ui.post(() -> {
                                         if (!result.ok()) showResultDialog("Listing not removed", result.error);
-                                        else renderTab("trades");
+                                        else refreshAccount(() -> renderTab("trades"));
                                     }))));
-                    row.addView(remove, new LinearLayout.LayoutParams(dp(90), dp(34)));
-                } else {
-                    TextView reserved = text("CHECK TRADE DESK", 7, CYAN, true);
-                    reserved.setGravity(Gravity.CENTER);
-                    row.addView(reserved, new LinearLayout.LayoutParams(dp(110), dp(34)));
+                    item.addView(remove, new LinearLayout.LayoutParams(dp(82), dp(34)));
                 }
-                content.addView(row, rowParams());
+                ownPanel.addView(item, rowParams());
             }
         }
+        content.addView(ownPanel, rowParams());
 
-        content.addView(text("COMMUNITY LISTINGS  ·  " + listings.length(), 8, GOLD_BRIGHT, true));
-        if (listings.length() == 0) {
-            LinearLayout empty = sectionPanel();
-            empty.setGravity(Gravity.CENTER);
-            empty.addView(text("THE MARKET IS QUIET", 10, TEXT, true));
-            empty.addView(text("Be the first collector to list a card for trade.", 8, MUTED, false));
-            TextView list = button("LIST YOUR FIRST CARD", true);
-            list.setOnClickListener(v -> showTradeListingDialog(tradeInventory));
-            empty.addView(list, new LinearLayout.LayoutParams(dp(190), dp(38)));
-            content.addView(empty, rowParams());
-            return;
+        LinearLayout browse = sectionPanel();
+        browse.addView(text("DISCOVER LISTED CARDS", 8, GOLD_BRIGHT, true));
+        EditText search = editField("Search card name, element, rarity or player…", false);
+        browse.addView(search, fieldParams());
+        final String[] filterNames = {"ALL", "RARE+", "LEGENDARY+", "MYTHIC"};
+        final int[] selectedFilter = {0};
+        final TextView[] chips = new TextView[filterNames.length];
+        LinearLayout chipRow = new LinearLayout(this);
+        HorizontalScrollView chipScroll = new HorizontalScrollView(this);
+        chipScroll.setHorizontalScrollBarEnabled(false);
+        chipRow.setOrientation(LinearLayout.HORIZONTAL);
+        for (int i = 0; i < filterNames.length; i++) {
+            final int index = i;
+            TextView chip = button(filterNames[i], i == 0);
+            chip.setTextSize(8);
+            chips[i] = chip;
+            chip.setOnClickListener(v -> {
+                selectedFilter[0] = index;
+                for (int j = 0; j < chips.length; j++) {
+                    chips[j].setBackground(gradient(j == index
+                                    ? Color.rgb(213, 169, 91) : Color.rgb(26, 36, 56),
+                            Color.rgb(13, 20, 35), j == index ? GOLD_BRIGHT
+                                    : Color.rgb(67, 87, 117), dp(8)));
+                    chips[j].setTextColor(j == index ? BG : TEXT);
+                }
+                renderTradeBoardListings(communityListings, tradeInventory, selectedFilter[0],
+                        search.getText().toString(), results);
+            });
+            LinearLayout.LayoutParams chipParams = new LinearLayout.LayoutParams(-2, dp(36));
+            chipParams.rightMargin = dp(6);
+            chipRow.addView(chip, chipParams);
         }
+        chipScroll.addView(chipRow);
+        browse.addView(chipScroll, new LinearLayout.LayoutParams(-1, dp(40)));
+        content.addView(browse, rowParams());
 
+        LinearLayout results = new LinearLayout(this);
+        results.setOrientation(LinearLayout.VERTICAL);
+        content.addView(results);
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                renderTradeBoardListings(communityListings, tradeInventory,
+                        selectedFilter[0], s.toString(), results);
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        renderTradeBoardListings(communityListings, tradeInventory, 0, "", results);
+    }
+
+    private void renderTradeBoardListings(JSONArray listings, JSONArray inventory, int filter,
+                                          String query, LinearLayout holder) {
+        holder.removeAllViews();
+        String needle = query == null ? "" : query.trim().toLowerCase(java.util.Locale.ROOT);
+        int shown = 0;
         for (int i = 0; i < listings.length(); i++) {
             JSONObject listing = listings.optJSONObject(i);
             if (listing == null) continue;
             if (me != null && me.optString("user_id").equals(listing.optString("listing_owner_id"))) continue;
+            String rarityValue = listing.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
+            int rank = cardRarityRank(rarityValue);
+            if (filter == 1 && rank < cardRarityRank("RARE")) continue;
+            if (filter == 2 && rank < cardRarityRank("LEGENDARY")) continue;
+            if (filter == 3 && !"MYTHIC".equals(rarityValue)) continue;
+            String nameValue = listing.optString("name", "Card");
+            String ownerValue = listing.optString("owner_name", "Collector");
+            String searchValue = (nameValue + " " + ownerValue + " " + rarityValue + " "
+                    + listing.optString("element", "") + " " + listing.optString("card_code", ""))
+                    .toLowerCase(java.util.Locale.ROOT);
+            if (!needle.isEmpty() && !searchValue.contains(needle)) continue;
+            shown++;
+            int accent = cardRarityColor(rarityValue);
             LinearLayout card = sectionPanel();
             card.setOrientation(LinearLayout.HORIZONTAL);
             card.setGravity(Gravity.CENTER_VERTICAL);
             card.setPadding(dp(9), dp(9), dp(10), dp(9));
-            int accent = cardRarityColor(listing.optString("rarity", "COMMON"));
             FrameLayout art = new FrameLayout(this);
             art.setBackground(gradient(Color.rgb(25, 34, 54), Color.rgb(7, 11, 22), accent, dp(8)));
             art.setClipToOutline(true);
@@ -3613,42 +4281,59 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{Color.TRANSPARENT, Color.argb(190, 3, 7, 15)}));
             art.addView(shade, new FrameLayout.LayoutParams(-1, -1));
-            TextView rarity = text(listing.optString("rarity", "CARD"), 6, Color.WHITE, true);
+            TextView rarity = text(rarityValue, 6, Color.WHITE, true);
             rarity.setPadding(dp(5), dp(4), dp(5), dp(4));
-            rarity.setBackground(gradient(Color.argb(210, 9, 14, 28), Color.argb(210, 9, 14, 28),
-                    accent, dp(5)));
-            FrameLayout.LayoutParams rarityParams = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+            rarity.setBackground(gradient(Color.argb(215, 9, 14, 28),
+                    Color.argb(215, 9, 14, 28), accent, dp(5)));
+            FrameLayout.LayoutParams rarityParams = new FrameLayout.LayoutParams(-2, -2,
+                    Gravity.TOP | Gravity.LEFT);
             rarityParams.setMargins(dp(5), dp(5), 0, 0);
             art.addView(rarity, rarityParams);
-            TextView artName = text(listing.optString("name", "Card"), 8, Color.WHITE, true);
+            TextView artName = text(nameValue, 8, Color.WHITE, true);
             artName.setMaxLines(2);
             artName.setPadding(dp(5), 0, dp(5), dp(6));
             art.addView(artName, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
-            card.addView(art, new LinearLayout.LayoutParams(dp(105), dp(146)));
+            card.addView(art, new LinearLayout.LayoutParams(dp(100), dp(140)));
 
             LinearLayout info = new LinearLayout(this);
             info.setOrientation(LinearLayout.VERTICAL);
-            info.setPadding(dp(12), 0, 0, 0);
-            info.addView(text("LISTED BY " + listing.optString("owner_name", "COLLECTOR").toUpperCase(java.util.Locale.ROOT),
+            info.setPadding(dp(11), 0, 0, 0);
+            info.addView(text("LISTED BY " + ownerValue.toUpperCase(java.util.Locale.ROOT),
                     7, CYAN, true));
-            TextView name = text(listing.optString("name", "Card"), 13, TEXT, true);
+            TextView name = text(nameValue, 13, TEXT, true);
             name.setMaxLines(2);
             info.addView(name);
+            info.addView(text(rarityValue + "  ·  " + listing.optString("element", "AETHER"),
+                    7, accent, true));
             String wanted = listing.optString("wanted_text", "");
             info.addView(text(wanted.isEmpty() ? "WANTS · OPEN TO OFFERS" : "WANTS · " + wanted,
                     8, GOLD_BRIGHT, true));
-            if (!listing.optString("message", "").isEmpty()) {
-                TextView note = text(listing.optString("message"), 7, MUTED, false);
+            String noteText = listing.optString("message", "");
+            if (!noteText.isEmpty()) {
+                TextView note = text(noteText, 7, MUTED, false);
                 note.setMaxLines(2);
                 info.addView(note);
             }
+            String listingId = listing.optString("listing_id", "");
             TextView offer = button("MAKE TRADE OFFER", true);
-            offer.setOnClickListener(v -> showPublicTradeRequestDialog(listing, tradeInventory));
-            LinearLayout.LayoutParams offerParams = new LinearLayout.LayoutParams(dp(160), dp(36));
+            offer.setTextSize(8);
+            offer.setEnabled(!listingId.isEmpty());
+            offer.setOnClickListener(v -> showPublicTradeRequestDialog(listing, inventory));
+            LinearLayout.LayoutParams offerParams = new LinearLayout.LayoutParams(-1, dp(36));
             offerParams.topMargin = dp(7);
             info.addView(offer, offerParams);
             card.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
-            content.addView(card, rowParams());
+            holder.addView(card, rowParams());
+        }
+        TextView count = text(shown + " PUBLIC LISTING(S) MATCH YOUR SEARCH", 7, MUTED, true);
+        count.setPadding(dp(3), dp(3), dp(3), dp(8));
+        holder.addView(count, 0);
+        if (shown == 0) {
+            LinearLayout empty = sectionPanel();
+            empty.setGravity(Gravity.CENTER);
+            empty.addView(text("NO MATCHING LISTINGS", 10, TEXT, true));
+            empty.addView(text("Try a different keyword or rarity filter.", 8, MUTED, false));
+            holder.addView(empty, rowParams());
         }
     }
 
@@ -3661,29 +4346,43 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         for (int i = 0; i < inventory.length(); i++) {
             JSONObject card = inventory.optJSONObject(i);
             labels[i] = card == null ? "Unknown card" : card.optString("name", "Card")
-                    + " · " + card.optString("rarity", "CARD");
+                    + "  ·  " + card.optString("rarity", "CARD")
+                    + "  ·  " + card.optString("element", "AETHER");
         }
-        Spinner cardPicker = new Spinner(this);
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, labels);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        cardPicker.setAdapter(adapter);
+        new AlertDialog.Builder(this)
+                .setTitle("SELECT A CARD TO PUBLISH")
+                .setMessage("Only the card you choose will appear on the public trade board.")
+                .setItems(labels, (dialog, which) -> {
+                    JSONObject card = inventory.optJSONObject(which);
+                    if (card != null) showTradeListingForm(card);
+                })
+                .setNegativeButton("CANCEL", null)
+                .show();
+    }
+
+    private void showTradeListingForm(JSONObject selected) {
+        if (selected == null) return;
         EditText wanted = editField("What card or rarity are you looking for?", false);
         EditText note = editField("Optional note for other collectors", false);
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(7), dp(8), dp(7), dp(2));
-        form.addView(text("CHOOSE THE CARD TO LIST", 7, GOLD_BRIGHT, true));
-        form.addView(cardPicker, new LinearLayout.LayoutParams(-1, dp(45)));
+        LinearLayout form = sectionPanel();
+        form.addView(text("CARD SELECTED FOR PUBLIC LISTING", 7, CYAN, true));
+        LinearLayout selectedCard = dataRow(selected.optString("name", "Card"),
+                selected.optString("rarity", "CARD") + "  ·  "
+                        + selected.optString("element", "AETHER") + "  ·  "
+                        + selected.optString("card_code", ""),
+                "READY");
+        form.addView(selectedCard, rowParams());
         form.addView(text("WHAT YOU WANT IN RETURN", 7, GOLD_BRIGHT, true));
         form.addView(wanted, fieldParams());
         form.addView(text("MESSAGE TO THE COMMUNITY", 7, GOLD_BRIGHT, true));
         form.addView(note, fieldParams());
-        new AlertDialog.Builder(this).setTitle("Create public listing").setView(form)
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(form);
+        new AlertDialog.Builder(this).setTitle("Create public listing")
+                .setView(scroll)
                 .setNegativeButton("CANCEL", null)
-                .setPositiveButton("PUBLISH", (dialog, which) -> {
-                    JSONObject selected = inventory.optJSONObject(cardPicker.getSelectedItemPosition());
-                    if (selected == null) return;
+                .setPositiveButton("PUBLISH CARD", (dialog, which) -> {
                     JSONObject body = new JSONObject();
                     try {
                         body.put("instanceId", selected.optString("instance_id"));
@@ -3693,8 +4392,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     api.post("/api/trade-board", body, result -> ui.post(() -> {
                         if (!result.ok()) showResultDialog("Listing failed", result.error);
                         else {
-                            showResultDialog("CARD LISTED", result.data.optString("message",
-                                    "Your card is visible to all collectors."));
+                            showResultDialog("CARD LISTED",
+                                    result.data.optString("message", "Your selected card is now visible to collectors."));
                             renderTab("trades");
                         }
                     }));
@@ -5151,7 +5850,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
         copy.setPadding(dp(12), 0, 0, 0);
         copy.addView(text("ASTRAL GATE · COMPLETE", 7, GOLD_BRIGHT, true));
         copy.addView(text("Summon revealed", 20, TEXT, true));
-        copy.addView(text(cards.length() + " new card" + (cards.length() == 1 ? "" : "s")
+        copy.addView(text(cards.length() + " card" + (cards.length() == 1 ? "" : "s")
                 + " added to your archive", 8, MUTED, false));
         hero.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
         shell.addView(hero);
@@ -5164,6 +5863,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
         int columns = cards.length() >= 4 ? 4 : cards.length() >= 2 ? 2 : 1;
         LinearLayout row = null;
         int visible = 0;
+        ArrayList<View> revealTiles = new ArrayList<>();
         for (int i = 0; i < cards.length(); i++) {
             JSONObject card = cards.optJSONObject(i);
             if (card == null) continue;
@@ -5173,6 +5873,14 @@ private void showTradeCreateDialog(JSONArray inventory) {
                 grid.addView(row, new LinearLayout.LayoutParams(-1, -2));
             }
             LinearLayout tile = createSummonRevealTile(card, visible + 1);
+            if (!reduceMotionEnabled) {
+                tile.setAlpha(0.12f);
+                tile.setRotationY(82f);
+                tile.setScaleX(0.90f);
+                tile.setScaleY(0.90f);
+                tile.setCameraDistance(dp(1800));
+            }
+            revealTiles.add(tile);
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1f);
             p.setMargins(dp(4), dp(4), dp(4), dp(7));
             row.addView(tile, p);
@@ -5198,6 +5906,18 @@ private void showTradeCreateDialog(JSONArray inventory) {
             window.setLayout(Math.min(dp(850), getResources().getDisplayMetrics().widthPixels - dp(42)),
                     Math.min(getResources().getDisplayMetrics().heightPixels - dp(48), dp(560)));
             window.setWindowAnimations(android.R.style.Animation_Dialog);
+        }
+        if (!reduceMotionEnabled) {
+            for (int i = 0; i < revealTiles.size(); i++) {
+                View tile = revealTiles.get(i);
+                tile.postDelayed(() -> tile.animate().alpha(1f).rotationY(0f)
+                        .scaleX(1f).scaleY(1f).setDuration(430L)
+                        .setInterpolator(new android.view.animation.DecelerateInterpolator()).start(),
+                        110L + i * 150L);
+            }
+            seal.animate().rotationBy(180f).scaleX(1.13f).scaleY(1.13f)
+                    .setDuration(480L).withEndAction(() ->
+                            seal.animate().scaleX(1f).scaleY(1f).setDuration(220L).start()).start();
         }
     }
 
@@ -5283,7 +6003,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
     // Refresh shared account data quietly while the game stays in the foreground.
     private void startAutoSync() {
         ui.removeCallbacks(autoSyncTick);
-        if (api == null || me == null || appRoot == null) return;
+        if (api == null || me == null || appRoot == null || !autoSyncEnabled) return;
         syncWithSharedBackend(false);
         ui.postDelayed(autoSyncTick, AUTO_SYNC_INTERVAL_MS);
     }
@@ -5591,113 +6311,187 @@ private void showTradeCreateDialog(JSONArray inventory) {
     }
 
     private void chooseGuildContribution() {
-        String[] labels = {"50 Gold", "100 Gold", "250 Gold", "500 Gold", "1,000 Gold"};
-        int[] amounts = {50, 100, 250, 500, 1000};
-        new AlertDialog.Builder(this).setTitle("Contribute to treasury")
-                .setItems(labels, (dialog, which) -> confirmAction("Contribute " + labels[which] + "?",
-                        "Gold moves from your wallet into the guild treasury.", () -> {
-                    JSONObject payload = new JSONObject();
-                    try { payload.put("amount", amounts[which]); payload.put("requestId", newActionId()); }
-                    catch (Exception ignored) {}
-                    api.post("/api/guilds/contribute", payload, result -> ui.post(() -> {
-                        if (!result.ok()) { showResultDialog("Contribution failed", result.error); return; }
-                        showResultDialog("GUILD TREASURY UPDATED", result.data.optString("message", "Contribution recorded."));
+        final int[] presets = {50, 100, 250, 500, 1000};
+        final int[] selected = {100};
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setPadding(dp(18), dp(17), dp(18), dp(15));
+        panel.setBackground(gradient(Color.rgb(37, 48, 72), Color.rgb(8, 15, 29),
+                GOLD, dp(17)));
+        panel.addView(text("GUILD TREASURY", 8, GOLD_BRIGHT, true));
+        panel.addView(text("Support your guild", 19, TEXT, true));
+        panel.addView(text("Choose a quick amount or enter a custom Gold contribution.",
+                8, MUTED, false));
+        addGap(panel, 9);
+
+        LinearLayout choices = new LinearLayout(this);
+        choices.setOrientation(LinearLayout.HORIZONTAL);
+        final EditText[] amountHolder = new EditText[1];
+        for (int index = 0; index < presets.length; index++) {
+            final int amount = presets[index];
+            TextView chip = button(formatNumber(amount), amount == selected[0]);
+            chip.setTextSize(8);
+            chip.setOnClickListener(v -> {
+                selected[0] = amount;
+                for (int i = 0; i < choices.getChildCount(); i++) {
+                    View child = choices.getChildAt(i);
+                    if (child instanceof TextView) {
+                        int value = presets[i];
+                        child.setBackground(gradient(value == selected[0]
+                                ? Color.rgb(213, 169, 91) : Color.rgb(26, 36, 56),
+                                Color.rgb(14, 23, 40), value == selected[0] ? GOLD_BRIGHT
+                                        : Color.rgb(67, 87, 117), dp(8)));
+                        ((TextView) child).setTextColor(value == selected[0] ? BG : TEXT);
+                    }
+                }
+                if (amountHolder[0] != null) amountHolder[0].setText(String.valueOf(amount));
+            });
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, dp(38), 1f);
+            cp.setMargins(dp(2), 0, dp(2), 0);
+            choices.addView(chip, cp);
+        }
+        panel.addView(choices);
+        addGap(panel, 8);
+        panel.addView(text("CUSTOM AMOUNT · GOLD", 7, GOLD_BRIGHT, true));
+        EditText amountInput = editField("Enter Gold amount", false);
+        amountInput.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        amountInput.setText("100");
+        amountHolder[0] = amountInput;
+        panel.addView(amountInput, fieldParams());
+        long availableGold = me != null && me.optJSONObject("wallet") != null
+                ? me.optJSONObject("wallet").optLong("coins") : 0;
+        panel.addView(text("Available Gold: " + formatNumber(availableGold), 8, MUTED, false));
+
+        TextView contribute = button("CONTRIBUTE TO TREASURY", true);
+        LinearLayout.LayoutParams contributeParams = new LinearLayout.LayoutParams(-1, dp(42));
+        contributeParams.topMargin = dp(10);
+        panel.addView(contribute, contributeParams);
+        contribute.setOnClickListener(v -> {
+            String value = amountInput.getText().toString().trim();
+            int amount;
+            try { amount = Integer.parseInt(value); }
+            catch (Exception error) { amount = 0; }
+            if (amount < 1 || amount > 1000000) {
+                amountInput.setError("Enter an amount from 1 to 1,000,000 Gold.");
+                return;
+            }
+            final int gold = amount;
+            confirmAction("Contribute " + formatNumber(gold) + " Gold?",
+                    "Gold moves from your wallet into the shared guild treasury.", () -> {
+                contribute.setEnabled(false);
+                contribute.setText("PROCESSING…");
+                JSONObject payload = new JSONObject();
+                try { payload.put("amount", gold); payload.put("requestId", newActionId()); }
+                catch (Exception ignored) {}
+                api.post("/api/guilds/contribute", payload, result -> ui.post(() -> {
+                    contribute.setEnabled(true);
+                    contribute.setText("CONTRIBUTE TO TREASURY");
+                    if (!result.ok()) showResultDialog("Contribution failed", result.error);
+                    else {
+                        dialog.dismiss();
+                        showResultDialog("GUILD TREASURY UPDATED",
+                                result.data.optString("message", "Contribution recorded."));
                         refreshAccount(() -> renderTab("guild"));
-                    }));
-                })).show();
+                    }
+                }));
+            });
+        });
+        dialog.setContentView(panel);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(520), getResources().getDisplayMetrics().widthPixels - dp(34)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+        }
     }
 
     private void showPlayerProfile() {
         if (me == null) return;
         android.app.Dialog dialog = new android.app.Dialog(this);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-
         LinearLayout shell = new LinearLayout(this);
         shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(20), dp(18), dp(20), dp(17));
-        shell.setBackground(gradient(Color.rgb(29, 40, 65), Color.rgb(8, 13, 26),
-                Color.rgb(155, 128, 219), dp(20)));
+        shell.setPadding(dp(18), dp(17), dp(18), dp(15));
+        shell.setBackground(gradient(Color.rgb(34, 45, 72), Color.rgb(7, 13, 27),
+                Color.rgb(157, 128, 219), dp(19)));
 
-        LinearLayout identity = new LinearLayout(this);
-        identity.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout banner = new LinearLayout(this);
+        banner.setGravity(Gravity.CENTER_VERTICAL);
+        banner.setPadding(dp(12), dp(12), dp(12), dp(12));
+        banner.setBackground(gradient(Color.rgb(62, 53, 89), Color.rgb(17, 25, 46),
+                GOLD, dp(14)));
         FrameLayout crest = new FrameLayout(this);
-        crest.setBackground(gradient(Color.rgb(246, 217, 151), Color.rgb(157, 103, 52),
-                GOLD_BRIGHT, dp(40)));
-        TextView initials = text(initials(me.optString("display_name", "CU")), 24, BG, true);
-        initials.setGravity(Gravity.CENTER);
-        crest.addView(initials, new FrameLayout.LayoutParams(-1, -1));
-        identity.addView(crest, new LinearLayout.LayoutParams(dp(68), dp(68)));
+        crest.setBackground(gradient(Color.rgb(245, 219, 159), Color.rgb(141, 98, 56),
+                GOLD_BRIGHT, dp(36)));
+        TextView initialsView = text(initials(me.optString("display_name", "CU")), 23, BG, true);
+        initialsView.setGravity(Gravity.CENTER);
+        crest.addView(initialsView, new FrameLayout.LayoutParams(-1, -1));
+        banner.addView(crest, new LinearLayout.LayoutParams(dp(66), dp(66)));
 
         LinearLayout identityCopy = new LinearLayout(this);
         identityCopy.setOrientation(LinearLayout.VERTICAL);
-        identityCopy.setPadding(dp(13), 0, 0, 0);
-        TextView kicker = text(isGodModeEnabled() ? "MASTER COLLECTOR · GOD MODE" : "CARDUNIVERSE COLLECTOR",
-                7, isGodModeEnabled() ? Color.rgb(207, 187, 255) : GOLD, true);
-        kicker.setLetterSpacing(0.12f);
-        identityCopy.addView(kicker);
-        TextView playerName = text(me.optString("display_name", "Collector"), 20, TEXT, true);
-        playerName.setMaxLines(1);
-        identityCopy.addView(playerName);
-        TextView email = text(me.optString("email", "Account email unavailable"), 9, MUTED, false);
+        identityCopy.setPadding(dp(12), 0, 0, 0);
+        identityCopy.addView(text(isGodModeEnabled() ? "MASTER COLLECTOR · GOD MODE"
+                : "FIRSTLIGHT COLLECTOR", 7, isGodModeEnabled() ? VIOLET : GOLD_BRIGHT, true));
+        TextView name = text(me.optString("display_name", "Collector"), 19, TEXT, true);
+        name.setMaxLines(1);
+        identityCopy.addView(name);
+        TextView email = text(me.optString("email", "Account email unavailable"), 8, MUTED, false);
         email.setMaxLines(1);
         identityCopy.addView(email);
-        identity.addView(identityCopy, new LinearLayout.LayoutParams(0, -2, 1f));
-        shell.addView(identity);
-
-        View divider = new View(this);
-        divider.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{GOLD, Color.argb(35, Color.red(GOLD), Color.green(GOLD), Color.blue(GOLD)), Color.TRANSPARENT}));
-        LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(-1, dp(2));
-        dividerParams.topMargin = dp(16);
-        dividerParams.bottomMargin = dp(12);
-        shell.addView(divider, dividerParams);
+        identityCopy.addView(text("LEVEL " + formatNumber(me.optLong("collector_level", 1))
+                + "  ·  " + me.optString("role", "collector").toUpperCase(java.util.Locale.ROOT),
+                7, CYAN, true));
+        banner.addView(identityCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+        shell.addView(banner);
 
         JSONObject wallet = me.optJSONObject("wallet");
         JSONObject collection = me.optJSONObject("collection");
         if (wallet == null) wallet = new JSONObject();
         if (collection == null) collection = new JSONObject();
-
+        addGap(shell, 10);
         LinearLayout stats = new LinearLayout(this);
         stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.addView(profileStat("LEVEL", formatNumber(me.optLong("collector_level", 1)), CYAN),
-                new LinearLayout.LayoutParams(0, dp(67), 1f));
-        stats.addView(profileStat("CARDS", formatNumber(collection.optLong("unique_cards")), GOLD_BRIGHT),
-                new LinearLayout.LayoutParams(0, dp(67), 1f));
-        stats.addView(profileStat("GOLD", formatNumber(wallet.optLong("coins")), Color.rgb(255, 208, 105)),
-                new LinearLayout.LayoutParams(0, dp(67), 1f));
-        LinearLayout.LayoutParams statsParams = new LinearLayout.LayoutParams(-1, dp(67));
-        statsParams.bottomMargin = dp(13);
-        shell.addView(stats, statsParams);
+        stats.addView(profileStat("UNIQUE CARDS",
+                formatNumber(collection.optLong("unique_cards")), CYAN), weightParams(1));
+        stats.addView(profileStat("TOTAL COPIES",
+                formatNumber(collection.optLong("total_cards")), GOLD_BRIGHT), weightParams(1));
+        stats.addView(profileStat("GOLD", formatNumber(wallet.optLong("coins")), GOLD), weightParams(1));
+        shell.addView(stats);
+        addGap(shell, 5);
+        LinearLayout balances = new LinearLayout(this);
+        balances.setOrientation(LinearLayout.HORIZONTAL);
+        balances.addView(profileStat("GEMS", formatNumber(wallet.optLong("gems")), VIOLET),
+                new LinearLayout.LayoutParams(0, dp(59), 1f));
+        balances.addView(profileStat("SHARDS", formatNumber(wallet.optLong("shards")), CYAN),
+                new LinearLayout.LayoutParams(0, dp(59), 1f));
+        shell.addView(balances);
 
-        TextView role = text((isAdminAccount() ? "ADMINISTRATOR ACCESS" : "PLAYER ACCOUNT")
-                + "    ·    " + me.optString("role", "collector").toUpperCase(java.util.Locale.ROOT),
-                8, isGodModeEnabled() ? Color.rgb(205, 188, 255) : MUTED, true);
-        role.setGravity(Gravity.CENTER);
-        role.setPadding(dp(9), dp(9), dp(9), dp(9));
-        role.setBackground(gradient(Color.rgb(24, 29, 51), Color.rgb(15, 19, 35),
-                Color.rgb(62, 70, 103), dp(9)));
-        shell.addView(role);
+        TextView privacy = text(isAdminAccount()
+                ? "ADMIN ACCESS  ·  GAMEPLAY MATCHMAKING IS DISABLED"
+                : "ACCOUNT DATA AND COLLECTION ARE SAVED TO CARDUNIVERSE CLOUD",
+                7, MUTED, true);
+        privacy.setGravity(Gravity.CENTER);
+        privacy.setPadding(dp(8), dp(11), dp(8), dp(4));
+        shell.addView(privacy);
 
         LinearLayout actions = new LinearLayout(this);
         actions.setGravity(Gravity.CENTER);
-        actions.setPadding(0, dp(14), 0, 0);
+        actions.setPadding(0, dp(11), 0, 0);
         TextView edit = button("EDIT PROFILE", true);
-        edit.setOnClickListener(v -> {
-            dialog.dismiss();
-            showProfileEditor();
-        });
-        actions.addView(edit, new LinearLayout.LayoutParams(0, dp(42), 1f));
-        TextView settings = button("ACCOUNT SETTINGS", false);
-        settings.setOnClickListener(v -> {
-            dialog.dismiss();
-            renderTab("settings");
-        });
-        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        edit.setOnClickListener(v -> { dialog.dismiss(); showProfileEditor(); });
+        actions.addView(edit, new LinearLayout.LayoutParams(0, dp(41), 1f));
+        TextView settings = button("SETTINGS", false);
+        settings.setOnClickListener(v -> { dialog.dismiss(); renderTab("settings"); });
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0, dp(41), 1f);
         settingsParams.leftMargin = dp(8);
         actions.addView(settings, settingsParams);
         shell.addView(actions);
 
-        TextView close = text("CLOSE PROFILE", 8, MUTED, true);
+        TextView close = text("CLOSE", 8, MUTED, true);
         close.setGravity(Gravity.CENTER);
         close.setPadding(0, dp(13), 0, 0);
         close.setOnClickListener(v -> dialog.dismiss());
@@ -5709,7 +6503,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
         Window window = dialog.getWindow();
         if (window != null) {
             window.setBackgroundDrawableResource(android.R.color.transparent);
-            window.setLayout(Math.min(dp(520), getResources().getDisplayMetrics().widthPixels - dp(36)),
+            window.setLayout(Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(36)),
                     ViewGroup.LayoutParams.WRAP_CONTENT);
             window.setWindowAnimations(android.R.style.Animation_Dialog);
         }
