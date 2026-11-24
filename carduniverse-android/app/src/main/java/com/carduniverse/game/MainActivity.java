@@ -2502,12 +2502,12 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                                 else{JSONObject step=result.data.optJSONObject("step");if(sfxEnabled&&gameAudio!=null)gameAudio.playSuccess();
                                     showResultDialog("CHAMBER RESOLVED",step==null?result.data.optString("message","Route updated."):step.optString("title","Route updated."));
                                     refreshAccount(()->renderTab("dungeons"));}
-                            })))));
+                            }))));;
                     LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,dp(112),1f);
                     rp.setMargins(dp(3),dp(3),dp(3),dp(3));routeChoices.addView(choice,rp);
                 }
                 active.addView(routeChoices);
-
+            }
             content.addView(active, rowParams());
         }
 
