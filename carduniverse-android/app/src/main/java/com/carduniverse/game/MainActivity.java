@@ -3693,7 +3693,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         GradientDrawable artBack = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{Color.rgb(24, 35, 58), Color.rgb(4, 8, 17)});
         artBack.setCornerRadius(dp(9));
-        artBack.setStroke(dp(1), Color.argb(150, accent));
+        artBack.setStroke(dp(1), Color.argb(150, Color.red(accent), Color.green(accent), Color.blue(accent)));
         artFrame.setBackground(artBack);
         artFrame.setClipToOutline(true);
         CardArtView illustration = new CardArtView(this);
