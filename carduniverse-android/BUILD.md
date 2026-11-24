@@ -18,13 +18,10 @@ Release APKs are signed with one permanent upload keystore restored from GitHub 
 
 ## One-time signing setup
 
-Add these four repository secrets in GitHub:
+Add exactly one repository secret in GitHub:
 
-- `CU_RELEASE_KEYSTORE_BASE64`: the entire contents of the private base64 file supplied with the release keystore.
-- `CU_RELEASE_KEYSTORE_PASSWORD`: keystore password.
-- `CU_RELEASE_KEY_ALIAS`: key alias.
-- `CU_RELEASE_KEY_PASSWORD`: private-key password.
+- `CU_RELEASE_KEYSTORE_BASE64`: paste the complete contents of `CU_RELEASE_KEYSTORE_BASE64.txt` from the private signing setup ZIP.
 
-Then run **Actions → Build CardUniverse Native Android APK → Run workflow**. Keep the original JKS keystore and its passwords in a secure backup. Do not commit them.
+The keystore alias and passwords are already configured in the workflow. Then run **Actions → Build CardUniverse Native Android APK → Run workflow**. Keep the original JKS keystore and the setup ZIP in a secure backup. Do not commit them.
 
 The currently installed preview APKs were signed with temporary keys. Uninstall the old preview once when moving to the first permanent-signed release; after that, new releases with the same package and signing key can install over the previous version without deleting app data or reinstalling. Player progression remains on the CardUniverse server.

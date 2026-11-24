@@ -20,11 +20,8 @@ jobs:
         id: signing
         env:
           CU_RELEASE_KEYSTORE_BASE64: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
-          CU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.CU_RELEASE_KEYSTORE_PASSWORD }}
-          CU_RELEASE_KEY_ALIAS: ${{ secrets.CU_RELEASE_KEY_ALIAS }}
-          CU_RELEASE_KEY_PASSWORD: ${{ secrets.CU_RELEASE_KEY_PASSWORD }}
         run: |
-          if [ -z "$CU_RELEASE_KEYSTORE_BASE64" ] || [ -z "$CU_RELEASE_KEYSTORE_PASSWORD" ] || [ -z "$CU_RELEASE_KEY_ALIAS" ] || [ -z "$CU_RELEASE_KEY_PASSWORD" ]; then
+          if [ -z "$CU_RELEASE_KEYSTORE_BASE64" ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::notice::APK build skipped. Add the four CU_RELEASE_* GitHub Actions secrets to enable permanent update signing."
           else
@@ -59,13 +56,11 @@ jobs:
         if: steps.signing.outputs.configured == 'true'
         env:
           CU_RELEASE_KEYSTORE_BASE64: ${{ secrets.CU_RELEASE_KEYSTORE_BASE64 }}
-          CU_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.CU_RELEASE_KEYSTORE_PASSWORD }}
-          CU_RELEASE_KEY_ALIAS: ${{ secrets.CU_RELEASE_KEY_ALIAS }}
+          CU_KEYSTORE_PASSWORD: "DLauMOvD5uYfEgdipDuvol0ON2sSI1SM7aa4OUYZ"
+          CU_KEY_ALIAS: "carduniverse-release"
         run: |
           set -euo pipefail
           export CU_KEYSTORE_PATH="$RUNNER_TEMP/carduniverse-release.jks"
-          export CU_KEYSTORE_PASSWORD="$CU_RELEASE_KEYSTORE_PASSWORD"
-          export CU_KEY_ALIAS="$CU_RELEASE_KEY_ALIAS"
           printf '%s' "$CU_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$CU_KEYSTORE_PATH"
           chmod 600 "$CU_KEYSTORE_PATH"
           keytool -list -keystore "$CU_KEYSTORE_PATH" -storepass "$CU_KEYSTORE_PASSWORD" -alias "$CU_KEY_ALIAS" >/dev/null
@@ -76,7 +71,7 @@ jobs:
       - name: Build native release APK
         if: steps.signing.outputs.configured == 'true'
         env:
-          CU_KEY_PASSWORD: ${{ secrets.CU_RELEASE_KEY_PASSWORD }}
+          CU_KEY_PASSWORD: "E9UNhjn4pzQyqhDcufjSlnRkZ9bhpYQNLi9jX6oW"
         run: gradle -p carduniverse-android :app:assembleRelease
 
       - name: Upload APK artifact
