@@ -1509,73 +1509,160 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     }
 
     private void renderAdventure(JSONObject data) {
-addModeSpotlight("FIRSTLIGHT CAMPAIGN", "A world beyond the archive", "Choose a chapter, follow the stage path and return stronger from every encounter.", "⚔", Color.rgb(255, 133, 114));
-
+        addModeSpotlight("FIRSTLIGHT CAMPAIGN", "Explore the realm. Defeat its guardians.",
+                "Clear chapters, unlock new encounters and bring home rewards from every victory.",
+                "⚔", Color.rgb(255, 133, 114));
         JSONArray chapters = data.optJSONArray("chapters");
         if (chapters == null) { renderObjectSummary(data, "ADVENTURE PROGRESS"); return; }
-        content.addView(statCard("COLLECTOR POWER", formatNumber(data.optLong("playerPower")), "Current expedition strength"));
-        addGap(content, 9);
+
+        int totalStages = 0;
+        int clearedStages = 0;
+        int readyStages = 0;
         for (int i = 0; i < chapters.length(); i++) {
             JSONObject chapter = chapters.optJSONObject(i);
             if (chapter == null) continue;
-            LinearLayout block = sectionPanel();
-            block.addView(text("CHAPTER " + (i + 1), 7, GOLD, true));
-            block.addView(text(chapter.optString("title", "Unknown chapter"), 15, TEXT, true));
-            block.addView(text(chapter.optString("description", ""), 9, MUTED, false));
-            addGap(block, 7);
             JSONArray stages = chapter.optJSONArray("stages");
-            if (stages != null) {
-                for (int j = 0; j < stages.length(); j++) {
-                    JSONObject stage = stages.optJSONObject(j);
-                    if (stage == null) continue;
-                    String slug = stage.optString("slug", "");
-                    String title = stage.optString("title", "Stage");
-                    String enemy = stage.optString("enemy_name", "Realm encounter");
-                    boolean unlocked = stage.optBoolean("unlocked");
-                    boolean cleared = stage.optBoolean("cleared");
-                    String status = cleared ? "CLEARED" : (unlocked ? "READY" : "LOCKED");
-                    String sub = enemy + "  ·  POWER " + formatNumber(stage.optLong("enemy_power"))
-                            + "  ·  REWARD " + formatNumber(stage.optLong("reward_coins")) + " GOLD";
-                    LinearLayout stageCard = dataRow(title, sub, status);
-                    if (unlocked) {
-                        TextView fight = button(cleared ? "REPLAY" : "BATTLE", true);
-                        fight.setPadding(dp(14), 0, dp(14), 0);
-                        fight.setOnClickListener(v -> confirmAction("Enter " + title + "?",
-                                "Challenge " + enemy + ". The server calculates the battle result and awards eligible rewards.", () -> {
-                            JSONObject payload = new JSONObject();
-                            try { payload.put("requestId", newActionId()); } catch (Exception ignored) {}
-                            fight.setEnabled(false);
-                            fight.setText("FIGHTING...");
-                            api.post("/api/adventure/" + slug + "/battle", payload, result -> ui.post(() -> {
-                                fight.setEnabled(true);
-                                fight.setText(cleared ? "REPLAY" : "BATTLE");
-                                if (!result.ok()) {
-                                    showResultDialog("Encounter unavailable", result.error);
-                                    return;
-                                }
-                                JSONObject run = result.data.optJSONObject("run");
-                                String resultName = run == null ? "BATTLE COMPLETE" : run.optString("result", "COMPLETE");
-                                String details = result.data.optString("message", "The encounter has ended.");
-                                if (run != null) {
-                                    details += "\n\nEnemy: " + run.optString("enemy_name", enemy)
-                                            + "\nYour power: " + formatNumber(run.optLong("player_power"))
-                                            + "\nEnemy power: " + formatNumber(run.optLong("enemy_power"))
-                                            + "\nXP: +" + formatNumber(run.optLong("reward_xp"))
-                                            + "\nGold: +" + formatNumber(run.optLong("reward_coins"));
-                                }
-                                showResultDialog("VICTORY".equalsIgnoreCase(resultName) ? "✦ VICTORY" : "ENCOUNTER RESULT", details);
-                                refreshAccount(() -> renderTab("adventure"));
-                            }));
-                        }));
-                        LinearLayout.LayoutParams fightParams = new LinearLayout.LayoutParams(dp(100), dp(34));
-                        fightParams.leftMargin = dp(8);
-                        stageCard.addView(fight, fightParams);
-                    }
-                    LinearLayout.LayoutParams stageParams = rowParams();
-                    block.addView(stageCard, stageParams);
-                }
+            if (stages == null) continue;
+            totalStages += stages.length();
+            for (int j = 0; j < stages.length(); j++) {
+                JSONObject stage = stages.optJSONObject(j);
+                if (stage == null) continue;
+                if (stage.optBoolean("cleared")) clearedStages++;
+                else if (stage.optBoolean("unlocked")) readyStages++;
             }
-            content.addView(block, rowParams());
+        }
+        LinearLayout expedition = sectionPanel();
+        expedition.setBackground(gradient(Color.rgb(84, 43, 54), Color.rgb(12, 18, 37),
+                Color.rgb(255, 130, 113), dp(17)));
+        expedition.addView(text("YOUR CAMPAIGN STATUS", 8, Color.rgb(255, 166, 148), true));
+        expedition.addView(text(formatNumber(data.optLong("playerPower")) + " POWER",
+                22, TEXT, true));
+        LinearLayout metrics = new LinearLayout(this);
+        metrics.setOrientation(LinearLayout.HORIZONTAL);
+        metrics.addView(statCard("CLEARED", clearedStages + " / " + totalStages, "Stages"), weightParams(1));
+        metrics.addView(statCard("READY", String.valueOf(readyStages), "Encounters"), weightParams(1));
+        expedition.addView(metrics);
+        ProgressBar campaignBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        campaignBar.setMax(Math.max(1, totalStages));
+        campaignBar.setProgress(clearedStages);
+        campaignBar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
+        expedition.addView(campaignBar, new LinearLayout.LayoutParams(-1, dp(8)));
+        content.addView(expedition, rowParams());
+
+        for (int i = 0; i < chapters.length(); i++) {
+            JSONObject chapter = chapters.optJSONObject(i);
+            if (chapter == null) continue;
+            JSONArray stages = chapter.optJSONArray("stages");
+            if (stages == null) stages = new JSONArray();
+            int chapterCleared = 0;
+            int chapterReady = 0;
+            for (int j = 0; j < stages.length(); j++) {
+                JSONObject stage = stages.optJSONObject(j);
+                if (stage == null) continue;
+                if (stage.optBoolean("cleared")) chapterCleared++;
+                else if (stage.optBoolean("unlocked")) chapterReady++;
+            }
+            LinearLayout chapterPanel = sectionPanel();
+            chapterPanel.setBackground(gradient(Color.rgb(45, 39, 65), Color.rgb(11, 17, 35),
+                    i % 2 == 0 ? Color.rgb(255, 132, 111) : VIOLET, dp(16)));
+            LinearLayout chapterHeading = new LinearLayout(this);
+            chapterHeading.setOrientation(LinearLayout.HORIZONTAL);
+            chapterHeading.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout crest = new FrameLayout(this);
+            crest.setBackground(gradient(Color.rgb(105, 61, 69), Color.rgb(23, 25, 49), Color.rgb(255, 147, 126), dp(11)));
+            TextView numeral = text(String.format(java.util.Locale.ROOT, "%02d", i + 1), 18, TEXT, true);
+            numeral.setGravity(Gravity.CENTER);
+            crest.addView(numeral, new FrameLayout.LayoutParams(-1, -1));
+            chapterHeading.addView(crest, new LinearLayout.LayoutParams(dp(50), dp(50)));
+            LinearLayout chapterCopy = new LinearLayout(this);
+            chapterCopy.setOrientation(LinearLayout.VERTICAL);
+            chapterCopy.setPadding(dp(10), 0, 0, 0);
+            chapterCopy.addView(text("CHAPTER " + (i + 1) + " · " + stages.length() + " STAGES",
+                    7, Color.rgb(255, 166, 148), true));
+            chapterCopy.addView(text(chapter.optString("title", "Unknown chapter"), 15, TEXT, true));
+            TextView desc = text(chapter.optString("description", ""), 8, MUTED, false);
+            desc.setMaxLines(2);
+            chapterCopy.addView(desc);
+            chapterHeading.addView(chapterCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+            chapterPanel.addView(chapterHeading);
+            ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            progress.setMax(Math.max(1, stages.length()));
+            progress.setProgress(chapterCleared);
+            progress.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
+            LinearLayout.LayoutParams progressParams = new LinearLayout.LayoutParams(-1, dp(7));
+            progressParams.topMargin = dp(9);
+            chapterPanel.addView(progress, progressParams);
+            chapterPanel.addView(text(chapterCleared + " CLEARED · " + chapterReady + " READY · "
+                    + Math.max(0, stages.length() - chapterCleared - chapterReady) + " LOCKED",
+                    7, GOLD_BRIGHT, true));
+            addGap(chapterPanel, 5);
+
+            for (int j = 0; j < stages.length(); j++) {
+                JSONObject stage = stages.optJSONObject(j);
+                if (stage == null) continue;
+                String slug = stage.optString("slug", "");
+                String title = stage.optString("title", "Stage");
+                String enemy = stage.optString("enemy_name", "Realm encounter");
+                boolean unlocked = stage.optBoolean("unlocked");
+                boolean cleared = stage.optBoolean("cleared");
+                int accent = cleared ? CYAN : unlocked ? Color.rgb(255, 166, 148) : Color.rgb(92, 105, 139);
+                LinearLayout stageCard = sectionPanel();
+                stageCard.setOrientation(LinearLayout.HORIZONTAL);
+                stageCard.setGravity(Gravity.CENTER_VERTICAL);
+                FrameLayout marker = new FrameLayout(this);
+                marker.setBackground(gradient(cleared ? Color.rgb(33, 91, 80) : unlocked
+                        ? Color.rgb(94, 51, 61) : Color.rgb(33, 40, 62),
+                        Color.rgb(12, 19, 36), accent, dp(11)));
+                TextView node = text(cleared ? "✓" : unlocked ? String.valueOf(j + 1) : "⌑", 16, accent, true);
+                node.setGravity(Gravity.CENTER);
+                marker.addView(node, new FrameLayout.LayoutParams(-1, -1));
+                stageCard.addView(marker, new LinearLayout.LayoutParams(dp(43), dp(48)));
+                LinearLayout details = new LinearLayout(this);
+                details.setOrientation(LinearLayout.VERTICAL);
+                details.setPadding(dp(9), 0, dp(5), 0);
+                details.addView(text(title, 10, TEXT, true));
+                details.addView(text(enemy + " · POWER " + formatNumber(stage.optLong("enemy_power"))
+                        + " · " + formatNumber(stage.optLong("reward_coins")) + " GOLD",
+                        7, MUTED, false));
+                stageCard.addView(details, new LinearLayout.LayoutParams(0, -2, 1f));
+                TextView status = text(cleared ? "CLEARED" : unlocked ? "READY" : "LOCKED",
+                        7, accent, true);
+                stageCard.addView(status);
+                if (unlocked) {
+                    TextView fight = button(cleared ? "REPLAY" : "BATTLE", true);
+                    fight.setOnClickListener(v -> confirmAction("Enter " + title + "?",
+                            "Challenge " + enemy + ". The server calculates the battle result and rewards.", () -> {
+                        JSONObject request = new JSONObject();
+                        try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
+                        fight.setEnabled(false);
+                        fight.setText("FIGHTING...");
+                        api.post("/api/adventure/" + slug + "/battle", request, result -> ui.post(() -> {
+                            fight.setEnabled(true);
+                            fight.setText(cleared ? "REPLAY" : "BATTLE");
+                            if (!result.ok()) { showResultDialog("Encounter unavailable", result.error); return; }
+                            JSONObject run = result.data.optJSONObject("run");
+                            String resultName = run == null ? "COMPLETE" : run.optString("result", "COMPLETE");
+                            String detailsText = result.data.optString("message", "The encounter has ended.");
+                            if (run != null) detailsText += "\n\nEnemy: " + run.optString("enemy_name", enemy)
+                                    + "\nYour power: " + formatNumber(run.optLong("player_power"))
+                                    + "\nEnemy power: " + formatNumber(run.optLong("enemy_power"))
+                                    + "\nXP: +" + formatNumber(run.optLong("reward_xp"))
+                                    + "\nGold: +" + formatNumber(run.optLong("reward_coins"));
+                            if (sfxEnabled && gameAudio != null) {
+                                if ("VICTORY".equalsIgnoreCase(resultName)) gameAudio.playSuccess();
+                                else gameAudio.playError();
+                            }
+                            showResultDialog("VICTORY".equalsIgnoreCase(resultName) ? "✦ VICTORY" : "ENCOUNTER RESULT", detailsText);
+                            refreshAccount(() -> renderTab("adventure"));
+                        }));
+                    }));
+                    LinearLayout.LayoutParams fightParams = new LinearLayout.LayoutParams(dp(88), dp(35));
+                    fightParams.leftMargin = dp(5);
+                    stageCard.addView(fight, fightParams);
+                }
+                chapterPanel.addView(stageCard, rowParams());
+            }
+            content.addView(chapterPanel, rowParams());
         }
     }
     private void renderMissions(JSONObject data) {
@@ -2251,84 +2338,256 @@ addModeSpotlight("THE CARD ARCHIVE", "Every pull has a place", "Browse the catal
     }
 
     private void renderDungeons(JSONObject data) {
-addModeSpotlight("THE DEEP VAULT", "Descend chamber by chamber", "Choose a route, manage your daily entries and claim the treasure from each expedition.", "⌘", VIOLET);
+        addModeSpotlight("THE DEEP VAULT", "Descend into the unknown",
+                "Every floor is a choice: fight for power, take the treasure route or recover before the next chamber.",
+                "⌘", VIOLET);
+        JSONArray dungeons = data.optJSONArray("dungeons");
+        JSONArray claimable = data.optJSONArray("claimableRuns");
+        JSONArray history = data.optJSONArray("history");
+        JSONObject run = data.optJSONObject("activeRun");
+        int used = data.optInt("dailyRuns");
+        int limit = data.optInt("dailyLimit", 3);
+        int remaining = Math.max(0, limit - used);
 
-        JSONArray dungeons=data.optJSONArray("dungeons"),claimable=data.optJSONArray("claimableRuns"),history=data.optJSONArray("history");
-        JSONObject run=data.optJSONObject("activeRun");
-        int used=data.optInt("dailyRuns"),limit=data.optInt("dailyLimit",3),remaining=Math.max(0,limit-used);
-        LinearLayout summary=sectionPanel();summary.addView(text("DAILY EXPEDITION LIMIT",8,GOLD,true));
-        summary.addView(text(remaining+" / "+limit+" entries remaining today",14,TEXT,true));content.addView(summary,rowParams());
-        if(run!=null){
-            JSONObject rw=run.optJSONObject("reward");if(rw==null)rw=new JSONObject();
-            boolean done="COMPLETED".equalsIgnoreCase(run.optString("result"))||"DEFEAT".equalsIgnoreCase(run.optString("result"));
-            LinearLayout p=sectionPanel();p.addView(text(done?"EXPEDITION RESULT":"ACTIVE EXPEDITION",8,GOLD,true));
-            p.addView(text(run.optString("dungeon_name","Dungeon"),18,TEXT,true));
-            p.addView(text("Floor "+run.optInt("floor_reached")+" / "+rw.optInt("max_floors",6)+" · "+(done?run.optString("result"):"Choose your next chamber"),9,MUTED,false));
-            p.addView(text(formatNumber(rw.optLong("coins"))+" Gold · "+formatNumber(rw.optLong("xp"))+" EXP · "+formatNumber(rw.optLong("shards"))+" Shards",8,GOLD_BRIGHT,true));
-            if(done){
-                TextView claim=button("CLAIM EXPEDITION REWARDS",true);
-                claim.setOnClickListener(v->api.post("/api/dungeons/runs/"+run.optString("run_id")+"/claim",new JSONObject(),x->ui.post(()->{
-                    if(!x.ok())showResultDialog("Claim failed",x.error);else{showResultDialog("EXPEDITION CLAIMED",x.data.optString("message","Rewards added."));refreshAccount(()->renderTab("dungeons"));}
-                })));
-                p.addView(claim,rowParams());
-            }else{
-                p.addView(text("CHOOSE YOUR NEXT CHAMBER",8,GOLD,true));
-                String[][] choices={{"battle","⚔ BATTLE"},{"treasure","◇ TREASURE"},{"sanctuary","✧ SANCTUARY"}};
-                for(String[] ch:choices){
-                    TextView b=button(ch[1],false);String choice=ch[0];
-                    b.setOnClickListener(v->confirmAction("Choose "+choice+"?","Your route and rewards are saved after the step.",()->api.post("/api/dungeons/runs/"+run.optString("run_id")+"/step",payload("choice",choice,"requestId",newActionId()),x->ui.post(()->{
-                        if(!x.ok())showResultDialog("Dungeon step failed",x.error);else{JSONObject step=x.data.optJSONObject("step");showResultDialog("FLOOR RESOLVED",step==null?x.data.optString("message","Route updated."):step.optString("title","Route updated."));refreshAccount(()->renderTab("dungeons"));}
-                    }))));
-                    p.addView(b,rowParams());
+        LinearLayout daily = sectionPanel();
+        daily.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(16)));
+        daily.addView(text("EXPEDITION ENERGY", 8, CYAN, true));
+        daily.addView(text(remaining + " / " + limit + " ENTRIES REMAINING TODAY", 16, TEXT, true));
+        ProgressBar energy = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        energy.setMax(Math.max(1, limit));
+        energy.setProgress(used);
+        energy.setProgressTintList(android.content.res.ColorStateList.valueOf(VIOLET));
+        daily.addView(energy, new LinearLayout.LayoutParams(-1, dp(8)));
+        content.addView(daily, rowParams());
+
+        if (run != null) {
+            JSONObject reward = run.optJSONObject("reward");
+            if (reward == null) reward = new JSONObject();
+            boolean done = "COMPLETED".equalsIgnoreCase(run.optString("result"))
+                    || "DEFEAT".equalsIgnoreCase(run.optString("result"));
+            int maxFloors = Math.max(1, reward.optInt("max_floors", 6));
+            int floor = Math.max(0, run.optInt("floor_reached"));
+            LinearLayout active = sectionPanel();
+            active.setBackground(gradient(Color.rgb(63, 42, 92), Color.rgb(11, 17, 37), PINK, dp(17)));
+            active.addView(text(done ? "EXPEDITION RESULT" : "ACTIVE EXPEDITION", 8,
+                    done ? CYAN : PINK, true));
+            active.addView(text(run.optString("dungeon_name", "Dungeon"), 19, TEXT, true));
+            active.addView(text("FLOOR " + floor + " / " + maxFloors + " · "
+                    + (done ? run.optString("result") : "CHOOSE YOUR NEXT CHAMBER"), 8, GOLD_BRIGHT, true));
+            ProgressBar floorBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            floorBar.setMax(maxFloors);
+            floorBar.setProgress(Math.min(maxFloors, floor));
+            floorBar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
+            active.addView(floorBar, new LinearLayout.LayoutParams(-1, dp(8)));
+            active.addView(text(formatNumber(reward.optLong("coins")) + " GOLD · "
+                    + formatNumber(reward.optLong("xp")) + " EXP · "
+                    + formatNumber(reward.optLong("shards")) + " SHARDS",
+                    8, CYAN, true));
+            if (done) {
+                TextView claim = button("CLAIM EXPEDITION TREASURE", true);
+                claim.setOnClickListener(v -> api.post("/api/dungeons/runs/" + run.optString("run_id") + "/claim",
+                        new JSONObject(), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Claim failed", result.error);
+                            else {
+                                if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                showResultDialog("TREASURE CLAIMED", result.data.optString("message", "Rewards added."));
+                                refreshAccount(() -> renderTab("dungeons"));
+                            }
+                        })));
+                active.addView(claim, rowParams());
+            } else {
+                content.addView(text("CHOOSE YOUR NEXT ROUTE", 8, GOLD_BRIGHT, true));
+                String[][] routes = {
+                        {"battle", "⚔", "BATTLE", "Risk the encounter for a higher reward", "FIGHT"},
+                        {"treasure", "◇", "TREASURE", "Take the vault loot route", "LOOT"},
+                        {"sanctuary", "✧", "SANCTUARY", "Recover before the next chamber", "REST"}
+                };
+                for (String[] route : routes) {
+                    LinearLayout choice = dataRow(route[1] + "  " + route[2], route[3], route[4]);
+                    choice.setOnClickListener(v -> confirmAction("Choose " + route[2] + "?",
+                            "Your route and expedition progress are saved after this step.", () ->
+                            api.post("/api/dungeons/runs/" + run.optString("run_id") + "/step",
+                                    payload("choice", route[0], "requestId", newActionId()), result -> ui.post(() -> {
+                                        if (!result.ok()) showResultDialog("Dungeon step failed", result.error);
+                                        else {
+                                            JSONObject step = result.data.optJSONObject("step");
+                                            if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                            showResultDialog("CHAMBER RESOLVED", step == null
+                                                    ? result.data.optString("message", "Route updated.")
+                                                    : step.optString("title", "Route updated."));
+                                            refreshAccount(() -> renderTab("dungeons"));
+                                        }
+                                    }))));
+                    active.addView(choice, rowParams());
                 }
             }
-            content.addView(p,rowParams());
+            content.addView(active, rowParams());
         }
-        if(dungeons!=null){
-            content.addView(text("EXPEDITION GATES",8,GOLD,true));
-            for(int i=0;i<dungeons.length();i++){
-                JSONObject d=dungeons.optJSONObject(i);if(d==null)continue;JSONObject rw=d.optJSONObject("reward");if(rw==null)rw=new JSONObject();
-                LinearLayout row=dataRow(d.optString("name","Dungeon"),d.optString("description","")+"\\nDifficulty "+d.optInt("difficulty")+" · "+rw.optInt("max_floors",6)+" floors",d.optString("slug",""));
-                TextView start=button(run!=null?"ACTIVE":remaining<=0?"LIMIT REACHED":"ENTER",true);start.setEnabled(run==null&&remaining>0);
-                start.setOnClickListener(v->confirmAction("Enter "+d.optString("name")+"?","This uses one of your daily dungeon entries.",()->api.post("/api/dungeons/"+d.optString("slug")+"/start",new JSONObject(),x->ui.post(()->{
-                    if(!x.ok())showResultDialog("Cannot enter dungeon",x.error);else refreshAccount(()->renderTab("dungeons"));
-                }))));
-                row.addView(start,new LinearLayout.LayoutParams(dp(94),dp(34)));content.addView(row,rowParams());
+
+        if (dungeons != null) {
+            content.addView(text("DUNGEON GATES · SELECT AN EXPEDITION", 8, GOLD_BRIGHT, true));
+            for (int i = 0; i < dungeons.length(); i++) {
+                JSONObject dungeon = dungeons.optJSONObject(i);
+                if (dungeon == null) continue;
+                JSONObject reward = dungeon.optJSONObject("reward");
+                if (reward == null) reward = new JSONObject();
+                LinearLayout gate = sectionPanel();
+                gate.setOrientation(LinearLayout.HORIZONTAL);
+                gate.setGravity(Gravity.CENTER_VERTICAL);
+                FrameLayout seal = new FrameLayout(this);
+                int accent = i % 2 == 0 ? VIOLET : PINK;
+                seal.setBackground(gradient(Color.rgb(65, 48, 112), Color.rgb(13, 19, 39), accent, dp(12)));
+                TextView sigil = text("⌘", 35, accent, true);
+                sigil.setGravity(Gravity.CENTER);
+                seal.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
+                gate.addView(seal, new LinearLayout.LayoutParams(dp(72), dp(82)));
+                LinearLayout details = new LinearLayout(this);
+                details.setOrientation(LinearLayout.VERTICAL);
+                details.setPadding(dp(10), 0, dp(7), 0);
+                details.addView(text("DIFFICULTY " + dungeon.optInt("difficulty") + " · "
+                        + reward.optInt("max_floors", 6) + " FLOORS", 7, accent, true));
+                details.addView(text(dungeon.optString("name", "Dungeon"), 13, TEXT, true));
+                TextView desc = text(dungeon.optString("description", ""), 8, MUTED, false);
+                desc.setMaxLines(2);
+                details.addView(desc);
+                details.addView(text(formatNumber(reward.optLong("coins")) + " GOLD · "
+                        + formatNumber(reward.optLong("xp")) + " EXP", 7, GOLD_BRIGHT, true));
+                gate.addView(details, new LinearLayout.LayoutParams(0, -2, 1f));
+                TextView enter = button(run != null ? "ACTIVE" : remaining <= 0 ? "LIMIT" : "ENTER",
+                        run == null && remaining > 0);
+                enter.setEnabled(run == null && remaining > 0);
+                enter.setOnClickListener(v -> confirmAction("Enter " + dungeon.optString("name") + "?",
+                        "This uses one of your daily expedition entries.", () ->
+                        api.post("/api/dungeons/" + dungeon.optString("slug") + "/start",
+                                new JSONObject(), result -> ui.post(() -> {
+                                    if (!result.ok()) showResultDialog("Cannot enter dungeon", result.error);
+                                    else refreshAccount(() -> renderTab("dungeons"));
+                                }))));
+                gate.addView(enter, new LinearLayout.LayoutParams(dp(75), dp(36)));
+                content.addView(gate, rowParams());
             }
         }
-        if(claimable!=null&&claimable.length()>0){content.addView(text("UNCLAIMED EXPEDITION REWARDS",8,GOLD,true));for(int i=0;i<claimable.length();i++){JSONObject item=claimable.optJSONObject(i);if(item==null)continue;TextView b=button("CLAIM · "+item.optString("dungeon_name","Expedition"),false);b.setOnClickListener(v->api.post("/api/dungeons/runs/"+item.optString("run_id")+"/claim",new JSONObject(),x->ui.post(()->{if(!x.ok())showResultDialog("Claim failed",x.error);else renderTab("dungeons");})));content.addView(b,rowParams());}}
-        if(history!=null&&history.length()>0){content.addView(text("RECENT EXPEDITIONS",8,GOLD,true));for(int i=0;i<history.length();i++){JSONObject h=history.optJSONObject(i);if(h!=null)content.addView(dataRow(h.optString("dungeon_name","Expedition"),"Floor "+h.optInt("floor_reached")+" · "+h.optString("result"),""),rowParams());}}
+
+        if (claimable != null && claimable.length() > 0) {
+            content.addView(text("UNCLAIMED TREASURE", 8, GOLD_BRIGHT, true));
+            for (int i = 0; i < claimable.length(); i++) {
+                JSONObject item = claimable.optJSONObject(i);
+                if (item == null) continue;
+                TextView claim = button("CLAIM · " + item.optString("dungeon_name", "EXPEDITION"), false);
+                claim.setOnClickListener(v -> api.post("/api/dungeons/runs/" + item.optString("run_id")
+                        + "/claim", new JSONObject(), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Claim failed", result.error);
+                            else refreshAccount(() -> renderTab("dungeons"));
+                        })));
+                content.addView(claim, rowParams());
+            }
+        }
+        if (history != null && history.length() > 0) {
+            content.addView(text("RECENT EXPEDITIONS", 8, GOLD_BRIGHT, true));
+            for (int i = 0; i < history.length(); i++) {
+                JSONObject h = history.optJSONObject(i);
+                if (h != null) content.addView(dataRow(h.optString("dungeon_name", "Expedition"),
+                        "FLOOR " + h.optInt("floor_reached") + " · " + h.optString("result"), ""), rowParams());
+            }
+        }
     }
 
     private void renderRaids(JSONObject data) {
-addModeSpotlight("WORLD BOSS · SHARED HEALTH", "Stand together against the guardian", "Each eligible strike contributes to the realm-wide battle and its reward pool.", "♜", PINK);
-
-        JSONArray bosses=data.optJSONArray("bosses");
-        if(bosses==null||bosses.length()==0){showNotice("No world raid is scheduled. Return when the next guardian awakens.");return;}
-        for(int i=0;i<bosses.length();i++){
-            JSONObject b=bosses.optJSONObject(i);if(b==null)continue;JSONObject rw=b.optJSONObject("reward");if(rw==null)rw=new JSONObject();
-            boolean live=b.optBoolean("is_event_open");
-            LinearLayout p=sectionPanel();p.addView(text("WORLD RAID · "+(b.optBoolean("defeated")?"DEFEATED":live?"EVENT LIVE":"SCHEDULED"),8,GOLD,true));
-            p.addView(text(b.optString("name","World Guardian"),19,TEXT,true));p.addView(text(b.optString("description",""),9,MUTED,false));
-            p.addView(text("BOSS HP  "+formatNumber(b.optLong("remaining_hp"))+" / "+formatNumber(b.optLong("hp")),9,GOLD_BRIGHT,true));
-            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(100);bar.setProgress(Math.max(0,Math.min(100,b.optInt("progress_percent"))));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD));
-            p.addView(bar,new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,dp(8)));
-            p.addView(text(formatNumber(b.optLong("total_damage"))+" total damage · "+formatNumber(b.optLong("participants"))+" collectors",8,MUTED,false));
-            p.addView(text("Reward: "+formatNumber(rw.optLong("coins"))+" Gold · "+formatNumber(rw.optLong("xp"))+" EXP · "+formatNumber(rw.optLong("shards"))+" Shards",8,GOLD_BRIGHT,true));
-            if(live&&!b.optBoolean("defeated")){
-                TextView attack=button(b.optLong("my_today_damage")>0?"DAILY STRIKE USED":"STRIKE WORLD BOSS",true);attack.setEnabled(b.optLong("my_today_damage")<=0);
-                attack.setOnClickListener(v->confirmAction("Strike "+b.optString("name")+"?","Your formation power determines damage. One strike per day.",()->api.post("/api/raids/"+b.optString("slug")+"/attack",payload("requestId",newActionId()),x->ui.post(()->{
-                    if(!x.ok())showResultDialog("Raid strike failed",x.error);else{JSONObject a=x.data.optJSONObject("attempt");showResultDialog("WORLD RAID STRIKE","Damage dealt: "+(a==null?"—":formatNumber(a.optLong("damage"))));refreshAccount(()->renderTab("raids"));}
-                }))));
-                p.addView(attack,rowParams());
+        addModeSpotlight("WORLD BOSS · SHARED HEALTH POOL", "The whole realm fights as one",
+                "Deal your daily damage, watch the guardian's shared HP fall and claim rewards when your contribution qualifies.",
+                "♜", PINK);
+        JSONArray bosses = data.optJSONArray("bosses");
+        if (bosses == null || bosses.length() == 0) {
+            showNotice("No world raid is scheduled. Return when the next guardian awakens.");
+            return;
+        }
+        for (int i = 0; i < bosses.length(); i++) {
+            JSONObject boss = bosses.optJSONObject(i);
+            if (boss == null) continue;
+            JSONObject reward = boss.optJSONObject("reward");
+            if (reward == null) reward = new JSONObject();
+            boolean live = boss.optBoolean("is_event_open");
+            boolean defeated = boss.optBoolean("defeated");
+            int accent = defeated ? CYAN : live ? PINK : GOLD_BRIGHT;
+            LinearLayout panel = sectionPanel();
+            panel.setBackground(gradient(Color.rgb(70, 35, 72), Color.rgb(11, 17, 36), accent, dp(18)));
+            LinearLayout header = new LinearLayout(this);
+            header.setOrientation(LinearLayout.HORIZONTAL);
+            header.setGravity(Gravity.CENTER_VERTICAL);
+            FrameLayout portrait = new FrameLayout(this);
+            portrait.setBackground(gradient(Color.rgb(105, 52, 89), Color.rgb(24, 21, 49), accent, dp(15)));
+            TextView crest = text("♜", 43, accent, true);
+            crest.setGravity(Gravity.CENTER);
+            portrait.addView(crest, new FrameLayout.LayoutParams(-1, -1));
+            header.addView(portrait, new LinearLayout.LayoutParams(dp(86), dp(92)));
+            LinearLayout title = new LinearLayout(this);
+            title.setOrientation(LinearLayout.VERTICAL);
+            title.setPadding(dp(12), 0, 0, 0);
+            title.addView(text("WORLD RAID · " + (defeated ? "DEFEATED" : live ? "LIVE ENCOUNTER" : "SCHEDULED"),
+                    7, accent, true));
+            title.addView(text(boss.optString("name", "World Guardian"), 18, TEXT, true));
+            TextView description = text(boss.optString("description", ""), 8, MUTED, false);
+            description.setMaxLines(3);
+            title.addView(description);
+            header.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+            panel.addView(header);
+            addGap(panel, 6);
+            LinearLayout hpInfo = new LinearLayout(this);
+            hpInfo.setGravity(Gravity.CENTER_VERTICAL);
+            hpInfo.addView(text("GUARDIAN HP", 8, accent, true),
+                    new LinearLayout.LayoutParams(0, -2, 1f));
+            hpInfo.addView(text(formatNumber(boss.optLong("remaining_hp")) + " / "
+                    + formatNumber(boss.optLong("hp")), 9, TEXT, true));
+            panel.addView(hpInfo);
+            ProgressBar hp = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            hp.setMax(100);
+            hp.setProgress(Math.max(0, Math.min(100, boss.optInt("progress_percent"))));
+            hp.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+            panel.addView(hp, new LinearLayout.LayoutParams(-1, dp(9)));
+            LinearLayout contributions = new LinearLayout(this);
+            contributions.setOrientation(LinearLayout.HORIZONTAL);
+            contributions.addView(statCard("TOTAL DAMAGE", formatNumber(boss.optLong("total_damage")), "Realm contribution"), weightParams(1));
+            contributions.addView(statCard("PARTICIPANTS", formatNumber(boss.optLong("participants")), "Collectors"), weightParams(1));
+            contributions.addView(statCard("YOUR DAMAGE", formatNumber(boss.optLong("my_today_damage")), "Today"), weightParams(1));
+            panel.addView(contributions);
+            panel.addView(text("REWARD POOL · " + formatNumber(reward.optLong("coins")) + " GOLD · "
+                    + formatNumber(reward.optLong("xp")) + " EXP · "
+                    + formatNumber(reward.optLong("shards")) + " SHARDS",
+                    8, GOLD_BRIGHT, true));
+            if (live && !defeated) {
+                TextView attack = button(boss.optLong("my_today_damage") > 0
+                        ? "DAILY STRIKE USED" : "⚔ STRIKE THE GUARDIAN",
+                        boss.optLong("my_today_damage") <= 0);
+                attack.setEnabled(boss.optLong("my_today_damage") <= 0);
+                attack.setOnClickListener(v -> confirmAction("Strike " + boss.optString("name") + "?",
+                        "Your formation power determines the damage. One strike is allowed per day.", () ->
+                        api.post("/api/raids/" + boss.optString("slug") + "/attack",
+                                payload("requestId", newActionId()), result -> ui.post(() -> {
+                                    if (!result.ok()) showResultDialog("Raid strike failed", result.error);
+                                    else {
+                                        JSONObject attempt = result.data.optJSONObject("attempt");
+                                        if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                        showResultDialog("WORLD RAID STRIKE", "Damage dealt: "
+                                                + (attempt == null ? "—" : formatNumber(attempt.optLong("damage"))));
+                                        refreshAccount(() -> renderTab("raids"));
+                                    }
+                                }))));
+                panel.addView(attack, rowParams());
             }
-            if(b.optBoolean("my_claimable")){
-                TextView claim=button("CLAIM RAID REWARDS",false);claim.setOnClickListener(v->api.post("/api/raids/"+b.optString("slug")+"/claim",new JSONObject(),x->ui.post(()->{
-                    if(!x.ok())showResultDialog("Raid claim failed",x.error);else{showResultDialog("REWARDS CLAIMED",x.data.optString("message","Rewards added."));refreshAccount(()->renderTab("raids"));}
-                })));
-                p.addView(claim,rowParams());
+            if (boss.optBoolean("my_claimable")) {
+                TextView claim = button("CLAIM RAID REWARDS", false);
+                claim.setOnClickListener(v -> api.post("/api/raids/" + boss.optString("slug") + "/claim",
+                        new JSONObject(), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("Raid claim failed", result.error);
+                            else {
+                                if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                                showResultDialog("REWARDS CLAIMED", result.data.optString("message", "Rewards added."));
+                                refreshAccount(() -> renderTab("raids"));
+                            }
+                        })));
+                panel.addView(claim, rowParams());
             }
-            content.addView(p,rowParams());
+            content.addView(panel, rowParams());
         }
     }
 
