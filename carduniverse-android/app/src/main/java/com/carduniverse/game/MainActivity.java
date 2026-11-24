@@ -2346,6 +2346,7 @@ addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", 
             }).show();
     }
 
+
     private void renderEvolution(JSONObject data) {
         JSONObject wallet = data.optJSONObject("wallet");
         if (wallet == null) wallet = new JSONObject();
@@ -2359,6 +2360,7 @@ addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", 
         money.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Awakening"), weightParams(1));
         content.addView(money);
         addGap(content, 9);
+        final JSONObject walletSnapshot = wallet;
         JSONArray cards = data.optJSONArray("cards");
         if (cards == null || cards.length() == 0) {
             showNotice("No cards are ready for evolution. Collect cards from Summon Hall first.");
@@ -2396,7 +2398,7 @@ addModeSpotlight("COLLECTOR EXCHANGE", "Make a fair offer. Complete the deal.", 
             copy.addView(text(card.optInt("copies_available") + " EVOLUTION COPIES READY", 7, CYAN, true));
             row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
             TextView ascend = button("ASCEND", true);
-            ascend.setOnClickListener(v -> showEvolutionCardDialog(card, wallet));
+            ascend.setOnClickListener(v -> showEvolutionCardDialog(card, walletSnapshot));
             row.addView(ascend, new LinearLayout.LayoutParams(dp(86), dp(37)));
             row.setOnClickListener(v -> showEvolutionCardDialog(card, wallet));
             content.addView(row, rowParams());
