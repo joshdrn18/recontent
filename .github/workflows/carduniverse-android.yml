@@ -67,10 +67,10 @@ jobs:
               handle.write(raw)
           os.chmod(os.environ["CU_KEYSTORE_PATH"], 0o600)
           with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write("CU_KEYSTORE_PASSWORD=" + bundle["storePassword"] + "\\n")
-              env.write("CU_KEY_ALIAS=" + bundle["keyAlias"] + "\\n")
-              env.write("CU_KEY_PASSWORD=" + bundle["keyPassword"] + "\\n")
-              env.write("CU_KEYSTORE_PATH=" + os.environ["CU_KEYSTORE_PATH"] + "\\n")
+              env.write("CU_KEYSTORE_PASSWORD=" + bundle["storePassword"] + "\n")
+              env.write("CU_KEY_ALIAS=" + bundle["keyAlias"] + "\n")
+              env.write("CU_KEY_PASSWORD=" + bundle["keyPassword"] + "\n")
+              env.write("CU_KEYSTORE_PATH=" + os.environ["CU_KEYSTORE_PATH"] + "\n")
           PY
           keytool -list -keystore "$CU_KEYSTORE_PATH" -storepass "$(python3 -c 'import json,os; print(json.loads(os.environ["CU_RELEASE_SIGNING_BUNDLE"])["storePassword"])')" -alias "$(python3 -c 'import json,os; print(json.loads(os.environ["CU_RELEASE_SIGNING_BUNDLE"])["keyAlias"])')" >/dev/null
 
