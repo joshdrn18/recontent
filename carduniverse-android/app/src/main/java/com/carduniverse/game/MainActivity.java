@@ -4816,7 +4816,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
         View divider = new View(this);
         divider.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{GOLD, Color.argb(35, GOLD), Color.TRANSPARENT}));
+                new int[]{GOLD, Color.argb(35, Color.red(GOLD), Color.green(GOLD), Color.blue(GOLD)), Color.TRANSPARENT}));
         LinearLayout.LayoutParams dividerParams = new LinearLayout.LayoutParams(-1, dp(2));
         dividerParams.topMargin = dp(16);
         dividerParams.bottomMargin = dp(12);
