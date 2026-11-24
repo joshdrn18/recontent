@@ -83,8 +83,8 @@ jobs:
         run: |
           set -euo pipefail
           cp carduniverse-android/app/build/outputs/apk/release/app-release.apk CardUniverse-v2.10.0.apk
-          apksigner verify --verbose CardUniverse-v2.10.0.apk
-          aapt dump badging CardUniverse-v2.10.0.apk | grep -F "package: name='com.carduniverse.game' versionCode='14' versionName='2.10.0'"
+          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose CardUniverse-v2.10.0.apk
+          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging CardUniverse-v2.10.0.apk | grep -F "package: name='com.carduniverse.game' versionCode='14' versionName='2.10.0'"
 
       - name: Upload APK artifact
         if: steps.signing.outputs.configured == 'true'
