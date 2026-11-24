@@ -45,6 +45,7 @@ public final class ApiClient {
 
     public void get(String path, Callback callback) { request("GET", path, null, callback); }
     public void post(String path, JSONObject body, Callback callback) { request("POST", path, body, callback); }
+    public void put(String path, JSONObject body, Callback callback) { request("PUT", path, body, callback); }
     // Android HttpURLConnection does not permit PATCH; the Worker accepts POST as a profile-update alias.
     public void patch(String path, JSONObject body, Callback callback) { request("POST", path, body, callback); }
     public void delete(String path, Callback callback) { request("DELETE", path, null, callback); }

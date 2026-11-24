@@ -876,6 +876,17 @@ public final class MainActivity extends Activity {
                     }
                     renderModule(tab, result.data);
                 }));
+            } else if ("formation".equals(tab)) {
+                api.get("/api/decks", deckResult -> ui.post(() -> {
+                    if (!"formation".equals(activeTab) || content == null) return;
+                    if (deckResult.ok()) {
+                        try { result.data.put("decks", deckResult.data.optJSONArray("decks")); }
+                        catch (Exception ignored) {}
+                    } else {
+                        showResultDialog("TEAM DECKS UNAVAILABLE", deckResult.error);
+                    }
+                    renderModule(tab, result.data);
+                }));
             } else {
                 renderModule(tab, result.data);
             }
@@ -1200,7 +1211,9 @@ public final class MainActivity extends Activity {
                         try { request.put("requestId", newActionId()); } catch (Exception ignored) {}
                         open.setEnabled(false);
                         open.setText("OPENING...");
+                        android.app.Dialog openingScene = showSummonOpeningDialog(name);
                         api.post("/api/packs/" + slug + "/open", request, result -> ui.post(() -> {
+                            if (openingScene.isShowing()) openingScene.dismiss();
                             open.setEnabled(true);
                             open.setText("OPEN SEAL");
                             if (!result.ok()) {
@@ -2755,7 +2768,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         featuredFrame.setClipToOutline(true);
         if (featured != null) {
             CardArtView featuredArt = new CardArtView(this);
-            featuredArt.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            featuredArt.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
             featuredArt.loadArtwork(cardArtworkPath(featured));
             featuredFrame.addView(featuredArt, new FrameLayout.LayoutParams(-1, -1));
             View featuredShade = new View(this);
@@ -3281,7 +3294,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         artFrame.setBackground(artBack);
         artFrame.setClipToOutline(true);
         CardArtView illustration = new CardArtView(this);
-        illustration.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
         illustration.loadArtwork(cardArtworkPath(card));
         artFrame.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
 
@@ -3408,7 +3421,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         FrameLayout artFrame = new FrameLayout(this);
         artFrame.setBackground(gradient(Color.rgb(22, 35, 52), Color.rgb(5, 10, 18), accent, dp(11)));
         CardArtView art = new CardArtView(this);
-        art.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        art.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
         art.loadArtwork(cardArtworkPath(card));
         FrameLayout.LayoutParams ap = new FrameLayout.LayoutParams(-1, -1);
         ap.setMargins(dp(3), dp(3), dp(3), dp(3));
@@ -4302,7 +4315,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             art.setBackground(gradient(Color.rgb(25, 34, 54), Color.rgb(7, 11, 22), accent, dp(8)));
             art.setClipToOutline(true);
             CardArtView illustration = new CardArtView(this);
-            illustration.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
             illustration.loadArtwork(cardArtworkPath(listing));
             art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
             View shade = new View(this);
@@ -4615,10 +4628,12 @@ private void showTradeCreateDialog(JSONArray inventory) {
     private void renderFormation(JSONObject data) {
         JSONArray cards = data.optJSONArray("cards");
         JSONArray saved = data.optJSONArray("formation");
+        JSONArray decks = data.optJSONArray("decks");
         if (cards == null) cards = new JSONArray();
         if (saved == null) saved = new JSONArray();
+        if (decks == null) decks = new JSONArray();
         if (cards.length() == 0) {
-            showNotice("Collect at least one card before building a formation.");
+            showNotice("Collect at least one card before building a team.");
             return;
         }
 
@@ -4627,6 +4642,26 @@ private void showTradeCreateDialog(JSONArray inventory) {
             JSONObject slot = saved.optJSONObject(i);
             if (slot != null) savedSlots.put(slot.optInt("slot_no"), slot.optString("card_id"));
         }
+        ArrayList<JSONObject> deckItems = new ArrayList<>();
+        JSONObject activeDeck = null;
+        for (int i = 0; i < decks.length(); i++) {
+            JSONObject deck = decks.optJSONObject(i);
+            if (deck == null) continue;
+            deckItems.add(deck);
+            if (deck.optInt("is_active") == 1) activeDeck = deck;
+        }
+        if (activeDeck != null) {
+            JSONArray activeCards = activeDeck.optJSONArray("cards");
+            if (activeCards != null) {
+                savedSlots.clear();
+                for (int i = 0; i < Math.min(5, activeCards.length()); i++) {
+                    String cardId = activeCards.optString(i, "");
+                    if (!cardId.isEmpty()) savedSlots.put(i + 1, cardId);
+                }
+            }
+        }
+        final String activeDeckName = activeDeck == null
+                ? "Main Deck" : activeDeck.optString("name", "Main Deck");
 
         String[] labels = new String[cards.length() + 1];
         String[] ids = new String[cards.length() + 1];
@@ -4645,6 +4680,58 @@ private void showTradeCreateDialog(JSONArray inventory) {
                     + card.optString("rarity", "COMMON") + " ×" + card.optInt("owned_count");
             if (!id.isEmpty()) cardsById.put(id, card);
         }
+
+        LinearLayout deckPanel = sectionPanel();
+        deckPanel.setBackground(gradient(Color.rgb(38, 39, 67), Color.rgb(9, 15, 29),
+                Color.rgb(147, 123, 220), dp(12)));
+        deckPanel.addView(text("SAVED TEAM DECKS", 8, GOLD_BRIGHT, true));
+        deckPanel.addView(text("Keep separate lineups and switch between them without rebuilding your team.",
+                8, MUTED, false));
+        String[] deckNames = new String[Math.max(1, deckItems.size())];
+        String[] deckIds = new String[Math.max(1, deckItems.size())];
+        int selectedDeck = 0;
+        for (int i = 0; i < deckItems.size(); i++) {
+            JSONObject deck = deckItems.get(i);
+            deckNames[i] = deck.optString("name", "Team Deck " + (i + 1));
+            deckIds[i] = deck.optString("deck_id", "");
+            if (deck.optInt("is_active") == 1) selectedDeck = i;
+        }
+        if (deckItems.isEmpty()) {
+            deckNames[0] = "Main Deck";
+            deckIds[0] = "";
+        }
+        Spinner deckSelector = new Spinner(this);
+        ArrayAdapter<String> deckAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, deckNames);
+        deckAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        deckSelector.setAdapter(deckAdapter);
+        deckSelector.setSelection(selectedDeck);
+        LinearLayout.LayoutParams selectorParams = new LinearLayout.LayoutParams(-1, dp(42));
+        selectorParams.topMargin = dp(7);
+        deckPanel.addView(deckSelector, selectorParams);
+        EditText deckName = editField("Deck name (e.g. Fire Team, Arena Team)", false);
+        deckName.setSingleLine(true);
+        deckName.setText(activeDeckName);
+        LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(-1, dp(42));
+        nameParams.topMargin = dp(7);
+        deckPanel.addView(deckName, nameParams);
+
+        LinearLayout deckActions = new LinearLayout(this);
+        deckActions.setOrientation(LinearLayout.HORIZONTAL);
+        TextView saveDeck = button("SAVE DECK", true);
+        TextView saveAs = button("SAVE AS NEW", false);
+        LinearLayout.LayoutParams deckButtonParams = new LinearLayout.LayoutParams(0, dp(39), 1f);
+        deckButtonParams.setMargins(0, dp(7), dp(4), 0);
+        deckActions.addView(saveDeck, deckButtonParams);
+        LinearLayout.LayoutParams newButtonParams = new LinearLayout.LayoutParams(0, dp(39), 1f);
+        newButtonParams.setMargins(dp(4), dp(7), 0, 0);
+        deckActions.addView(saveAs, newButtonParams);
+        deckPanel.addView(deckActions);
+        TextView deleteDeck = button("DELETE SELECTED DECK", false);
+        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(-1, dp(34));
+        deleteParams.topMargin = dp(6);
+        deckPanel.addView(deleteDeck, deleteParams);
+        content.addView(deckPanel, rowParams());
 
         LinearLayout power = sectionPanel();
         power.setOrientation(LinearLayout.HORIZONTAL);
@@ -4673,7 +4760,6 @@ private void showTradeCreateDialog(JSONArray inventory) {
         LinearLayout grid = new LinearLayout(this);
         grid.setOrientation(LinearLayout.HORIZONTAL);
         Spinner[] slots = new Spinner[5];
-
         for (int i = 0; i < 5; i++) {
             LinearLayout panel = new LinearLayout(this);
             panel.setOrientation(LinearLayout.VERTICAL);
@@ -4717,7 +4803,6 @@ private void showTradeCreateDialog(JSONArray inventory) {
                     break;
                 }
             }
-            final int slotIndex = i;
             spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
@@ -4738,40 +4823,119 @@ private void showTradeCreateDialog(JSONArray inventory) {
                     ? ids[spinner.getSelectedItemPosition()] : "";
             updateFormationCardPreview(cardsById.get(initialId), art, illustration, sigil, cardName, cardMeta);
         }
-
         content.addView(grid);
-        TextView save = button("SAVE FORMATION", true);
-        save.setOnClickListener(v -> {
+
+        final boolean[] selectorReady = {false};
+        deckSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                if (!selectorReady[0]) { selectorReady[0] = true; return; }
+                if (position < 0 || position >= deckIds.length || deckIds[position].isEmpty()) return;
+                String targetId = deckIds[position];
+                api.post("/api/decks/" + Uri.encode(targetId) + "/activate", new JSONObject(), result -> ui.post(() -> {
+                    if (!result.ok()) {
+                        showResultDialog("TEAM SWITCH FAILED", result.error);
+                        return;
+                    }
+                    renderTab("formation");
+                }));
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        Runnable collectAndSave = () -> {
             JSONArray chosen = new JSONArray();
             java.util.HashSet<String> unique = new java.util.HashSet<>();
             for (Spinner spinner : slots) {
                 int index = spinner.getSelectedItemPosition();
-                String id = index >= 0 && index < ids.length ? ids[index] : "";
-                if (id.isEmpty()) continue;
-                if (!unique.add(id)) {
-                    showResultDialog("Duplicate selection",
-                            "Each card can only occupy one formation slot.");
+                String cardId = index >= 0 && index < ids.length ? ids[index] : "";
+                if (cardId.isEmpty()) continue;
+                if (!unique.add(cardId)) {
+                    showResultDialog("DUPLICATE CARD",
+                            "Each card can only occupy one team position.");
                     return;
                 }
-                chosen.put(id);
+                chosen.put(cardId);
             }
-            save.setEnabled(false);
-            save.setText("SAVING...");
-            api.post("/api/formation", payload("cards", chosen), result -> ui.post(() -> {
-                save.setEnabled(true);
-                save.setText("SAVE FORMATION");
-                if (!result.ok()) {
-                    showResultDialog("Formation not saved", result.error);
-                } else {
-                    showResultDialog("FORMATION SAVED",
-                            "Effective power: " + formatNumber(result.data.optLong("power")));
-                    refreshAccount(() -> renderTab("formation"));
+            String name = deckName.getText().toString().trim();
+            if (name.isEmpty()) {
+                deckName.setError("Enter a deck name.");
+                return;
+            }
+            JSONObject target = deckItems.isEmpty() ? null : deckItems.get(Math.max(0,
+                    Math.min(deckItems.size() - 1, deckSelector.getSelectedItemPosition())));
+            if (target == null || target.optString("deck_id", "").isEmpty()) {
+                api.post("/api/decks", payload("name", name, "cards", chosen), result ->
+                        ui.post(() -> {
+                            if (!result.ok()) showResultDialog("DECK NOT SAVED", result.error);
+                            else {
+                                showResultDialog("NEW DECK SAVED", result.data.optString("message",
+                                        "Your deck was saved and activated."));
+                                renderTab("formation");
+                            }
+                        }));
+            } else {
+                String deckId = target.optString("deck_id", "");
+                api.put("/api/decks/" + Uri.encode(deckId),
+                        payload("name", name, "cards", chosen), result -> ui.post(() -> {
+                            if (!result.ok()) showResultDialog("DECK NOT SAVED", result.error);
+                            else {
+                                showResultDialog("DECK SAVED", result.data.optString("message",
+                                        "Your team deck was saved."));
+                                renderTab("formation");
+                            }
+                        }));
+            }
+        };
+        saveDeck.setOnClickListener(v -> collectAndSave.run());
+        saveAs.setOnClickListener(v -> {
+            JSONArray chosen = new JSONArray();
+            java.util.HashSet<String> unique = new java.util.HashSet<>();
+            for (Spinner spinner : slots) {
+                int index = spinner.getSelectedItemPosition();
+                String cardId = index >= 0 && index < ids.length ? ids[index] : "";
+                if (cardId.isEmpty()) continue;
+                if (!unique.add(cardId)) {
+                    showResultDialog("DUPLICATE CARD",
+                            "Each card can only occupy one team position.");
+                    return;
+                }
+                chosen.put(cardId);
+            }
+            String name = deckName.getText().toString().trim();
+            if (name.isEmpty()) {
+                deckName.setError("Enter a name for the new deck.");
+                return;
+            }
+            if (name.equalsIgnoreCase(activeDeckName)) name = name + " Copy";
+            final String newName = name;
+            saveAs.setEnabled(false);
+            api.post("/api/decks", payload("name", newName, "cards", chosen), result -> ui.post(() -> {
+                saveAs.setEnabled(true);
+                if (!result.ok()) showResultDialog("NEW DECK NOT SAVED", result.error);
+                else {
+                    showResultDialog("NEW DECK SAVED", result.data.optString("message",
+                            "Your new team deck was saved and activated."));
+                    renderTab("formation");
                 }
             }));
         });
-        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(dp(190), dp(40));
-        saveParams.topMargin = dp(10);
-        content.addView(save, saveParams);
+        deleteDeck.setEnabled(deckItems.size() > 1);
+        deleteDeck.setOnClickListener(v -> {
+            int position = deckSelector.getSelectedItemPosition();
+            if (position < 0 || position >= deckIds.length || deckIds[position].isEmpty()) return;
+            String deckId = deckIds[position];
+            String name = deckNames[position];
+            confirmAction("Delete " + name + "?",
+                    "This removes only the saved deck. Your cards and collection remain untouched.",
+                    () -> api.delete("/api/decks/" + Uri.encode(deckId), result -> ui.post(() -> {
+                        if (!result.ok()) showResultDialog("DECK NOT DELETED", result.error);
+                        else {
+                            showResultDialog("DECK DELETED", result.data.optString("message",
+                                    "The saved deck was removed."));
+                            renderTab("formation");
+                        }
+                    })));
+        });
     }
 
     private void updateFormationCardPreview(JSONObject card, FrameLayout art,
@@ -4964,7 +5128,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
 
         if (selected && cards != null && cards.length() > 0 && cards.optJSONObject(0) != null) {
             CardArtView art = new CardArtView(this);
-            art.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            art.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
             art.setAlpha(0.88f);
             art.loadArtwork(cardArtworkPath(cards.optJSONObject(0)));
             FrameLayout.LayoutParams artParams = new FrameLayout.LayoutParams(-1, -1);
@@ -5853,6 +6017,52 @@ private void showTradeCreateDialog(JSONArray inventory) {
         }
     }
 
+    private android.app.Dialog showSummonOpeningDialog(String packName) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = new LinearLayout(this);
+        shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setGravity(Gravity.CENTER);
+        shell.setPadding(dp(24), dp(22), dp(24), dp(22));
+        shell.setBackground(gradient(Color.rgb(29, 27, 65), Color.rgb(5, 10, 24),
+                Color.rgb(155, 125, 238), dp(18)));
+        FrameLayout seal = createSummonSeal(GOLD_BRIGHT, "✦", 142);
+        shell.addView(seal, new LinearLayout.LayoutParams(dp(142), dp(142)));
+        TextView title = text("ASTRAL GATE OPENING", 15, TEXT, true);
+        title.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams titleParams = new LinearLayout.LayoutParams(-1, -2);
+        titleParams.topMargin = dp(17);
+        shell.addView(title, titleParams);
+        TextView detail = text("The seal is breaking. Your cards are crossing the veil…",
+                9, MUTED, false);
+        detail.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams detailParams = new LinearLayout.LayoutParams(-1, -2);
+        detailParams.topMargin = dp(6);
+        shell.addView(detail, detailParams);
+        TextView pack = text(String.valueOf(packName).toUpperCase(java.util.Locale.ROOT),
+                8, GOLD_BRIGHT, true);
+        pack.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams packParams = new LinearLayout.LayoutParams(-1, -2);
+        packParams.topMargin = dp(12);
+        shell.addView(pack, packParams);
+        dialog.setContentView(shell);
+        dialog.setCancelable(false);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(420), getResources().getDisplayMetrics().widthPixels - dp(42)),
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            window.setWindowAnimations(android.R.style.Animation_Dialog);
+        }
+        if (!reduceMotionEnabled) {
+            seal.animate().rotationBy(360f).scaleX(1.07f).scaleY(1.07f)
+                    .setDuration(900L).withEndAction(() ->
+                            seal.animate().scaleX(1f).scaleY(1f).setDuration(220L).start()).start();
+        }
+        return dialog;
+    }
+
     private void showPackRevealDialog(JSONArray cards) {
         if (cards == null || cards.length() == 0) {
             showResultDialog("PACK OPENED", "Your collection has been updated.");
@@ -5939,9 +6149,9 @@ private void showTradeCreateDialog(JSONArray inventory) {
             for (int i = 0; i < revealTiles.size(); i++) {
                 View tile = revealTiles.get(i);
                 tile.postDelayed(() -> tile.animate().alpha(1f).rotationY(0f)
-                        .scaleX(1f).scaleY(1f).setDuration(430L)
+                        .scaleX(1f).scaleY(1f).setDuration(340L)
                         .setInterpolator(new android.view.animation.DecelerateInterpolator()).start(),
-                        110L + i * 150L);
+                        70L + i * 85L);
             }
             seal.animate().rotationBy(180f).scaleX(1.13f).scaleY(1.13f)
                     .setDuration(480L).withEndAction(() ->
@@ -5964,7 +6174,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
         FrameLayout art = new FrameLayout(this);
         art.setBackgroundColor(Color.rgb(7, 12, 22));
         CardArtView image = new CardArtView(this);
-        image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+        image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
         image.loadArtwork(cardArtworkPath(card));
         art.addView(image, new FrameLayout.LayoutParams(-1, -1));
         TextView badge = text(rarity, 7, Color.WHITE, true);
@@ -6695,7 +6905,7 @@ private void showTradeCreateDialog(JSONArray inventory) {
         switch (tab) {
             case "collection": return "The Card Archive";
             case "binders": return "Collector Binders";
-            case "formation": return "Battle Formation";
+            case "formation": return "Team Decks";
             case "evolution": return "Evolution Forge";
             case "dungeons": return "Roguelike Dungeon";
             case "raids": return "World Boss Raid";
