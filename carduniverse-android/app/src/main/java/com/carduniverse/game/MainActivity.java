@@ -85,6 +85,13 @@ public final class MainActivity extends Activity {
     private boolean syncingAccount = false;
     private boolean compactLayout = false;
     private boolean showingAuth = false;
+    private String activeChatChannel = "WORLD";
+    private LinearLayout chatMessagesPanel;
+    private ScrollView chatScroll;
+    private TextView chatStatus;
+    private TextView chatWorldButton;
+    private TextView chatTradeButton;
+    private EditText chatComposer;
     private long lastAutoSyncAt = 0L;
     private static final long AUTO_SYNC_INTERVAL_MS = 60_000L;
     private final Runnable autoSyncTick = new Runnable() {
@@ -92,6 +99,14 @@ public final class MainActivity extends Activity {
             if (!isFinishing() && api != null && me != null && appRoot != null) {
                 syncWithSharedBackend(false);
                 ui.postDelayed(this, AUTO_SYNC_INTERVAL_MS);
+            }
+        }
+    };
+
+    private final Runnable chatRefreshTick = new Runnable() {
+        @Override public void run() {
+            if ("chat".equals(activeTab) && !isFinishing()) {
+                loadChatMessages(activeChatChannel, false);
             }
         }
     };
@@ -441,6 +456,7 @@ public final class MainActivity extends Activity {
                 {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
                 {"trades", "⇄", "TRADES"},
+                {"chat", "◉", "CHAT"},
                 {"missions", "☷", "MISSIONS"},
                 {"shop", "♢", "SHOP"},
                 {"inbox", "✉", "INBOX"},
@@ -763,7 +779,7 @@ public final class MainActivity extends Activity {
         return "collection".equals(tab) || "binders".equals(tab) || "achievements".equals(tab)
                 || "summon".equals(tab) || "adventure".equals(tab) || "dungeons".equals(tab)
                 || "raids".equals(tab) || "arena".equals(tab) || "trades".equals(tab)
-                || "shop".equals(tab) || "guild".equals(tab) || "missions".equals(tab)
+                || "chat".equals(tab) || "shop".equals(tab) || "guild".equals(tab) || "missions".equals(tab)
                 || "progression".equals(tab);
     }
 
@@ -776,6 +792,7 @@ public final class MainActivity extends Activity {
     }
 
     private void renderTab(String tab) {
+        ui.removeCallbacks(chatRefreshTick);
         activeTab = tab;
         refreshNav();
         String title = tab.toUpperCase().replace("_", " ");
@@ -1024,6 +1041,7 @@ public final class MainActivity extends Activity {
             case "dungeons": renderDungeons(data); break;
             case "raids": renderRaids(data); break;
             case "trades": renderTrades(data); break;
+            case "chat": renderChat(data); break;
             case "achievements": renderAchievements(data); break;
             case "progression": renderProgression(data); break;
             case "events": renderEvents(data); break;
@@ -2868,6 +2886,13 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             top.addView(status);
             card.addView(top);
             card.addView(text(counterparty, 14, TEXT, true));
+            JSONObject publicListing = trade.optJSONObject("publicListing");
+            if (publicListing != null) {
+                card.addView(text("PUBLIC TRADE BOARD · " + publicListing.optString("name", "LISTED CARD"),
+                        8, CYAN, true));
+                String wanted = publicListing.optString("wanted_text", "");
+                if (!wanted.isEmpty()) card.addView(text("OWNER WANTS · " + wanted, 8, GOLD_BRIGHT, true));
+            }
             if (!trade.optString("message").isEmpty())
                 card.addView(text("“" + trade.optString("message") + "”", 8, MUTED, false));
             JSONArray offered = trade.optJSONArray("items");
@@ -2885,8 +2910,26 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (pending && incoming) {
                 LinearLayout actions = new LinearLayout(this);
                 actions.setOrientation(LinearLayout.HORIZONTAL);
-                TextView accept = button("ACCEPT DEAL", true);
-                accept.setOnClickListener(v -> showTradeAcceptDialog(trade.optString("trade_id"), inventory));
+                JSONObject publicListing = trade.optJSONObject("publicListing");
+                TextView accept = button(publicListing == null ? "ACCEPT DEAL" : "ACCEPT LISTED TRADE", true);
+                accept.setOnClickListener(v -> {
+                    if (publicListing == null) {
+                        showTradeAcceptDialog(trade.optString("trade_id"), inventory);
+                    } else {
+                        confirmAction("Accept public listing trade?",
+                                "You will receive " + publicListing.optString("name", "the listed card")
+                                        + " and send the cards offered by " + counterparty + ".",
+                                () -> api.post("/api/trades/" + trade.optString("trade_id") + "/accept",
+                                        new JSONObject(), result -> ui.post(() -> {
+                                            if (!result.ok()) showResultDialog("Trade failed", result.error);
+                                            else {
+                                                showResultDialog("PUBLIC TRADE COMPLETE",
+                                                        result.data.optString("message", "Cards exchanged."));
+                                                refreshAccount(() -> renderTab("trades"));
+                                            }
+                                        })));
+                    }
+                });
                 TextView decline = button("DECLINE", false);
                 decline.setOnClickListener(v -> confirmAction("Decline trade?",
                         "The offered cards will be released to their owner.", () ->
@@ -2940,9 +2983,458 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 visible++;
             }
         }
+        loadPublicTradeBoard(inventory);
     }
 
-    private void showTradeCreateDialog(JSONArray inventory) {
+        private void renderChat(JSONObject data) {
+        addRealmScene("guild", "THE COLLECTOR LOUNGE",
+                "Meet collectors, talk builds and arrange trades without leaving the game.",
+                0, 0);
+
+        LinearLayout intro = sectionPanel();
+        intro.setBackground(gradient(Color.rgb(31, 52, 76), Color.rgb(9, 17, 31), CYAN, dp(13)));
+        intro.addView(text("CARDUNIVERSE SERVER CHAT", 8, CYAN, true));
+        intro.addView(text("Talk to the realm. Find a trade partner. Keep playing.", 9, TEXT, true));
+        intro.addView(text("Messages are shared with signed-in players and limited to 240 characters.",
+                7, MUTED, false));
+        content.addView(intro, rowParams());
+        addGap(content, 7);
+
+        LinearLayout channels = new LinearLayout(this);
+        channels.setOrientation(LinearLayout.HORIZONTAL);
+        chatWorldButton = button("◉  WORLD", "WORLD".equals(activeChatChannel));
+        chatTradeButton = button("⇄  TRADE", "TRADE".equals(activeChatChannel));
+        chatWorldButton.setOnClickListener(v -> switchChatChannel("WORLD"));
+        chatTradeButton.setOnClickListener(v -> switchChatChannel("TRADE"));
+        channels.addView(chatWorldButton, new LinearLayout.LayoutParams(0, dp(42), 1f));
+        LinearLayout.LayoutParams tradeParams = new LinearLayout.LayoutParams(0, dp(42), 1f);
+        tradeParams.leftMargin = dp(7);
+        channels.addView(chatTradeButton, tradeParams);
+        content.addView(channels);
+
+        chatStatus = text("CONNECTING TO " + activeChatChannel + " CHANNEL…", 7, MUTED, true);
+        chatStatus.setPadding(dp(3), dp(8), dp(3), dp(5));
+        content.addView(chatStatus);
+
+        chatScroll = new ScrollView(this);
+        chatScroll.setFillViewport(false);
+        chatScroll.setClipToPadding(false);
+        chatMessagesPanel = new LinearLayout(this);
+        chatMessagesPanel.setOrientation(LinearLayout.VERTICAL);
+        chatMessagesPanel.setPadding(dp(4), dp(5), dp(4), dp(8));
+        chatScroll.addView(chatMessagesPanel);
+        LinearLayout.LayoutParams scrollParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(252));
+        scrollParams.bottomMargin = dp(8);
+        content.addView(chatScroll, scrollParams);
+        chatMessagesPanel.removeAllViews();
+
+        LinearLayout composer = sectionPanel();
+        composer.setOrientation(LinearLayout.HORIZONTAL);
+        composer.setGravity(Gravity.CENTER_VERTICAL);
+        composer.setPadding(dp(8), dp(7), dp(8), dp(7));
+        chatComposer = editField("Write a message… (240 characters)", false);
+        chatComposer.setFilters(new android.text.InputFilter[]{
+                new android.text.InputFilter.LengthFilter(240)
+        });
+        LinearLayout.LayoutParams composerParams = new LinearLayout.LayoutParams(0, dp(43), 1f);
+        composer.addView(chatComposer, composerParams);
+        TextView send = button("SEND", true);
+        send.setOnClickListener(v -> {
+            String message = chatComposer.getText().toString().trim();
+            if (message.isEmpty()) {
+                chatComposer.setError("Write a message first.");
+                return;
+            }
+            JSONObject body = new JSONObject();
+            try {
+                body.put("channel", activeChatChannel);
+                body.put("message", message);
+            } catch (Exception ignored) {}
+            send.setEnabled(false);
+            api.post("/api/chat", body, result -> ui.post(() -> {
+                send.setEnabled(true);
+                if (!result.ok()) {
+                    showResultDialog("Message not sent", result.error);
+                    return;
+                }
+                chatComposer.setText("");
+                hideKeyboard();
+                loadChatMessages(activeChatChannel, true);
+            }));
+        });
+        LinearLayout.LayoutParams sendParams = new LinearLayout.LayoutParams(dp(82), dp(43));
+        sendParams.leftMargin = dp(7);
+        composer.addView(send, sendParams);
+        content.addView(composer, rowParams());
+
+        renderChatMessages(data);
+        ui.removeCallbacks(chatRefreshTick);
+        ui.postDelayed(chatRefreshTick, 5000L);
+    }
+
+    private void switchChatChannel(String channel) {
+        if (!"WORLD".equals(channel) && !"TRADE".equals(channel)) return;
+        activeChatChannel = channel;
+        styleChatChannels();
+        loadChatMessages(channel, true);
+    }
+
+    private void styleChatChannels() {
+        if (chatWorldButton != null)
+            chatWorldButton.setBackground(gradient("WORLD".equals(activeChatChannel)
+                    ? Color.rgb(45, 73, 91) : Color.rgb(17, 25, 43),
+                    Color.rgb(9, 17, 31), "WORLD".equals(activeChatChannel) ? CYAN : Color.rgb(54, 68, 91), dp(9)));
+        if (chatTradeButton != null)
+            chatTradeButton.setBackground(gradient("TRADE".equals(activeChatChannel)
+                    ? Color.rgb(64, 48, 91) : Color.rgb(17, 25, 43),
+                    Color.rgb(9, 17, 31), "TRADE".equals(activeChatChannel) ? VIOLET : Color.rgb(54, 68, 91), dp(9)));
+    }
+
+    private void loadChatMessages(String channel, boolean scrollToBottom) {
+        if (!"chat".equals(activeTab) || api == null) return;
+        api.get("/api/chat?channel=" + channel, result -> ui.post(() -> {
+            if (!"chat".equals(activeTab) || !channel.equals(activeChatChannel)
+                    || chatMessagesPanel == null) return;
+            if (result.ok()) {
+                renderChatMessages(result.data);
+                if (scrollToBottom && chatScroll != null)
+                    chatScroll.post(() -> chatScroll.fullScroll(View.FOCUS_DOWN));
+            } else if (chatStatus != null) {
+                chatStatus.setText("CHAT CONNECTION INTERRUPTED · " + result.error);
+                chatStatus.setTextColor(RED);
+            }
+            ui.removeCallbacks(chatRefreshTick);
+            ui.postDelayed(chatRefreshTick, 5000L);
+        }));
+    }
+
+    private void renderChatMessages(JSONObject data) {
+        if (chatMessagesPanel == null || data == null) return;
+        JSONArray messages = data.optJSONArray("messages");
+        if (messages == null) messages = new JSONArray();
+        chatMessagesPanel.removeAllViews();
+        if (chatStatus != null) {
+            chatStatus.setText(activeChatChannel + " CHANNEL  ·  " + messages.length()
+                    + " RECENT MESSAGES  ·  REFRESHES AUTOMATICALLY");
+            chatStatus.setTextColor(MUTED);
+        }
+        if (messages.length() == 0) {
+            TextView empty = text("No messages yet. Start the conversation with the first hello.",
+                    9, MUTED, false);
+            empty.setGravity(Gravity.CENTER);
+            empty.setPadding(dp(16), dp(28), dp(16), dp(28));
+            chatMessagesPanel.addView(empty, new LinearLayout.LayoutParams(-1, -2));
+            return;
+        }
+        String ownId = me == null ? "" : me.optString("user_id", "");
+        for (int i = 0; i < messages.length(); i++) {
+            JSONObject message = messages.optJSONObject(i);
+            if (message == null) continue;
+            boolean own = ownId.equals(message.optString("user_id"));
+            LinearLayout messageBlock = new LinearLayout(this);
+            messageBlock.setOrientation(LinearLayout.VERTICAL);
+            messageBlock.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
+            LinearLayout.LayoutParams blockParams = new LinearLayout.LayoutParams(-1, -2);
+            blockParams.bottomMargin = dp(7);
+            chatMessagesPanel.addView(messageBlock, blockParams);
+
+            String playerName = message.optString("display_name", "Collector");
+            String level = "LV." + formatNumber(message.optLong("collector_level", 1));
+            TextView author = text((own ? "YOU" : playerName) + "  ·  " + level,
+                    7, own ? CYAN : GOLD_BRIGHT, true);
+            author.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
+            author.setPadding(dp(6), dp(1), dp(6), dp(3));
+            messageBlock.addView(author);
+
+            LinearLayout bubble = new LinearLayout(this);
+            bubble.setOrientation(LinearLayout.VERTICAL);
+            bubble.setPadding(dp(11), dp(8), dp(11), dp(8));
+            bubble.setBackground(gradient(own ? Color.rgb(30, 63, 76) : Color.rgb(27, 34, 55),
+                    Color.rgb(11, 18, 32), own ? CYAN : Color.rgb(67, 83, 112), dp(11)));
+            TextView body = text(message.optString("message", ""), 9, TEXT, false);
+            body.setLineSpacing(dp(2), 1.02f);
+            body.setMaxWidth(dp(430));
+            bubble.addView(body);
+            messageBlock.addView(bubble, new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+            String created = message.optString("created_at", "");
+            if (created.length() > 16) created = created.substring(0, 16).replace("T", " ");
+            TextView time = text(created, 6, MUTED, false);
+            time.setGravity(own ? Gravity.RIGHT : Gravity.LEFT);
+            time.setPadding(dp(5), dp(2), dp(5), 0);
+            messageBlock.addView(time);
+        }
+    }
+
+    private void loadPublicTradeBoard(JSONArray fallbackInventory) {
+        TextView loading = text("LOADING THE PUBLIC TRADE BOARD…", 8, MUTED, true);
+        loading.setPadding(dp(3), dp(15), dp(3), dp(15));
+        content.addView(loading);
+        api.get("/api/trade-board", result -> ui.post(() -> {
+            if (!"trades".equals(activeTab) || content == null) return;
+            content.removeView(loading);
+            if (!result.ok()) {
+                TextView error = text("PUBLIC TRADE BOARD UNAVAILABLE · " + result.error, 8, RED, false);
+                content.addView(error, rowParams());
+                return;
+            }
+            renderPublicTradeBoard(result.data, fallbackInventory);
+        }));
+    }
+
+    private void renderPublicTradeBoard(JSONObject data, JSONArray fallbackInventory) {
+        JSONArray listings = data.optJSONArray("listings");
+        JSONArray myListings = data.optJSONArray("myListings");
+        JSONArray inventory = data.optJSONArray("inventory");
+        if (listings == null) listings = new JSONArray();
+        if (myListings == null) myListings = new JSONArray();
+        if (inventory == null) inventory = fallbackInventory == null ? new JSONArray() : fallbackInventory;
+
+        addGap(content, 12);
+        LinearLayout market = sectionPanel();
+        market.setBackground(gradient(Color.rgb(48, 41, 76), Color.rgb(11, 17, 34), VIOLET, dp(15)));
+        LinearLayout marketHead = new LinearLayout(this);
+        marketHead.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout marketCopy = new LinearLayout(this);
+        marketCopy.setOrientation(LinearLayout.VERTICAL);
+        marketCopy.addView(text("PUBLIC TRADE BOARD", 8, VIOLET, true));
+        marketCopy.addView(text("Browse cards listed by every collector.", 9, TEXT, true));
+        marketHead.addView(marketCopy, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView create = button("＋ LIST A CARD", true);
+        create.setOnClickListener(v -> showTradeListingDialog(inventory));
+        marketHead.addView(create);
+        market.addView(marketHead);
+        market.addView(text("Each listing reserves the exact tradable card instance until it is removed, expires or changes hands.",
+                7, MUTED, false));
+        content.addView(market, rowParams());
+
+        content.addView(text("YOUR LISTINGS  ·  " + myListings.length(), 8, GOLD_BRIGHT, true));
+        if (myListings.length() == 0) {
+            TextView none = text("You have no active listings. Put a tradable card on the public board.",
+                    8, MUTED, false);
+            none.setPadding(dp(4), dp(7), dp(4), dp(7));
+            content.addView(none);
+        } else {
+            for (int i = 0; i < myListings.length(); i++) {
+                JSONObject listing = myListings.optJSONObject(i);
+                if (listing == null) continue;
+                LinearLayout row = dataRow(listing.optString("name", "Listed card"),
+                        listing.optString("rarity", "CARD") + " · " + listing.optString("wanted_text", "Open to offers"),
+                        listing.optString("status", "OPEN"));
+                if ("OPEN".equalsIgnoreCase(listing.optString("status"))) {
+                    TextView remove = button("REMOVE", false);
+                    remove.setOnClickListener(v -> confirmAction("Remove public listing?",
+                            "The card will be returned to your available inventory.",
+                            () -> api.post("/api/trade-board/" + listing.optString("listing_id") + "/cancel",
+                                    new JSONObject(), result -> ui.post(() -> {
+                                        if (!result.ok()) showResultDialog("Listing not removed", result.error);
+                                        else renderTab("trades");
+                                    }))));
+                    row.addView(remove, new LinearLayout.LayoutParams(dp(90), dp(34)));
+                } else {
+                    TextView reserved = text("CHECK TRADE DESK", 7, CYAN, true);
+                    reserved.setGravity(Gravity.CENTER);
+                    row.addView(reserved, new LinearLayout.LayoutParams(dp(110), dp(34)));
+                }
+                content.addView(row, rowParams());
+            }
+        }
+
+        content.addView(text("COMMUNITY LISTINGS  ·  " + listings.length(), 8, GOLD_BRIGHT, true));
+        if (listings.length() == 0) {
+            LinearLayout empty = sectionPanel();
+            empty.setGravity(Gravity.CENTER);
+            empty.addView(text("THE MARKET IS QUIET", 10, TEXT, true));
+            empty.addView(text("Be the first collector to list a card for trade.", 8, MUTED, false));
+            TextView list = button("LIST YOUR FIRST CARD", true);
+            list.setOnClickListener(v -> showTradeListingDialog(inventory));
+            empty.addView(list, new LinearLayout.LayoutParams(dp(190), dp(38)));
+            content.addView(empty, rowParams());
+            return;
+        }
+
+        for (int i = 0; i < listings.length(); i++) {
+            JSONObject listing = listings.optJSONObject(i);
+            if (listing == null) continue;
+            if (me != null && me.optString("user_id").equals(listing.optString("listing_owner_id"))) continue;
+            LinearLayout card = sectionPanel();
+            card.setOrientation(LinearLayout.HORIZONTAL);
+            card.setGravity(Gravity.CENTER_VERTICAL);
+            card.setPadding(dp(9), dp(9), dp(10), dp(9));
+            int accent = cardRarityColor(listing.optString("rarity", "COMMON"));
+            FrameLayout art = new FrameLayout(this);
+            art.setBackground(gradient(Color.rgb(25, 34, 54), Color.rgb(7, 11, 22), accent, dp(8)));
+            art.setClipToOutline(true);
+            CardArtView illustration = new CardArtView(this);
+            illustration.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
+            illustration.loadArtwork(cardArtworkPath(listing));
+            art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
+            View shade = new View(this);
+            shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{Color.TRANSPARENT, Color.argb(190, 3, 7, 15)}));
+            art.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+            TextView rarity = text(listing.optString("rarity", "CARD"), 6, Color.WHITE, true);
+            rarity.setPadding(dp(5), dp(4), dp(5), dp(4));
+            rarity.setBackground(gradient(Color.argb(210, 9, 14, 28), Color.argb(210, 9, 14, 28),
+                    accent, dp(5)));
+            FrameLayout.LayoutParams rarityParams = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
+            rarityParams.setMargins(dp(5), dp(5), 0, 0);
+            art.addView(rarity, rarityParams);
+            TextView artName = text(listing.optString("name", "Card"), 8, Color.WHITE, true);
+            artName.setMaxLines(2);
+            artName.setPadding(dp(5), 0, dp(5), dp(6));
+            art.addView(artName, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+            card.addView(art, new LinearLayout.LayoutParams(dp(105), dp(146)));
+
+            LinearLayout info = new LinearLayout(this);
+            info.setOrientation(LinearLayout.VERTICAL);
+            info.setPadding(dp(12), 0, 0, 0);
+            info.addView(text("LISTED BY " + listing.optString("owner_name", "COLLECTOR").toUpperCase(java.util.Locale.ROOT),
+                    7, CYAN, true));
+            TextView name = text(listing.optString("name", "Card"), 13, TEXT, true);
+            name.setMaxLines(2);
+            info.addView(name);
+            String wanted = listing.optString("wanted_text", "");
+            info.addView(text(wanted.isEmpty() ? "WANTS · OPEN TO OFFERS" : "WANTS · " + wanted,
+                    8, GOLD_BRIGHT, true));
+            if (!listing.optString("message", "").isEmpty()) {
+                TextView note = text(listing.optString("message"), 7, MUTED, false);
+                note.setMaxLines(2);
+                info.addView(note);
+            }
+            TextView offer = button("MAKE TRADE OFFER", true);
+            offer.setOnClickListener(v -> showPublicTradeRequestDialog(listing, inventory));
+            LinearLayout.LayoutParams offerParams = new LinearLayout.LayoutParams(dp(160), dp(36));
+            offerParams.topMargin = dp(7);
+            info.addView(offer, offerParams);
+            card.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+            content.addView(card, rowParams());
+        }
+    }
+
+    private void showTradeListingDialog(JSONArray inventory) {
+        if (inventory == null || inventory.length() == 0) {
+            showResultDialog("No available cards", "You need an available tradable card to create a public listing.");
+            return;
+        }
+        String[] labels = new String[inventory.length()];
+        for (int i = 0; i < inventory.length(); i++) {
+            JSONObject card = inventory.optJSONObject(i);
+            labels[i] = card == null ? "Unknown card" : card.optString("name", "Card")
+                    + " · " + card.optString("rarity", "CARD");
+        }
+        Spinner cardPicker = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, labels);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        cardPicker.setAdapter(adapter);
+        EditText wanted = editField("What card or rarity are you looking for?", false);
+        EditText note = editField("Optional note for other collectors", false);
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(7), dp(8), dp(7), dp(2));
+        form.addView(text("CHOOSE THE CARD TO LIST", 7, GOLD_BRIGHT, true));
+        form.addView(cardPicker, new LinearLayout.LayoutParams(-1, dp(45)));
+        form.addView(text("WHAT YOU WANT IN RETURN", 7, GOLD_BRIGHT, true));
+        form.addView(wanted, fieldParams());
+        form.addView(text("MESSAGE TO THE COMMUNITY", 7, GOLD_BRIGHT, true));
+        form.addView(note, fieldParams());
+        new AlertDialog.Builder(this).setTitle("Create public listing").setView(form)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("PUBLISH", (dialog, which) -> {
+                    JSONObject selected = inventory.optJSONObject(cardPicker.getSelectedItemPosition());
+                    if (selected == null) return;
+                    JSONObject body = new JSONObject();
+                    try {
+                        body.put("instanceId", selected.optString("instance_id"));
+                        body.put("wantedText", wanted.getText().toString().trim());
+                        body.put("message", note.getText().toString().trim());
+                    } catch (Exception ignored) {}
+                    api.post("/api/trade-board", body, result -> ui.post(() -> {
+                        if (!result.ok()) showResultDialog("Listing failed", result.error);
+                        else {
+                            showResultDialog("CARD LISTED", result.data.optString("message",
+                                    "Your card is visible to all collectors."));
+                            renderTab("trades");
+                        }
+                    }));
+                }).show();
+    }
+
+    private void showPublicTradeRequestDialog(JSONObject listing, JSONArray inventory) {
+        if (inventory == null || inventory.length() == 0) {
+            showResultDialog("No cards to offer", "You need available tradable cards to make an offer.");
+            return;
+        }
+        String[] labels = new String[inventory.length()];
+        boolean[] selected = new boolean[inventory.length()];
+        for (int i = 0; i < inventory.length(); i++) {
+            JSONObject card = inventory.optJSONObject(i);
+            labels[i] = card == null ? "Unknown card" : card.optString("name", "Card")
+                    + " · " + card.optString("rarity", "CARD");
+        }
+        EditText note = editField("Optional message to the listing owner", false);
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(7), dp(8), dp(7), dp(2));
+        form.addView(text("YOU WANT", 7, CYAN, true));
+        form.addView(text(listing.optString("name", "Listed card"), 15, TEXT, true));
+        form.addView(text("Choose 1–5 cards you are willing to exchange.", 8, MUTED, false));
+        for (int i = 0; i < inventory.length(); i++) {
+            android.widget.CheckBox choice = new android.widget.CheckBox(this);
+            choice.setText(labels[i]);
+            choice.setTextColor(TEXT);
+            choice.setTextSize(10);
+            final int index = i;
+            choice.setOnCheckedChangeListener((buttonView, checked) -> {
+                selected[index] = checked;
+                int count = 0;
+                for (boolean value : selected) if (value) count++;
+                if (count > 5) {
+                    selected[index] = false;
+                    buttonView.setChecked(false);
+                    Toast.makeText(this, "You can offer up to five cards.", Toast.LENGTH_SHORT).show();
+                }
+            });
+            form.addView(choice);
+        }
+        form.addView(text("MESSAGE TO OWNER", 7, GOLD_BRIGHT, true));
+        form.addView(note, fieldParams());
+        ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(false);
+        scroll.addView(form);
+        new AlertDialog.Builder(this).setTitle("Make public trade offer").setView(scroll)
+                .setNegativeButton("CANCEL", null)
+                .setPositiveButton("SEND OFFER", (dialog, which) -> {
+                    JSONArray ids = new JSONArray();
+                    for (int i = 0; i < selected.length; i++) {
+                        if (selected[i] && inventory.optJSONObject(i) != null)
+                            ids.put(inventory.optJSONObject(i).optString("instance_id"));
+                    }
+                    if (ids.length() < 1 || ids.length() > 5) {
+                        showResultDialog("Choose cards", "Select between one and five cards to offer.");
+                        return;
+                    }
+                    JSONObject body = new JSONObject();
+                    try {
+                        body.put("instanceIds", ids);
+                        body.put("message", note.getText().toString().trim());
+                    } catch (Exception ignored) {}
+                    api.post("/api/trade-board/" + listing.optString("listing_id") + "/request",
+                            body, result -> ui.post(() -> {
+                                if (!result.ok()) showResultDialog("Offer not sent", result.error);
+                                else {
+                                    showResultDialog("TRADE OFFER SENT", result.data.optString("message",
+                                            "The listing owner can review your cards in the Trade Desk."));
+                                    renderTab("trades");
+                                }
+                            }));
+                }).show();
+    }
+
+private void showTradeCreateDialog(JSONArray inventory) {
         if(inventory.length()==0){showResultDialog("No tradable cards","No available tradable cards were returned for this account.");return;}
         String[] labels=new String[inventory.length()];boolean[] selected=new boolean[inventory.length()];
         for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);labels[i]=c==null?"Unknown card":c.optString("name")+" · "+c.optString("rarity");}
@@ -5017,6 +5509,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "dungeons": return "/api/dungeons";
             case "raids": return "/api/raids";
             case "trades": return "/api/trades";
+            case "chat": return "/api/chat?channel=" + activeChatChannel;
             case "achievements": return "/api/achievements";
             case "progression": return "/api/progression?rewardPage=0&rewardPageSize=30";
             case "events": return "/api/events";
