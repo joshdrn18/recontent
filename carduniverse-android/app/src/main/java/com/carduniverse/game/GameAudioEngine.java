@@ -82,6 +82,13 @@ public final class GameAudioEngine {
         if (!released && generator != null) generator.startTone(ToneGenerator.TONE_PROP_ACK, 110);
     }
 
+    public void playError() {
+        ToneGenerator generator = tones;
+        if (!released && generator != null) {
+            generator.startTone(ToneGenerator.TONE_PROP_NACK, 105);
+        }
+    }
+
     public synchronized void stopAmbient() {
         if (ambientTrack != null) {
             try { if (ambientTrack.getPlayState() == AudioTrack.PLAYSTATE_PLAYING) ambientTrack.pause(); } catch (Exception ignored) {}
