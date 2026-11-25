@@ -256,6 +256,91 @@
         }
     });
 
+    const liveForm = byId("ops-live-form");
+    const liveRules = byId("ops-live-controls");
+    const liveSave = byId("ops-live-save");
+    const liveReload = byId("ops-live-reload");
+    const liveStatus = byId("ops-live-status");
+    let liveRevision;
+    let liveBusy = false;
+    const liveDefaults = new Map();
+    const liveInputs = new Map();
+
+    function setLiveStatus(message, error = false) {
+        liveStatus.classList.toggle("ops-error", error);
+        liveStatus.textContent = message;
+    }
+
+    function updateLiveButtons() {
+        liveSave.disabled = liveBusy || ![...liveInputs].some(([key, input]) => input.checked !== liveDefaults.get(key));
+        liveReload.disabled = liveBusy;
+        for (const input of liveInputs.values()) input.disabled = liveBusy;
+    }
+
+    async function loadLiveControls() {
+        liveBusy = true;
+        updateLiveButtons();
+        setLiveStatus("Loading live settings…");
+        try {
+            const result = await guildApi("/api/admin/operations/settings");
+            liveRevision = result.revision;
+            liveInputs.clear();
+            liveDefaults.clear();
+            liveRules.replaceChildren();
+            const groups = new Map();
+            for (const control of result.controls) {
+                if (!groups.has(control.group)) {
+                    const fieldset = node("fieldset", undefined, "ops-live-group");
+                    fieldset.append(node("legend", control.group));
+                    liveRules.append(fieldset);
+                    groups.set(control.group, fieldset);
+                }
+                const row = node("label",undefined,"ops-live-rule");
+                const copy = node("span");
+                copy.append(node("strong",control.name),node("small",control.description));
+                const input = node("input");
+                input.type = "checkbox";
+                input.checked = control.enabled;
+                input.addEventListener("change", updateLiveButtons);
+                row.append(copy,input);
+                groups.get(control.group).append(row);
+                liveInputs.set(control.key,input);
+                liveDefaults.set(control.key,control.enabled);
+            }
+            setLiveStatus("Loaded " + date(result.updated_at));
+        } catch (error) {
+            setLiveStatus(error.message,true);
+        } finally {
+            liveBusy = false;
+            updateLiveButtons();
+        }
+    }
+
+    liveReload.addEventListener("click", loadLiveControls);
+    liveForm.addEventListener("submit", async event => {
+        event.preventDefault();
+        if (liveSave.disabled) return;
+        const controls = Object.fromEntries([...liveInputs]
+            .filter(([key,input]) => input.checked !== liveDefaults.get(key))
+            .map(([key,input]) => [key,input.checked]));
+        liveBusy = true;
+        updateLiveButtons();
+        setLiveStatus("Saving game settings…");
+        try {
+            const result = await guildApi("/api/admin/operations/settings", {
+                method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({revision:liveRevision,controls})
+            });
+            liveRevision = result.revision;
+            for (const [key,value] of Object.entries(controls)) liveDefaults.set(key,value);
+            setLiveStatus("Saved. Incoming game actions now use these settings.");
+        } catch (error) {
+            setLiveStatus(error.message,true);
+        } finally {
+            liveBusy = false;
+            updateLiveButtons();
+        }
+    });
+
     const anchors = [...document.querySelectorAll(".ops-sidebar nav a")];
     function markActive() {
         const active = anchors.find(anchor=>anchor.hash===location.hash) ?? anchors[0];
@@ -270,5 +355,6 @@
     select.addEventListener("change",renderOdds);
     renderGuildFields();
     loadGuilds();
+    loadLiveControls();
     update();
 })();
