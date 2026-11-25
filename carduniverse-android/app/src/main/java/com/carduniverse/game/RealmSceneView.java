@@ -25,6 +25,8 @@ public final class RealmSceneView extends View {
     private final int progress;
     private final int total;
     private boolean attached;
+    private boolean motionEnabled = true;
+    public void setMotionEnabled(boolean enabled) { motionEnabled = enabled; invalidate(); }
     private long startAt = System.currentTimeMillis();
 
     private static final int INK = Color.rgb(6, 10, 21);
@@ -58,13 +60,18 @@ public final class RealmSceneView extends View {
         super.onDetachedFromWindow();
     }
 
+    @Override protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        if (visibility == VISIBLE && motionEnabled) invalidate();
+    }
+
     @Override protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         float sx = getWidth() / 960f;
         float sy = getHeight() / 300f;
         canvas.save();
         canvas.scale(sx, sy);
-        float t = ((System.currentTimeMillis() - startAt) % 9000L) / 9000f;
+        float t = motionEnabled ? ((System.currentTimeMillis() - startAt) % 9000L) / 9000f : 0f;
         drawBase(canvas, t);
         switch (mode) {
             case "adventure": drawAdventure(canvas, t); break;
@@ -84,7 +91,7 @@ public final class RealmSceneView extends View {
         drawVignette(canvas);
         drawHud(canvas);
         canvas.restore();
-        if (attached) postInvalidateDelayed(45L);
+        if (attached && motionEnabled && isShown() && getWindowVisibility() == VISIBLE) postInvalidateDelayed(60L);
     }
 
     private void drawBase(Canvas c, float t) {
