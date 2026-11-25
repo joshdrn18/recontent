@@ -83,6 +83,7 @@ final class FirstlightSceneView extends FrameLayout {
     private float touchX, touchY;
     private boolean dragging;
     private boolean framePending;
+    private boolean cameraConfigured;
 
     FirstlightSceneView(Context context, Scene scene, boolean use3d, boolean reducedMotion, boolean orbit) {
         super(context);
@@ -160,7 +161,6 @@ final class FirstlightSceneView extends FrameLayout {
             surface = new UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK);
             Engine engine = Engine.create(Engine.Backend.OPENGL);
             viewer = new ModelViewer(texture, engine, surface, cameraOrbit);
-            viewer.setCameraFocalLength(scene.lens);
             configureLight(engine, sky, ambient);
             viewer.loadModelGlb(model);
             if (viewer.getAsset() == null) {
@@ -168,6 +168,7 @@ final class FirstlightSceneView extends FrameLayout {
                 return;
             }
             framesAfterLoad = 0;
+            cameraConfigured = false;
             requestFrame();
         } catch (RuntimeException | LinkageError error) {
             nativeRendererUnavailable = true;
@@ -217,6 +218,13 @@ final class FirstlightSceneView extends FrameLayout {
         framePending = false;
         if (viewer == null || !isShown() || getWindowVisibility() != VISIBLE) return;
         try {
+            if (!cameraConfigured && surface.isReadyToRender()) {
+                var viewport = viewer.getView().getViewport();
+                if (viewport.width > 0 && viewport.height > 0) {
+                    viewer.setCameraFocalLength(scene.lens);
+                    cameraConfigured = true;
+                }
+            }
             viewer.render(time);
             if (surface.isReadyToRender() && viewer.getProgress() >= 1f && framesAfterLoad < 3) {
                 if (++framesAfterLoad == 3) {

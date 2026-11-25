@@ -54,7 +54,7 @@ export default {
     async fetch(request) {
         const url = new URL(request.url);
         const read = request.method === "GET" || request.method === "HEAD";
-        if (read && url.pathname === "/" && consolePage) {
+        if (read && (url.pathname === "/" || url.pathname === "/login") && consolePage) {
             if (request.method === "HEAD") return new Response(null, {headers: pageHeaders});
             const bytes = Uint8Array.from(atob(consolePage), value => value.charCodeAt(0));
             const html = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
