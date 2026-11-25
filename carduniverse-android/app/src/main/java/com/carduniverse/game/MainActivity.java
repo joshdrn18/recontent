@@ -296,9 +296,9 @@ public final class MainActivity extends Activity {
         FrameLayout artwork = new FrameLayout(this);
         artwork.setBackground(gradient(Color.rgb(35, 65, 49), Color.rgb(13, 25, 22), Color.rgb(120, 105, 71), dp(18)));
         artwork.setClipToOutline(true);
-        if (scene3dEnabled && !compact) {
+        if (!compact) {
             artwork.addView(new FirstlightSceneView(this, FirstlightSceneView.Scene.GATE,
-                    !reduceMotionEnabled, false), new FrameLayout.LayoutParams(-1, -1));
+                    false, reduceMotionEnabled, false), new FrameLayout.LayoutParams(-1, -1));
         }
         ImageView crest = firstlightCrest();
         int crestSize = dp(compact ? 74 : 84);
@@ -985,15 +985,7 @@ public final class MainActivity extends Activity {
             content.addView(god, godParams);
         }
 
-        if (scene3dEnabled) {
-            addFirstlightScene(FirstlightSceneView.Scene.GATE, "Firstlight Realm", 244);
-        } else {
-            RealmSceneView lobby = new RealmSceneView(this, "home", "FIRSTLIGHT REALM",
-                    "Choose a path and enter the world.", me.optInt("collector_level", 1),
-                    Math.max(100, me.optInt("collector_level", 1)));
-            lobby.setMotionEnabled(!reduceMotionEnabled);
-            content.addView(lobby, new LinearLayout.LayoutParams(-1, dp(252)));
-        }
+        addFirstlightScene(FirstlightSceneView.Scene.GATE, "Firstlight Realm", 244);
 
         LinearLayout primaryActions = new LinearLayout(this);
         primaryActions.setOrientation(LinearLayout.HORIZONTAL);
@@ -2630,9 +2622,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     private FrameLayout createArenaBattleStage(JSONObject active){
         FrameLayout stage=new FrameLayout(this);stage.setClipChildren(false);stage.setClipToPadding(false);
         stage.setBackground(gradient(Color.rgb(18,30,47),Color.rgb(5,9,19),GOLD,dp(16)));
-        View terrain = scene3dEnabled
-                ? new FirstlightSceneView(this, FirstlightSceneView.Scene.ARENA, !reduceMotionEnabled, false)
-                : new ArenaTableView(this, !reduceMotionEnabled);
+        View terrain = new FirstlightSceneView(this, FirstlightSceneView.Scene.ARENA,
+                scene3dEnabled, reduceMotionEnabled, false);
         stage.addView(terrain, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(9),dp(9),dp(9),dp(9));
         table.setBackground(gradient(Color.argb(22,8,15,28),Color.argb(32,5,10,22),Color.rgb(78,100,132),dp(14)));
@@ -4018,7 +4009,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             gamePrefs.edit().putBoolean("firstlight_scene_3d", checked).apply();
         });
         gameplayPrefs.addView(graphics, rowParams());
-        gameplayPrefs.addView(text("3D environments in Home, Arena, and the Tower.", 10, MUTED, false), rowParams());
+        gameplayPrefs.addView(text("Drag to orbit in Home and the Tower. The Arena also uses a 3D battlefield.", 10, MUTED, false), rowParams());
         addAudioSetting(gameplayPrefs, "Purchase confirmations",
                 "Ask before spending Gold, Gems or other shop currencies.", 5);
         LinearLayout refreshRow = dataRow("Chat refresh interval",
@@ -9050,7 +9041,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         FrameLayout stage = new FrameLayout(this);
         stage.setBackground(gradient(Color.rgb(32, 41, 65), BG, GOLD, dp(14)));
         stage.setClipToOutline(true);
-        FirstlightSceneView world = new FirstlightSceneView(this, scene, !reduceMotionEnabled, true);
+        FirstlightSceneView world = new FirstlightSceneView(this, scene, scene3dEnabled, reduceMotionEnabled, true);
         stage.addView(world, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout caption = new LinearLayout(this);
         caption.setOrientation(LinearLayout.VERTICAL);
@@ -9060,7 +9051,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView name = text(title, 19, GOLD_BRIGHT, true);
         name.setTypeface(android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD));
         caption.addView(name);
-        caption.addView(text("Drag sideways to orbit", 9, TEXT, false));
+
         stage.addView(caption, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(-1, dp(height));
         size.bottomMargin = dp(9);
@@ -9114,7 +9105,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         JSONObject calendar=data.optJSONObject("calendar"),modifier=data.optJSONObject("modifier");
         String week=calendar==null?"":calendar.optString("week");int best=data.optInt("best");boolean viewOnly=data.optBoolean("view_only");
         addModeSpotlight("WEEKLY ASCENSION","Floor "+best+" / 20",calendar==null?"Weekly challenge":"Week of "+week+"  ·  Resets "+calendar.optString("next_week"),"♜",GOLD_BRIGHT);
-        if (scene3dEnabled) addFirstlightScene(FirstlightSceneView.Scene.TOWER, "Weekly Tower", 180);
+        addFirstlightScene(FirstlightSceneView.Scene.TOWER, "Weekly Tower", 180);
         LinearLayout event=sectionPanel();phase15Heading(event,"ACTIVE WEEKLY MODIFIER");if(modifier!=null){event.addView(text(modifier.optString("name"),17,CYAN,true));event.addView(text(modifier.optString("description"),11,MUTED,false));}content.addView(event,rowParams());
         LinearLayout progress=sectionPanel();progress.addView(text("TOWER PROGRESS  ·  "+best+" / 20",11,GOLD_BRIGHT,true));ProgressBar bar=new RealmMeter(this);bar.setMax(20);bar.setProgress(best);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));progress.addView(bar,new LinearLayout.LayoutParams(-1,dp(9)));content.addView(progress,rowParams());
         if(viewOnly)showNotice("This account can view the Tower but cannot challenge floors.");
