@@ -16,6 +16,7 @@
 <aside class="ops-sidebar">
   <a class="ops-brand" href="/"><span aria-hidden="true">✦</span> CardUniverse</a>
   <nav aria-label="Game Operations">
+    <a href="#live-settings">Live Settings</a>
     <a href="#guild-settings">Guild Settings</a>
     <a href="#summon" aria-current="location">Summon</a>
     <a href="#binder">Binder Rewards</a>
@@ -31,10 +32,22 @@
 <main id="ops-main">
   <header class="ops-header">
     <div><p class="ops-label">ADMIN CONSOLE</p><h1>Game Operations</h1>
-    <p>Configure Guild policies and monitor live game activity.</p></div>
+    <p>Manage server settings for the app and monitor live game activity.</p></div>
     <div><button id="ops-refresh" type="button">Refresh data</button><p id="ops-status" role="status">Loading dashboard…</p></div>
   </header>
   <div class="ops-kpis" id="ops-kpis" aria-label="Key metrics"></div>
+  <section id="live-settings" aria-labelledby="live-settings-heading">
+    <h2 id="live-settings-heading">Live Game Settings</h2>
+    <p>Changes apply to incoming game actions on Android and web. Existing data and ongoing battles stay available.</p>
+    <form id="ops-live-form">
+      <div id="ops-live-controls"></div>
+      <div class="ops-live-actions">
+        <button type="submit" id="ops-live-save" disabled>Save live settings</button>
+        <button type="button" id="ops-live-reload">Reload settings</button>
+      </div>
+      <p id="ops-live-status" role="status"></p>
+    </form>
+  </section>
   <section id="guild-settings" aria-labelledby="guild-settings-heading">
     <h2 id="guild-settings-heading">Guild Settings</h2>
     <p>Changes apply to the selected guild on the game server.</p>
