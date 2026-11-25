@@ -95,6 +95,9 @@ public final class MainActivity extends Activity {
     private JSONObject me;
     private JSONObject progression;
     private String activeTab = "home";
+    private int activePageRequest;
+    private String historyMode = "ARENA";
+    private int historyOffset;
     private boolean registering = false;
     private boolean requestBusy = false;
     private boolean syncingAccount = false;
@@ -475,6 +478,7 @@ public final class MainActivity extends Activity {
         String[][] items = {
                 {"home", "⌂", "HOME"},
                 {"collection", "▧", "CARDS"},
+                {"encyclopedia", "▤", "ENCYCLOPEDIA"},
                 {"binders", "▤", "BINDERS"},
                 {"formation", "♟", "TEAM"},
                 {"evolution", "✧", "EVOLVE"},
@@ -488,6 +492,8 @@ public final class MainActivity extends Activity {
                 {"dungeons", "⌘", "DUNGEON"},
                 {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
+                {"training", "⚔", "TRAINING"},
+                {"battle_history", "☷", "BATTLE HISTORY"},
                 {"trades", "⇄", "TRADES"},
                 {"friends", "♧", "FRIENDS"},
                 {"chat", "◉", "CHAT"},
@@ -793,6 +799,7 @@ public final class MainActivity extends Activity {
     private void renderTab(String tab) {
         ui.removeCallbacks(chatRefreshTick);
         activeTab = tab;
+        int request = ++activePageRequest;
         refreshNav();
         String title = tab.toUpperCase().replace("_", " ");
         if (pageTitle != null) pageTitle.setText(title.equals("HOME") ? "REALM OVERVIEW" : title);
@@ -807,6 +814,12 @@ public final class MainActivity extends Activity {
             return;
         }
         if (!usesRealmScene(tab)) addScreenHero(tab);
+        String requestedMode = historyMode;
+        int requestedOffset = historyOffset;
+        if ("battle_history".equals(tab) && "PRACTICE".equals(requestedMode)) {
+            renderBattleHistory(null, requestedMode, 0);
+            return;
+        }
         renderLoading();
         String path = endpointFor(tab);
         if (path == null) {
@@ -814,9 +827,19 @@ public final class MainActivity extends Activity {
             return;
         }
         api.get(path, result -> ui.post(() -> {
-            if (!tab.equals(activeTab) || content == null) return;
+            if (!tab.equals(activeTab) || request != activePageRequest || content == null) return;
             content.removeAllViews();
             if (!usesRealmScene(tab)) addScreenHero(tab);
+            if ("battle_history".equals(tab)) {
+                renderBattleHistory(result.ok() ? result.data : new JSONObject(), requestedMode, requestedOffset);
+                if (!result.ok()) showNotice(result.error);
+                return;
+            }
+            if ("training".equals(tab)) {
+                renderTrainingGrounds(result.ok() ? result.data : null);
+                if (!result.ok()) showNotice("Owned cards unavailable. Training loans are ready.");
+                return;
+            }
             if (!result.ok()) {
                 showNotice(result.error == null ? "Unable to load this section." : result.error);
                 TextView retry = button("TRY AGAIN", false);
@@ -996,6 +1019,7 @@ public final class MainActivity extends Activity {
 
         String[][] modes = {
                 {"adventure", "⚔", "ADVENTURE", "Explore the Firstlight frontier", "FIGHT"},
+                {"training", "◈", "TRAINING GROUNDS", "Practise without affecting progression", "TRAIN"},
                 {"dungeons", "⌘", "DUNGEON", "Descend into the deep vault", "ENTER"},
                 {"raids", "♜", "WORLD RAID", "Challenge the realm guardian", "ATTACK"},
                 {"summon", "✧", "SUMMON", "Open a rare card seal", "SUMMON"},
@@ -1068,6 +1092,7 @@ public final class MainActivity extends Activity {
 
     private void renderModule(String tab, JSONObject data) {
         switch (tab) {
+            case "encyclopedia": renderCardEncyclopedia(data); break;
             case "collection": renderCollection(data); break;
             case "binders": renderBinders(data); break;
             case "formation": renderFormation(data); break;
@@ -1323,8 +1348,551 @@ public final class MainActivity extends Activity {
         content.addView(hero, rowParams());
     }
 
+    private void renderTrainingGrounds(JSONObject data) {
+        JSONArray owned = data == null ? null : data.optJSONArray("cards");
+        JSONArray cards = new JSONArray();
+        if (owned != null) {
+            for (int i = 0; i < owned.length(); i++) {
+                JSONObject card = owned.optJSONObject(i);
+                if (card != null && !card.optString("card_id").isEmpty()) cards.put(card);
+            }
+        }
+        if (cards.length() < 5) {
+            String[] elements = {"FIRE", "WATER", "EARTH", "WIND", "LIGHT"};
+            for (String element : elements) {
+                cards.put(payload("card_id", "practice-" + element, "name", humanize(element) + " Trainee",
+                        "element", element, "rarity", "COMMON", "card_power", 136, "description",
+                        "Loaned for practice.", "skill_name", "Training Burst", "skill_power", 2, "skill_unlocked", 1));
+            }
+        }
+        String[] lineup = new String[5];
+        for (int i = 0; i < lineup.length; i++) lineup[i] = cards.optJSONObject(i).optString("card_id");
+        LinearLayout panel = sectionPanel();
+        panel.addView(text("PRACTICE ONLY", 11, CYAN, true));
+        panel.addView(text("Practise moves and review damage without rating, rewards, or account progression.",
+                12, TEXT, false));
+        content.addView(panel, rowParams());
+        addPhase13Link("Training Dummy", "Test damage against a stationary target.",
+                () -> showPracticeBattle(cards, lineup, PracticeBattle.Mode.DUMMY, PracticeBattle.Difficulty.NORMAL, 0));
+        addPhase13Link("AI Battle", "Choose Easy, Normal, or Hard.",
+                () -> showChoiceDialog("AI difficulty", "Choose a training opponent.",
+                        new String[]{"Easy", "Normal", "Hard"}, difficulty -> {
+                            long power = practicePower(practiceLineup(cards, lineup));
+                            long enemy = Math.max(1, power + (difficulty - 1) * 250);
+                            showPracticeBattle(cards, lineup, PracticeBattle.Mode.AI,
+                                    PracticeBattle.Difficulty.values()[difficulty], enemy);
+                        }));
+        addPhase13Link("Deck Testing", "Edit five practice slots and compare elemental synergy.",
+                () -> showPracticeLineup(cards, lineup));
+        addPhase13Link("Boss Simulation", "Set the boss power and learn its attack pattern.",
+                () -> showBossPracticeSetup(cards, lineup));
+        addPhase13Link("Battle History", "Review attacks and results from this device.",
+                () -> openBattleHistory("PRACTICE", 0));
+    }
+
+    private void addPhase13Link(String label, String description, Runnable action) {
+        LinearLayout row = dataRow(label, description, "›");
+        row.setFocusable(true);
+        row.setOnClickListener(v -> action.run());
+        content.addView(row, rowParams());
+    }
+
+    private ArrayList<JSONObject> practiceLineup(JSONArray cards, String[] lineup) {
+        Map<String, JSONObject> byId = new LinkedHashMap<>();
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card != null) byId.put(card.optString("card_id"), card);
+        }
+        ArrayList<JSONObject> selected = new ArrayList<>();
+        for (String id : lineup) {
+            JSONObject card = byId.get(id);
+            if (card != null) selected.add(card);
+        }
+        return selected;
+    }
+
+    private int practiceSynergy(ArrayList<JSONObject> cards) {
+        String[] elements = new String[cards.size()];
+        for (int i = 0; i < cards.size(); i++) {
+            elements[i] = cards.get(i).optString("element", "").toUpperCase(java.util.Locale.ROOT);
+        }
+        return PracticeBattle.synergyBonus(elements);
+    }
+
+    private long practicePower(ArrayList<JSONObject> cards) {
+        long total = 0;
+        for (JSONObject card : cards) total += card.optLong("card_power");
+        return total + total * practiceSynergy(cards) / 100;
+    }
+
+    private void showPracticeLineup(JSONArray cards, String[] lineup) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = phase11Sheet("TRAINING GROUNDS", "Deck Testing",
+                "Changes here only apply to this practice session.", CYAN);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = sectionPanel();
+        scroll.addView(body);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        TextView summary = text("", 14, GOLD_BRIGHT, true);
+        body.addView(summary);
+        TextView[] slots = new TextView[lineup.length];
+        TextView battle = button("TEST AGAINST NORMAL AI", true);
+        Runnable update = () -> {
+            ArrayList<JSONObject> team = practiceLineup(cards, lineup);
+            summary.setText("Practice power " + formatNumber(practicePower(team))
+                    + "  ·  Elemental synergy +" + practiceSynergy(team) + "%");
+            battle.setEnabled(team.size() == lineup.length);
+            for (int i = 0; i < lineup.length; i++) {
+                String name = "Choose a card";
+                for (int j = 0; j < cards.length(); j++) {
+                    JSONObject card = cards.optJSONObject(j);
+                    if (card != null && lineup[i].equals(card.optString("card_id"))) {
+                        name = card.optString("name") + " · " + card.optString("element");
+                        if (lineup[i].startsWith("practice-")) name += " · Loan";
+                        break;
+                    }
+                }
+                slots[i].setText((i + 1) + "   " + name);
+            }
+        };
+        for (int i = 0; i < slots.length; i++) {
+            int slot = i;
+            slots[i] = button("", false);
+            slots[i].setOnClickListener(v -> showTeamCardPicker(cards, lineup, slot, card -> {
+                lineup[slot] = card == null ? "" : card.optString("card_id");
+                update.run();
+            }));
+            body.addView(slots[i], rowParams());
+        }
+        battle.setOnClickListener(v -> {
+            long power = practicePower(practiceLineup(cards, lineup));
+            dialog.dismiss();
+            showPracticeBattle(cards, lineup, PracticeBattle.Mode.AI, PracticeBattle.Difficulty.NORMAL, power);
+        });
+        body.addView(battle, rowParams());
+        update.run();
+        addPhase13Close(shell, dialog);
+        phase11ShowSheet(dialog, shell, 660);
+    }
+
+    private void showBossPracticeSetup(JSONArray cards, String[] lineup) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = phase11Sheet("TRAINING GROUNDS", "Boss Simulation",
+                "Power changes how hard the boss hits.", PINK);
+        EditText power = editField("Boss power (1–1,000,000)", false);
+        power.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        power.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(7)});
+        power.setText(String.valueOf(Math.max(1, practicePower(practiceLineup(cards, lineup)))));
+        shell.addView(power, fieldParams());
+        TextView start = button("START SIMULATION", true);
+        start.setOnClickListener(v -> {
+            String value = power.getText().toString().trim();
+            int chosen;
+            try { chosen = Integer.parseInt(value); } catch (NumberFormatException ignored) { chosen = 0; }
+            if (chosen < 1 || chosen > 1000000) {
+                power.setError("Enter a power from 1 to 1,000,000.");
+                return;
+            }
+            if (practiceLineup(cards, lineup).isEmpty()) {
+                showResultDialog("Choose a card", "Add a card in Deck Testing before you start.");
+                return;
+            }
+            dialog.dismiss();
+            showPracticeBattle(cards, lineup, PracticeBattle.Mode.BOSS, PracticeBattle.Difficulty.HARD, chosen);
+        });
+        shell.addView(start, rowParams());
+        addPhase13Close(shell, dialog);
+        Window window = dialog.getWindow();
+        if (window != null) window.setBackgroundDrawableResource(android.R.color.transparent);
+        dialog.setContentView(shell);
+        dialog.show();
+        if (window != null) window.setLayout(Math.min(dp(480), getResources().getDisplayMetrics().widthPixels - dp(24)), -2);
+    }
+
+    private void showPracticeBattle(JSONArray cards, String[] lineup, PracticeBattle.Mode mode,
+                                    PracticeBattle.Difficulty difficulty, long enemyPower) {
+        ArrayList<JSONObject> team = practiceLineup(cards, lineup);
+        if (team.isEmpty()) {
+            showResultDialog("Choose a card", "Add a card in Deck Testing before you start.");
+            return;
+        }
+        PracticeBattle battle = new PracticeBattle(mode, difficulty, practicePower(team), enemyPower);
+        String title = mode == PracticeBattle.Mode.DUMMY ? "Training Dummy"
+                : mode == PracticeBattle.Mode.BOSS ? "Boss Simulation" : "AI Battle · " + humanize(difficulty.name());
+        String owner = me == null ? "" : me.optString("user_id");
+        JSONArray rounds = new JSONArray();
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        String briefing = mode == PracticeBattle.Mode.DUMMY ? "Stationary target · Select a card to test its skill."
+                : "Team " + formatNumber(battle.teamPower) + " power  ·  Opponent " + formatNumber(enemyPower) + " power";
+        LinearLayout shell = phase11Sheet("TRAINING GROUNDS", title, briefing, CYAN);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = sectionPanel();
+        scroll.addView(body);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        TextView status = text("", 15, GOLD_BRIGHT, true);
+        body.addView(status);
+        ArrayList<String> names = new ArrayList<>();
+        for (JSONObject card : team) names.add(card.optString("name", "Card"));
+        Spinner activeCard = new Spinner(this);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, names);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        activeCard.setAdapter(adapter);
+        body.addView(activeCard, fieldParams());
+        TextView skillInfo = text("", 11, MUTED, false);
+        body.addView(skillInfo);
+        LinearLayout moves = new LinearLayout(this);
+        ArrayList<TextView> controls = new ArrayList<>();
+        for (PracticeBattle.Move move : PracticeBattle.Move.values()) {
+            TextView control = button(move.name(), move == PracticeBattle.Move.STRIKE);
+            moves.addView(control, new LinearLayout.LayoutParams(0, dp(44), 1f));
+            controls.add(control);
+        }
+        body.addView(moves, rowParams());
+        TextView last = text("Choose your first move.", 12, TEXT, false);
+        body.addView(last, rowParams());
+        TextView finish = button("CLOSE PRACTICE", false);
+        addGap(shell, 4);
+        shell.addView(finish, new LinearLayout.LayoutParams(-1, dp(44)));
+        Runnable update = () -> {
+            JSONObject card = team.get(Math.max(0, activeCard.getSelectedItemPosition()));
+            boolean hasSkill = card.optInt("skill_power") > 0;
+            boolean unlocked = hasSkill && card.optInt("skill_unlocked") == 1;
+            boolean canTest = unlocked || (mode == PracticeBattle.Mode.DUMMY && hasSkill);
+            status.setText(mode == PracticeBattle.Mode.DUMMY
+                    ? "Total damage " + formatNumber(battle.damageDealt) + "  ·  Focus " + battle.focus
+                    : "Your HP " + battle.myHp + "  ·  Enemy HP " + battle.enemyHp + "  ·  Focus " + battle.focus);
+            skillInfo.setText(!hasSkill ? "This card has no signature ability."
+                    : card.optString("skill_name", "Signature Ability") + " · "
+                    + (battle.skillUsed && mode != PracticeBattle.Mode.DUMMY ? "Used this session" : unlocked ? "Ready"
+                    : canTest ? "Locked in battle · Dummy trial available" : "Unlock through Ascension"));
+            controls.get(3).setEnabled(canTest && (mode == PracticeBattle.Mode.DUMMY || !battle.skillUsed)
+                    && !battle.finished() && battle.turns < 30);
+        };
+        activeCard.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) { update.run(); }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        for (PracticeBattle.Move move : PracticeBattle.Move.values()) {
+            controls.get(move.ordinal()).setOnClickListener(v -> {
+                JSONObject card = team.get(Math.max(0, activeCard.getSelectedItemPosition()));
+                PracticeBattle.Round round = battle.play(move, card.optInt("skill_power"));
+                String attack = move == PracticeBattle.Move.SKILL ? card.optString("skill_name", "Signature") : humanize(move.name());
+                String enemy = round.enemyMove == null ? "Stationary target" : "Enemy " + humanize(round.enemyMove.name());
+                String line = attack + " dealt " + round.damageDealt + " · " + enemy + " · " + round.damageTaken + " taken";
+                rounds.put(payload("turn", round.turn, "summary", line,
+                        "hp", round.playerHp + " / " + round.enemyHp));
+                update.run();
+                last.setText("Turn " + round.turn + " · " + line);
+                finish.setText("FINISH & VIEW RECAP");
+                if (battle.finished() || battle.turns >= 30) {
+                    for (TextView control : controls) control.setEnabled(false);
+                    last.append("\n" + battle.outcome());
+                }
+            });
+        }
+        finish.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (rounds.length() == 0) return;
+            JSONObject entry = payload("title", title,
+                    "result", battle.finished() || mode == PracticeBattle.Mode.DUMMY ? battle.outcome() : "ENDED EARLY",
+                    "turns", battle.turns, "damage", battle.damageDealt, "rounds", rounds,
+                    "played_at", new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.ROOT).format(new java.util.Date()));
+            savePracticeRecap(owner, entry);
+            showMatchRecap("PRACTICE", entry, rounds);
+        });
+        dialog.setCancelable(false);
+        update.run();
+        phase11ShowSheet(dialog, shell, 660);
+        dialog.setCanceledOnTouchOutside(false);
+    }
+
+    private JSONArray localPracticeHistory(String userId) {
+        if (userId.isEmpty()) return new JSONArray();
+        String raw = getSharedPreferences("cu_practice_history", MODE_PRIVATE).getString(userId, "[]");
+        try { return new JSONArray(raw); } catch (org.json.JSONException ignored) { return new JSONArray(); }
+    }
+
+    private void savePracticeRecap(String userId, JSONObject entry) {
+        if (userId.isEmpty()) return;
+        JSONArray previous = localPracticeHistory(userId);
+        JSONArray next = new JSONArray().put(entry);
+        for (int i = 0; i < Math.min(previous.length(), 29); i++) {
+            JSONObject row = previous.optJSONObject(i);
+            if (row != null) next.put(row);
+        }
+        getSharedPreferences("cu_practice_history", MODE_PRIVATE).edit().putString(userId, next.toString()).apply();
+    }
+
+    private void addPhase13Close(LinearLayout shell, android.app.Dialog dialog) {
+        TextView close = button("CLOSE", false);
+        close.setOnClickListener(v -> dialog.dismiss());
+        addGap(shell, 4);
+        shell.addView(close, new LinearLayout.LayoutParams(-1, dp(44)));
+    }
+
+    private void renderCardEncyclopedia(JSONObject data) {
+        JSONArray cards = data.optJSONArray("cards");
+        if (cards == null || cards.length() == 0) {
+            showNotice("The card catalogue is empty.");
+            return;
+        }
+        EditText search = editField("Search name, code, skill or set", false);
+        search.setSingleLine(true);
+        content.addView(search, fieldParams());
+        ArrayList<String> elements = new ArrayList<>();
+        elements.add("All elements");
+        for (int i = 0; i < cards.length(); i++) {
+            JSONObject card = cards.optJSONObject(i);
+            if (card == null) continue;
+            String element = card.optString("element", "AETHER");
+            if (!elements.contains(element)) elements.add(element);
+        }
+        String[] rarities = {"All rarities", "COMMON", "UNCOMMON", "RARE", "EPIC", "LEGENDARY", "MYTHIC"};
+        String[] filter = {elements.get(0), rarities[0]};
+        LinearLayout filterRow = new LinearLayout(this);
+        TextView elementFilter = button("ALL ELEMENTS", false);
+        TextView rarityFilter = button("ALL RARITIES", false);
+        filterRow.addView(elementFilter, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        filterRow.addView(rarityFilter, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        content.addView(filterRow, rowParams());
+        TextView count = text("", 11, GOLD_BRIGHT, true);
+        content.addView(count, rowParams());
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        content.addView(list, rowParams());
+        TextView more = button("SHOW MORE CARDS", false);
+        content.addView(more, rowParams());
+        int[] limit = {30};
+        Runnable update = () -> {
+            String query = search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
+            list.removeAllViews();
+            int matches = 0;
+            for (int i = 0; i < cards.length(); i++) {
+                JSONObject card = cards.optJSONObject(i);
+                if (card == null) continue;
+                String element = card.optString("element", "AETHER");
+                String rarity = card.optString("rarity", "COMMON");
+                if ((!filter[0].equals(elements.get(0)) && !filter[0].equalsIgnoreCase(element))
+                        || (!filter[1].equals(rarities[0]) && !filter[1].equalsIgnoreCase(rarity))) continue;
+                String name = card.optString("name", "Card");
+                String code = card.optString("card_code");
+                String searchable = name + " " + code + " " + element + " " + rarity + " "
+                        + card.optString("set_name") + " " + card.optString("skill_name");
+                if (!searchable.toLowerCase(java.util.Locale.ROOT).contains(query)) continue;
+                matches++;
+                if (matches > limit[0]) continue;
+                String owned = card.optInt("owned_count") > 0 ? "OWNED" : "UNDISCOVERED";
+                LinearLayout row = dataRow(name, code + " · " + rarity + " · " + element, owned + " ›");
+                row.setFocusable(true);
+                row.setOnClickListener(v -> showEncyclopediaCard(card));
+                list.addView(row, rowParams());
+            }
+            count.setText(matches == 0 ? "No matching cards"
+                    : Math.min(limit[0], matches) + " of " + matches + " cards");
+            more.setVisibility(matches > limit[0] ? View.VISIBLE : View.GONE);
+        };
+        elementFilter.setOnClickListener(v -> showChoiceDialog("Element", "", elements.toArray(new String[0]), i -> {
+            filter[0] = elements.get(i);
+            elementFilter.setText(filter[0]);
+            limit[0] = 30;
+            update.run();
+        }));
+        rarityFilter.setOnClickListener(v -> showChoiceDialog("Rarity", "", rarities, i -> {
+            filter[1] = rarities[i];
+            rarityFilter.setText(filter[1]);
+            limit[0] = 30;
+            update.run();
+        }));
+        more.setOnClickListener(v -> {
+            limit[0] += 30;
+            update.run();
+        });
+        search.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                limit[0] = 30;
+                update.run();
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+        update.run();
+    }
+
+    private void showEncyclopediaCard(JSONObject card) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        String rarity = card.optString("rarity", "COMMON");
+        int accent = cardRarityColor(rarity);
+        LinearLayout shell = phase11Sheet("CARD ENCYCLOPEDIA", card.optString("name", "Card"),
+                card.optString("card_code") + " · " + rarity + " · " + card.optString("element"), accent);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = sectionPanel();
+        scroll.addView(body);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        LinearLayout.LayoutParams art = new LinearLayout.LayoutParams(dp(128), dp(180));
+        art.gravity = Gravity.CENTER_HORIZONTAL;
+        body.addView(phase11Art(card, accent), art);
+        body.addView(dataRow("Card set", card.optString("set_name", "Firstlight"), ""), rowParams());
+        if (card.has("base_power")) body.addView(dataRow("Base power",
+                "Power before level and ascension bonuses", formatNumber(card.optLong("base_power"))), rowParams());
+        body.addView(dataRow("Collection", card.optInt("owned_count") > 0
+                ? card.optInt("owned_count") + " available copies" : "Undiscovered", ""), rowParams());
+        String description = card.optString("description", "");
+        if (!description.isEmpty()) body.addView(text(description, 13, TEXT, false), rowParams());
+        String skill = card.isNull("skill_name") ? "" : card.optString("skill_name", "");
+        LinearLayout ability = sectionPanel();
+        ability.addView(text("SIGNATURE ABILITY", 10, GOLD_BRIGHT, true));
+        if (skill.isEmpty()) {
+            ability.addView(text("No signature ability recorded.", 12, MUTED, false));
+        } else {
+            ability.addView(text(skill, 14, TEXT, true));
+            ability.addView(text(card.optString("skill_description", ""), 12, TEXT, false));
+            ability.addView(text("Unlocks at " + (card.optInt("unlock_star_rank", 1) + 1)
+                    + "★ · Skill power " + card.optInt("skill_power"), 11, MUTED, false));
+        }
+        body.addView(ability, rowParams());
+        addPhase13Close(shell, dialog);
+        phase11ShowSheet(dialog, shell, 660);
+    }
+
+    private static final String[] HISTORY_MODES = {"ARENA", "ADVENTURE", "DUNGEON", "RAID", "PRACTICE"};
+
+    private void openBattleHistory(String mode, int offset) {
+        historyMode = mode;
+        historyOffset = offset;
+        renderTab("battle_history");
+    }
+
+    private void renderBattleHistory(JSONObject data, String mode, int offset) {
+        JSONArray entries = data == null ? localPracticeHistory(me == null ? "" : me.optString("user_id"))
+                : data.optJSONArray("entries");
+        HorizontalScrollView strip = new HorizontalScrollView(this);
+        strip.setHorizontalScrollBarEnabled(false);
+        LinearLayout filters = new LinearLayout(this);
+        strip.addView(filters);
+        for (String option : HISTORY_MODES) {
+            TextView choose = button(humanize(option), mode.equals(option));
+            choose.setContentDescription(humanize(option) + " history");
+            choose.setOnClickListener(v -> openBattleHistory(option, 0));
+            filters.addView(choose, new LinearLayout.LayoutParams(dp(103), dp(42)));
+        }
+        content.addView(strip, rowParams());
+        if (entries == null || entries.length() == 0) {
+            showNotice("No " + humanize(mode).toLowerCase(java.util.Locale.ROOT) + " battles recorded yet.");
+        } else {
+            for (int i = 0; i < entries.length(); i++) {
+                JSONObject entry = entries.optJSONObject(i);
+                if (entry == null) continue;
+                LinearLayout row = dataRow(historyTitle(mode, entry), entry.optString("played_at"),
+                        historyOutcome(mode, entry) + " ›");
+                row.setFocusable(true);
+                row.setOnClickListener(v -> {
+                    if ("ARENA".equals(mode)) fetchArenaRecap(entry);
+                    else showMatchRecap(mode, entry, entry.optJSONArray("rounds"));
+                });
+                content.addView(row, rowParams());
+            }
+        }
+        if (offset > 0) addPhase13Link("Newer battles", "Previous page", () -> openBattleHistory(mode, offset - 20));
+        if (data != null && data.optBoolean("hasMore")) {
+            addPhase13Link("Older battles", "Next page", () -> openBattleHistory(mode, offset + 20));
+        }
+    }
+
+    private boolean historyPlayerOne(JSONObject match) {
+        return me != null && me.optString("user_id").equals(match.optString("player_one_id"));
+    }
+
+    private String historyTitle(String mode, JSONObject entry) {
+        if (!"ARENA".equals(mode)) return entry.optString("title", humanize(mode));
+        boolean first = historyPlayerOne(entry);
+        boolean bot = entry.optInt(first ? "player_two_is_bot" : "player_one_is_bot") == 1;
+        String opponent = entry.optString(first ? "player_two_name" : "player_one_name", "Collector");
+        return opponent + " · " + (bot ? "Training bot" : humanize(entry.optString("mode", "CASUAL")));
+    }
+
+    private String historyOutcome(String mode, JSONObject entry) {
+        if ("RAID".equals(mode)) return "STRIKE";
+        if (!"ARENA".equals(mode)) return entry.optString("result", "COMPLETED");
+        if (entry.isNull("winner_id") || entry.optString("winner_id").isEmpty()) return "DRAW";
+        return me != null && me.optString("user_id").equals(entry.optString("winner_id")) ? "VICTORY" : "DEFEAT";
+    }
+
+    private void fetchArenaRecap(JSONObject match) {
+        String matchId = match.optString("match_id");
+        String tab = activeTab;
+        int generation = activePageRequest;
+        if (matchId.isEmpty()) return;
+        api.get("/api/battle-history/arena/" + Uri.encode(matchId), result -> ui.post(() -> {
+            if (!tab.equals(activeTab) || generation != activePageRequest) return;
+            if (result.ok()) showMatchRecap("ARENA", match, result.data.optJSONArray("rounds"));
+            else showResultDialog("Recap unavailable", result.error);
+        }));
+    }
+
+    private void showMatchRecap(String mode, JSONObject entry, JSONArray rounds) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        String date = entry.optString("played_at", entry.optString("completed_at"));
+        LinearLayout shell = phase11Sheet("MATCH RECAP · " + humanize(mode), historyTitle(mode, entry),
+                historyOutcome(mode, entry) + "  ·  " + date, GOLD_BRIGHT);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = sectionPanel();
+        scroll.addView(body);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        boolean first = historyPlayerOne(entry);
+        if ("ARENA".equals(mode)) {
+            String own = first ? "player_one_" : "player_two_";
+            String other = first ? "player_two_" : "player_one_";
+            body.addView(dataRow("Final HP", "You / Opponent",
+                    entry.optInt(own + "score") + " / " + entry.optInt(other + "score")), rowParams());
+            if (!entry.isNull(own + "delta")) {
+                int rating = entry.optInt(own + "delta");
+                body.addView(dataRow("Rating change", "", (rating > 0 ? "+" : "") + rating), rowParams());
+            }
+            if (rounds == null || rounds.length() == 0) body.addView(text("No turns were recorded.", 12, MUTED, false));
+            if (rounds != null) for (int i = 0; i < rounds.length(); i++) {
+                JSONObject round = rounds.optJSONObject(i);
+                if (round == null) continue;
+                body.addView(dataRow("Turn " + round.optInt("turn_no"),
+                        humanize(round.optString(own + "move")) + " vs " + humanize(round.optString(other + "move"))
+                                + "\n" + round.optInt(own + "damage") + " dealt · " + round.optInt(other + "damage") + " taken",
+                        round.optInt(own + "hp") + " / " + round.optInt(other + "hp") + " HP"), rowParams());
+            }
+        } else if ("ADVENTURE".equals(mode)) {
+            body.addView(dataRow(entry.optString("enemy_name", "Enemy"), "Your power / Enemy power",
+                    formatNumber(entry.optLong("player_power")) + " / " + formatNumber(entry.optLong("enemy_power"))), rowParams());
+            body.addView(dataRow("Rewards", formatNumber(entry.optLong("reward_xp")) + " XP",
+                    formatNumber(entry.optLong("reward_coins")) + " Gold"), rowParams());
+        } else if ("DUNGEON".equals(mode)) {
+            body.addView(dataRow("Floors reached", "Difficulty " + entry.optInt("difficulty"),
+                    String.valueOf(entry.optInt("floor_reached"))), rowParams());
+        } else if ("RAID".equals(mode)) {
+            body.addView(dataRow("Damage dealt", entry.isNull("reward_claimed_at") ? "" : "Reward claimed",
+                    formatNumber(entry.optLong("damage"))), rowParams());
+        } else {
+            body.addView(dataRow("Total damage", entry.optInt("turns") + " turns",
+                    formatNumber(entry.optLong("damage"))), rowParams());
+            if (rounds != null) for (int i = 0; i < rounds.length(); i++) {
+                JSONObject round = rounds.optJSONObject(i);
+                if (round == null) continue;
+                body.addView(dataRow("Turn " + round.optInt("turn"), round.optString("summary"),
+                        round.optString("hp") + " HP"), rowParams());
+            }
+        }
+        addPhase13Close(shell, dialog);
+        phase11ShowSheet(dialog, shell, 660);
+    }
+
     private void renderArena(JSONObject data) {
         addArenaHeader(data);
+        addPhase13Link("Training Grounds", "Practise against a dummy, AI, or a simulated boss.",
+                () -> renderTab("training"));
+        addPhase13Link("Battle History", "Open completed battles and turn-by-turn recaps.",
+                () -> openBattleHistory("ARENA", 0));
         boolean betaTester = data.optBoolean("betaTesting")
                 || (me != null && me.optBoolean("is_beta_tester"));
         if (betaTester) {
@@ -1332,7 +1900,7 @@ public final class MainActivity extends Activity {
             betaNotice.setBackground(gradient(Color.rgb(45, 36, 76), Color.rgb(15, 17, 39),
                     VIOLET, dp(12)));
             betaNotice.addView(text("BETA TESTER MODE  ·  TRAINING ARENA", 8, VIOLET, true));
-            betaNotice.addView(text("Ranked matches use bot opponents for feature testing. Your results do not affect the public leaderboard.",
+            betaNotice.addView(text("Beta accounts can use Training Grounds or play Casual Arena.",
                     8, MUTED, false));
             content.addView(betaNotice, rowParams());
         }
@@ -1491,7 +2059,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             casual.setOnClickListener(v -> joinArenaQueue("CASUAL"));
             content.addView(casual, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
-            if (!data.optBoolean("rankedHidden") && !data.optBoolean("rankedBanned")) {
+            if (!betaTester && !data.optBoolean("rankedHidden") && !data.optBoolean("rankedBanned")) {
                 TextView rankedMatch = button("RANKED MATCH · SEASON LADDER", false);
                 rankedMatch.setOnClickListener(v -> joinArenaQueue("RANKED"));
                 LinearLayout.LayoutParams rankedParams = new LinearLayout.LayoutParams(
@@ -1505,22 +2073,15 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         JSONArray recent = data.optJSONArray("recent");
         if (recent != null && recent.length() > 0) {
             addGap(content, 9);
-            content.addView(text("RECENT MATCHES", 8, GOLD, true));
+            content.addView(text("RECENT MATCHES", 10, GOLD, true));
             for (int i = 0; i < recent.length(); i++) {
                 JSONObject match = recent.optJSONObject(i);
                 if (match == null) continue;
-                boolean winner = me != null && me.optString("user_id")
-                        .equals(match.optString("winner_id"));
-                boolean playerOne = me != null && me.optString("user_id")
-                        .equals(match.optString("player_one_id"));
-                String opponent = playerOne ? match.optString("player_two_name")
-                        : match.optString("player_one_name");
-                boolean opponentWasBot = match.optInt(playerOne
-                        ? "player_two_is_bot" : "player_one_is_bot", 0) == 1;
-                if (opponentWasBot) opponent += "  ·  TRAINING BOT";
-                content.addView(dataRow(opponent, match.optString("mode", "CASUAL") + " · "
-                        + match.optString("completed_at", ""),
-                        winner ? "VICTORY" : "COMPLETED"), rowParams());
+                LinearLayout row = dataRow(historyTitle("ARENA", match), match.optString("completed_at"),
+                        historyOutcome("ARENA", match) + " ›");
+                row.setFocusable(true);
+                row.setOnClickListener(v -> fetchArenaRecap(match));
+                content.addView(row, rowParams());
             }
         }
     }
@@ -3144,6 +3705,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         addRealmScene("archive", "THE CARD ARCHIVE",
                 "Every discovery is catalogued in the Firstlight collection.", ownedTypes,
                 Math.max(1, cards.length()));
+        addPhase13Link("Card Encyclopedia", "Look up any card, including cards you haven't collected.",
+                () -> renderTab("encyclopedia"));
 
         LinearLayout showcase = sectionPanel();
         showcase.setOrientation(LinearLayout.HORIZONTAL);
@@ -6130,7 +6693,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                             + player.optInt("losses") + "L",
                     player.optString("tier", "BRONZE")), rowParams());
         }
-        if (!data.optBoolean("rankedBanned")) {
+        boolean beta = data.optBoolean("betaTesting") || (me != null && me.optBoolean("is_beta_tester"));
+        if (beta) addPhase13Link("Training Grounds", "Practice modes for beta accounts.", () -> renderTab("training"));
+        if (!beta && !data.optBoolean("rankedBanned")) {
             TextView enter = button("FIND RANKED MATCH", true);
             enter.setOnClickListener(v -> confirmAction("Queue for Ranked Arena?",
                     "Ranked matchmaking uses your live rating and season.", () ->
@@ -6802,6 +7367,17 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 showResultDialog("Move not accepted", result.error);
                 renderTab("arena");
                 return;
+            }
+            if (result.data.optBoolean("completed") && "arena".equals(activeTab)) {
+                JSONArray recent = result.data.optJSONArray("recent");
+                if (recent != null) for (int i = 0; i < recent.length(); i++) {
+                    JSONObject match = recent.optJSONObject(i);
+                    if (match != null && matchId.equals(match.optString("match_id"))) {
+                        renderTab("arena");
+                        fetchArenaRecap(match);
+                        return;
+                    }
+                }
             }
             String message = result.data.optString("message",
                     result.data.optBoolean("waiting") ? "Move locked. Waiting for your opponent." : "Match updated.");
@@ -7772,6 +8348,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String endpointFor(String tab) {
         switch (tab) {
             case "collection": return "/api/cards";
+            case "encyclopedia": return "/api/encyclopedia";
+            case "training": return "/api/evolution";
+            case "battle_history": return "/api/battle-history?mode=" + historyMode + "&offset=" + historyOffset;
             case "binders": return "/api/binders";
             case "formation": return "/api/formation";
             case "evolution": return "/api/evolution";
@@ -7799,6 +8378,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String screenHeading(String tab) {
         switch (tab) {
             case "collection": return "The Card Archive";
+            case "encyclopedia": return "Card Encyclopedia";
+            case "training": return "Training Grounds";
+            case "battle_history": return "Battle History";
             case "binders": return "Collector Binders";
             case "formation": return "Team Decks";
             case "evolution": return "Evolution Forge";
@@ -7825,6 +8407,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String screenDescription(String tab) {
         switch (tab) {
             case "collection": return "Your owned cards, full catalogue and duplicate copies.";
+            case "encyclopedia": return "Explore card artwork, base power and signature abilities.";
+            case "training": return "Practise moves and formations without affecting progression.";
+            case "battle_history": return "Review results, rewards and Arena turns.";
             case "binders": return "Organize the cards in your personal archive binders.";
             case "formation": return "Assign up to five cards to strengthen every battle.";
             case "evolution": return "Train cards, awaken signature skills and ascend ranks.";
