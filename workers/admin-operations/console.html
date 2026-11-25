@@ -16,6 +16,7 @@
 <aside class="ops-sidebar">
   <a class="ops-brand" href="/"><span aria-hidden="true">✦</span> CardUniverse</a>
   <nav aria-label="Game Operations">
+    <a href="#guild-settings">Guild Settings</a>
     <a href="#summon" aria-current="location">Summon</a>
     <a href="#binder">Binder Rewards</a>
     <a href="#guild">Guild Activities</a>
@@ -30,10 +31,24 @@
 <main id="ops-main">
   <header class="ops-header">
     <div><p class="ops-label">ADMIN CONSOLE</p><h1>Game Operations</h1>
-    <p>Monitor summon configuration and Phase 14 activity.</p></div>
+    <p>Configure Guild policies and monitor live game activity.</p></div>
     <div><button id="ops-refresh" type="button">Refresh data</button><p id="ops-status" role="status">Loading dashboard…</p></div>
   </header>
   <div class="ops-kpis" id="ops-kpis" aria-label="Key metrics"></div>
+  <section id="guild-settings" aria-labelledby="guild-settings-heading">
+    <h2 id="guild-settings-heading">Guild Settings</h2>
+    <p>Changes apply to the selected guild on the game server.</p>
+    <form id="ops-guild-form">
+      <label>Find a guild <input id="ops-guild-filter" type="search" placeholder="Name or tag"></label>
+      <label>Guild <select id="ops-guild-select" required disabled></select></label>
+      <p id="ops-guild-roster"></p>
+      <label>Member limit <input id="ops-guild-capacity" type="number" required min="5" max="1000" step="1"></label>
+      <label>Minimum Collector Level <input id="ops-guild-level" type="number" required min="1" max="100" step="1"></label>
+      <label>Recruitment <select id="ops-guild-recruiting"><option value="1">Open</option><option value="0">Closed</option></select></label>
+      <button id="ops-save-guild" type="submit" disabled>Save guild settings</button>
+      <p id="ops-guild-status" role="status"></p>
+    </form>
+  </section>
   <section id="summon" aria-labelledby="summon-heading">
     <div class="ops-section-head"><div><h2 id="summon-heading">Summon</h2><p>Configured slot odds, banner availability and recent opens.</p></div>
     <label>Banner <select id="ops-pack" disabled></select></label></div>

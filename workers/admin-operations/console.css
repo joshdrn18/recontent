@@ -88,3 +88,12 @@
 .cu-ops section {background:linear-gradient(135deg,#202938,#171e29 72%);box-shadow:0 12px 30px #04060b50}
 .cu-ops th {background:#273343;color:#f3e2c4}
 .cu-ops .ops-note {color:#9be0ca}
+
+#ops-guild-form {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+#ops-guild-form label {display:grid;gap:6px;color:var(--muted)}
+#ops-guild-form :is(button,input,select) {font:inherit;color:var(--text);background:#151d2b;border:1px solid #4a5668;border-radius:8px;padding:9px 11px;min-height:44px;width:100%}
+#ops-guild-form button {align-self:end;color:#171413;background:#e9c388;border-color:#f8d69e;font-weight:700;cursor:pointer}
+#ops-guild-form button:disabled {opacity:.45;cursor:default}
+#ops-guild-roster,#ops-guild-status {grid-column:1/-1}
+#ops-guild-status.ops-error {color:#ffb5af}
+@media(max-width:600px) {#ops-guild-form {grid-template-columns:1fr}}

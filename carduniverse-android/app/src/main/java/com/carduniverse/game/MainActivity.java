@@ -1097,7 +1097,6 @@ public final class MainActivity extends Activity {
             case "binder_completion": renderBinderCompletion(data); break;
             case "guild_coop": renderGuildCooperative(data); break;
             case "journey": renderNewPlayerJourney(data); break;
-            case "admin_operations": renderAdminOperations(data); break;
             case "collection": renderCollection(data); break;
             case "binders": renderBinders(data); break;
             case "formation": renderFormation(data); break;
@@ -3907,57 +3906,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 }).setNegativeButton("CANCEL", null).show();
     }
 
-    private void renderAdminOperations(JSONObject data) {
-        if (!isGodModeEnabled()) return;
-        addModeSpotlight("MASTER ADMIN", "Game Operations", "Phase 14 activity from the live game server.", "♛", GOLD_BRIGHT);
-        addPhase13Link("Open web console", "CardUniverse Admin Console · Pages", () -> {
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW,
-                        Uri.parse("https://carduniverse-admin.pages.dev/admin/operations")));
-            } catch (android.content.ActivityNotFoundException error) {
-                showNotice("No browser is available to open the web console.");
-            }
-        });
-        JSONArray packs = data.optJSONArray("packs");
-        if (packs != null) {
-            content.addView(text("SUMMON OPENINGS · LAST 7 DAYS", 12, GOLD_BRIGHT, true), rowParams());
-            for (int i = 0; i < packs.length(); i++) {
-                JSONObject pack = packs.optJSONObject(i);
-                if (pack != null) content.addView(dataRow(pack.optString("name"),
-                        pack.optBoolean("active") ? "Active banner" : "Inactive banner",
-                        formatNumber(pack.optLong("opened")) + " opens"), rowParams());
-            }
-        }
-        JSONArray weekly = data.optJSONArray("weekly");
-        if (weekly != null && weekly.length() > 0) {
-            content.addView(text("GUILD BOSS HISTORY", 12, GOLD_BRIGHT, true), rowParams());
-            for (int i = 0; i < weekly.length(); i++) {
-                JSONObject row = weekly.optJSONObject(i);
-                if (row != null) content.addView(dataRow(row.optString("week_start"),
-                        formatNumber(row.optLong("guilds")) + " active guilds · "
-                                + formatNumber(row.optLong("strikes")) + " strikes",
-                        formatNumber(row.optLong("cleared")) + " clears"), rowParams());
-            }
-        }
-        JSONArray rewardActivity = data.optJSONArray("activity");
-        if (rewardActivity != null && rewardActivity.length() > 0) {
-            content.addView(text("REWARD CLAIMS · LAST 14 DAYS", 12, GOLD_BRIGHT, true), rowParams());
-            for (int i = 0; i < rewardActivity.length(); i++) {
-                JSONObject row = rewardActivity.optJSONObject(i);
-                if (row != null) content.addView(dataRow(humanize(row.optString("reward_kind")),
-                        row.optString("day") + " UTC", formatNumber(row.optLong("claims"))), rowParams());
-            }
-        }
-        JSONObject journey = data.optJSONObject("journey");
-        if (journey != null) content.addView(dataRow("New Player Journey",
-                formatNumber(journey.optLong("players")) + " new collectors · Last 30 days",
-                formatNumber(journey.optLong("tutorial")) + " tutorials"), rowParams());
-    }
-
     private void renderSettings(JSONObject data) {
-        if (isGodModeEnabled()) addPhase13Link("Admin Console", "Open live Game Operations.",
-                () -> renderTab("admin_operations"));
-        addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
+addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 "Tune the soundtrack, interface feedback and your player account preferences.",
                 "⚙", CYAN);
         LinearLayout experience = sectionPanel();
@@ -7664,7 +7614,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         api.get("/api/admin/profile", result -> ui.post(() -> {
             if (!result.ok()) return;
             adminProfile = result.data;
-            if (content != null && ("home".equals(activeTab) || "settings".equals(activeTab))) renderTab(activeTab);
+            if ("home".equals(activeTab) && content != null) renderTab("home");
         }));
     }
 
@@ -8762,7 +8712,6 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             case "binder_completion": return "/api/binders/completion";
             case "guild_coop": return "/api/guilds/cooperative";
             case "journey": return "/api/journey";
-            case "admin_operations": return isGodModeEnabled() ? "/api/admin/operations/phase14" : null;
             case "battle_history": return "/api/battle-history?mode=" + historyMode + "&offset=" + historyOffset;
             case "binders": return "/api/binders";
             case "formation": return "/api/formation";
@@ -8797,7 +8746,6 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             case "binder_completion": return "Binder Completion Rewards";
             case "guild_coop": return "Guild Cooperative Activities";
             case "journey": return "New Player Journey";
-            case "admin_operations": return "Admin Console";
             case "battle_history": return "Battle History";
             case "binders": return "Collector Binders";
             case "formation": return "Team Decks";
