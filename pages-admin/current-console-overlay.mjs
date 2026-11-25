@@ -30,7 +30,7 @@ function replaceOnce(source, original, replacement) {
     return source.slice(0, offset) + replacement + source.slice(offset + original.length);
 }
 
-function updateGuildEditor(source) {
+function updateOperations(source) {
     const capacityInput = '      <label>Member limit <input id="ops-guild-capacity" type="number" required min="5" max="1000" step="1"></label>\n';
     source = replaceOnce(source, JSON.stringify(capacityInput).slice(1, -1), "");
     source = replaceOnce(source, '    const guildCapacity = byId("ops-guild-capacity");\n', "");
@@ -40,6 +40,14 @@ function updateGuildEditor(source) {
     source = replaceOnce(source, '        guildCapacity.value = guild?.member_limit ?? "";\n', "");
     source = replaceOnce(source, "            member_limit:guildCapacity.valueAsNumber,\n", "");
     return replaceOnce(source, "[guildCapacity,guildLevel", "[guildLevel");
+}
+
+function updateRecordEditor(source) {
+    source = replaceOnce(source, 'N("member_limit","Member capacity",5,1000),', "");
+    const marker = "if(meta.children.length)right.append(meta);";
+    return replaceOnce(source, marker,
+        'if(type==="guild"){const cap=e("div",undefined,"cue-metric");' +
+        'cap.append(e("small","Fixed capacity"),e("b",50));meta.append(cap);}' + marker);
 }
 
 export default {
@@ -78,7 +86,9 @@ export default {
             if (redirect.origin === previous) outgoing.set("location", redirect.pathname + redirect.search + redirect.hash);
         }
 
-        if (request.method === "GET" && url.pathname === "/unified-ops.js" && result.ok) {
+        const editor = url.pathname === "/unified-ops.js" ? updateOperations
+            : url.pathname === "/unified-editor.js" ? updateRecordEditor : null;
+        if (request.method === "GET" && editor && result.ok) {
             // This route serves one bounded JavaScript module from the pinned deployment.
             const source = await result.text();
             if (source.length > 150000) return new Response("Guild tools unavailable", {status: 502});
@@ -86,7 +96,7 @@ export default {
             outgoing.delete("content-encoding");
             outgoing.delete("etag");
             try {
-                return new Response(updateGuildEditor(source), {status: result.status, headers: outgoing});
+                return new Response(editor(source), {status: result.status, headers: outgoing});
             } catch (error) {
                 console.error("Cannot update Guild editor", error.message);
                 return new Response(source, {status: result.status, headers: outgoing});
