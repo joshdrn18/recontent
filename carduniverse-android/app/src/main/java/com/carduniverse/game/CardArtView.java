@@ -22,7 +22,13 @@ import java.util.concurrent.Executors;
 public final class CardArtView extends ImageView {
     private static final ExecutorService LOADERS = Executors.newFixedThreadPool(3);
     private static final LruCache<String, Picture> SVG_CACHE = new LruCache<>(48);
-    private static final LruCache<String, Bitmap> BITMAP_CACHE = new LruCache<>(8);
+    private static final int MAX_DOWNLOAD_BYTES = 12 * 1024 * 1024;
+    private static final int MAX_BITMAP_EDGE = 1536;
+    private static final LruCache<String, Bitmap> BITMAP_CACHE = new LruCache<String, Bitmap>(12 * 1024 * 1024) {
+        @Override protected int sizeOf(String key, Bitmap bitmap) {
+            return bitmap.getAllocationByteCount();
+        }
+    };
 
     public CardArtView(Context context) { super(context); init(); }
     public CardArtView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
@@ -77,7 +83,11 @@ public final class CardArtView extends ImageView {
                      ByteArrayOutputStream output = new ByteArrayOutputStream()) {
                     byte[] buffer = new byte[8192];
                     int count;
-                    while ((count = input.read(buffer)) != -1) output.write(buffer, 0, count);
+                    while ((count = input.read(buffer)) != -1) {
+                        if (output.size() > MAX_DOWNLOAD_BYTES - count)
+                            throw new IllegalStateException("Artwork exceeds safe download size");
+                        output.write(buffer, 0, count);
+                    }
                     bytes = output.toByteArray();
                 }
 
@@ -87,7 +97,16 @@ public final class CardArtView extends ImageView {
                     SVG_CACHE.put(key, picture);
                     asset = picture;
                 } else {
-                    Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length);
+                    BitmapFactory.Options bounds = new BitmapFactory.Options();
+                    bounds.inJustDecodeBounds = true;
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.length, bounds);
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0)
+                        throw new IllegalStateException("Invalid artwork dimensions");
+                    BitmapFactory.Options options = new BitmapFactory.Options();
+                    options.inSampleSize = 1;
+                    while (Math.max(bounds.outWidth, bounds.outHeight) / options.inSampleSize > MAX_BITMAP_EDGE)
+                        options.inSampleSize *= 2;
+                    Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
                     if (bitmap == null) throw new IllegalStateException("Unsupported artwork image");
                     BITMAP_CACHE.put(key, bitmap);
                     asset = bitmap;
