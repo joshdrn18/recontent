@@ -985,7 +985,7 @@ public final class MainActivity extends Activity {
                 : "Claim your free Starter Pack and 20 Gold.", 8,
                 dailyClaimedToday ? Color.rgb(147, 158, 177) : MUTED, false));
         dailyReward.addView(dailyCopy, new LinearLayout.LayoutParams(0, -2, 1f));
-        TextView dailyClaim = button(dailyClaimedToday ? "CLAIMED" : "CLAIM", !dailyClaimedToday);
+        TextView dailyClaim = button(dailyClaimedToday ? "CLAIMED" : "AVAILABLE", !dailyClaimedToday);
         dailyClaim.setEnabled(!dailyClaimedToday);
         dailyClaim.setTextColor(dailyClaimedToday ? Color.rgb(171, 181, 197) : BG);
         dailyClaim.setBackground(gradient(
@@ -1034,7 +1034,9 @@ public final class MainActivity extends Activity {
         addHomePortal(portals, "summon", "✧", "SUMMON", "Open a rare card seal", "SUMMON", CYAN);
         addHomePortal(portals, "collection", "▧", "CARD ARCHIVE", "Browse your discovered cards", "OPEN", BLUE);
         addHomePortal(portals, "binders", "▤", "BINDER VAULT", "Curate your favourite collection", "OPEN", Color.rgb(116, 206, 192));
+        addHomePortal(portals, "tower", "♜", "WEEKLY TOWER", "Twenty floors and rotating challenges", "CLIMB", GOLD_BRIGHT);
         content.addView(portalsScroll, rowParams());
+        content.addView(featureCard("♜", "Weekly Challenge Tower", "20 floors · weekly modifiers · exclusive rewards", () -> renderTab("tower")), rowParams());
 
         LinearLayout extras = new LinearLayout(this);
         extras.setOrientation(LinearLayout.HORIZONTAL);
@@ -1092,6 +1094,9 @@ public final class MainActivity extends Activity {
 
     private void renderModule(String tab, JSONObject data) {
         switch (tab) {
+            case "tower": renderPhase15Tower(data); break;
+            case "showcase": renderPhase15Showcase(data); break;
+            case "wallet_history": renderPhase15Wallet(data); break;
             case "encyclopedia": renderCardEncyclopedia(data); break;
             case "summon_history": renderSummonHistory(data); break;
             case "binder_completion": renderBinderCompletion(data); break;
@@ -3029,8 +3034,10 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         card.setPadding(dp(11), dp(9), dp(11), dp(9));
         card.setBackground(gradient(Color.rgb(27, 37, 58), Color.rgb(13, 20, 37),
                 accent, dp(11)));
-        card.addView(text(label, 7, accent, true));
-        TextView amount = text(value, 14, TEXT, true);
+        String symbol=label.contains("GOLD")?"◈":label.contains("XP")?"✦":label.contains("PACK")?"▣":label.contains("GEMS")?"✧":"◆";
+        card.addView(text(symbol, 19, accent, true));
+        card.addView(text(label, 9, accent, true));
+        TextView amount = text(value, 17, TEXT, true);
         amount.setPadding(0, dp(2), 0, 0);
         card.addView(amount);
         return card;
@@ -3112,6 +3119,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     ViewGroup.LayoutParams.WRAP_CONTENT);
         }
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GOLD_BRIGHT);
+        if(!reduceMotionEnabled){firstRow.setAlpha(0f);firstRow.setTranslationY(dp(10));firstRow.animate().alpha(1f).translationY(0f).setDuration(260).start();secondRow.setAlpha(0f);secondRow.setTranslationY(dp(10));secondRow.animate().alpha(1f).translationY(0f).setStartDelay(120).setDuration(260).start();}
     }
 
     private void claimAllMissions(ArrayList<String> paths, ArrayList<JSONObject> plannedRewards,
@@ -6134,6 +6142,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         lineupScroll.addView(grid, new HorizontalScrollView.LayoutParams(-2, -2));
         final JSONArray pickerCards = cards;
         final String[] slotCardIds=new String[5];
+        final LinearLayout comboPreview=sectionPanel();
+        final int[] comboRevision={0};
         for(int i=0;i<5;i++){final int slotIndex=i;LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(6),dp(7),dp(6),dp(7));
             panel.setBackground(gradient(PANEL_LIGHT,PANEL,Color.rgb(72,88,67),dp(10)));panel.addView(text("POSITION 0"+(i+1),7,GOLD,true));
             FrameLayout art=new FrameLayout(this);art.setBackground(gradient(Color.rgb(26,45,37),Color.rgb(10,19,16),Color.rgb(82,104,77),dp(8)));
@@ -6147,10 +6157,11 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             TextView selector=button(initial==null?"＋ CHOOSE CARD":"CHANGE · "+initial.optString("name","CARD"),false);selector.setTextSize(7);
             selector.setOnClickListener(v->showTeamCardPicker(pickerCards,slotCardIds,slotIndex,chosen->{
                 String id=chosen==null?"":chosen.optString("card_id","");for(int j=0;j<slotCardIds.length;j++)if(j!=slotIndex&&!id.isEmpty()&&id.equals(slotCardIds[j])){showResultDialog("CARD ALREADY IN LINEUP","Each card can only occupy one team position.");return;}
-                slotCardIds[slotIndex]=id;updateFormationCardPreview(chosen,art,illustration,sigil,cardName,cardMeta);selector.setText(chosen==null?"＋ CHOOSE CARD":"CHANGE · "+chosen.optString("name","CARD"));}));
+                slotCardIds[slotIndex]=id;updateFormationCardPreview(chosen,art,illustration,sigil,cardName,cardMeta);selector.setText(chosen==null?"＋ CHOOSE CARD":"CHANGE · "+chosen.optString("name","CARD"));refreshPhase15Combos(comboPreview,slotCardIds,comboRevision);}));
             LinearLayout.LayoutParams pr=new LinearLayout.LayoutParams(-1,dp(40));pr.topMargin=dp(5);panel.addView(selector,pr);
             LinearLayout.LayoutParams col=new LinearLayout.LayoutParams(dp(154),-2);col.setMargins(dp(4),dp(5),dp(4),dp(5));grid.addView(panel,col);}
         content.addView(lineupScroll,rowParams());
+        content.addView(comboPreview,rowParams());refreshPhase15Combos(comboPreview,slotCardIds,comboRevision);
 
         final boolean[] selectorReady = {false};
         deckSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -8006,6 +8017,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         balances.addView(profileStat("GOLD",formatNumber(wallet.optLong("coins")),GOLD),new LinearLayout.LayoutParams(0,dp(66),1f));
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(66),1f);bp.leftMargin=dp(5);balances.addView(profileStat("GEMS",formatNumber(wallet.optLong("gems")),VIOLET),bp);
         LinearLayout.LayoutParams bp2=new LinearLayout.LayoutParams(0,dp(66),1f);bp2.leftMargin=dp(5);balances.addView(profileStat("SHARDS",formatNumber(wallet.optLong("shards")),CYAN),bp2);body.addView(balances);addGap(body,12);
+        TextView showcase=button("PLAYER SHOWCASE  ›",true);showcase.setOnClickListener(v->{dialog.dismiss();renderTab("showcase");});body.addView(showcase,new LinearLayout.LayoutParams(-1,dp(47)));addGap(body,7);
+        TextView ledger=button("TRANSACTION HISTORY  ›",false);ledger.setOnClickListener(v->{dialog.dismiss();walletHistoryOffset=0;renderTab("wallet_history");});body.addView(ledger,new LinearLayout.LayoutParams(-1,dp(45)));addGap(body,7);
         TextView edit=button("EDIT PROFILE  ›",true);edit.setOnClickListener(v->{dialog.dismiss();showProfileEditor();});body.addView(edit,new LinearLayout.LayoutParams(-1,dp(47)));addGap(body,7);
         LinearLayout actions=new LinearLayout(this);TextView friends=button("FRIENDS",false),settings=button("SETTINGS",false);actions.addView(friends,new LinearLayout.LayoutParams(0,dp(46),1f));
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(46),1f);sp.leftMargin=dp(7);actions.addView(settings,sp);friends.setOnClickListener(v->{dialog.dismiss();renderTab("friends");});settings.setOnClickListener(v->{dialog.dismiss();renderTab("settings");});body.addView(actions);
@@ -8703,9 +8716,106 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 }).show();
     }
 
+
+    private String walletHistoryCurrency="COINS";
+    private int walletHistoryOffset=0;
+
+    private void phase15Heading(LinearLayout parent,String label){
+        TextView heading=text(label,11,GOLD_BRIGHT,true);heading.setLetterSpacing(.08f);heading.setPadding(0,dp(9),0,dp(5));parent.addView(heading);
+    }
+
+    private void renderPhase15Wallet(JSONObject data){
+        LinearLayout filters=new LinearLayout(this);String[] codes={"COINS","GEMS","SHARDS"},names={"◈ GOLD","✧ GEMS","◆ SHARDS"};
+        for(int i=0;i<codes.length;i++){final String currency=codes[i];TextView chip=button(names[i],currency.equals(walletHistoryCurrency));chip.setTextSize(10);filters.addView(chip,new LinearLayout.LayoutParams(0,dp(44),1f));chip.setOnClickListener(v->{walletHistoryCurrency=currency;walletHistoryOffset=0;renderTab("wallet_history");});}
+        content.addView(filters,rowParams());JSONObject wallet=me==null?null:me.optJSONObject("wallet");String key=walletHistoryCurrency.toLowerCase(java.util.Locale.ROOT);String display=walletHistoryCurrency.equals("COINS")?"GOLD":walletHistoryCurrency;
+        if(wallet!=null)content.addView(profileStat("CURRENT "+display,formatNumber(wallet.optLong(key)),GOLD_BRIGHT),new LinearLayout.LayoutParams(-1,dp(70)));
+        phase15Heading(content,"TRANSACTION HISTORY");
+        JSONArray tx=data.optJSONArray("transactions");
+        if(tx==null||tx.length()==0)showNotice("No recorded transactions for this currency.");
+        else for(int i=0;i<tx.length();i++){JSONObject t=tx.optJSONObject(i);if(t==null)continue;long amount=t.optLong("amount");LinearLayout row=sectionPanel();row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);
+            LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.addView(text(t.optString("reason","Transaction").replace('_',' '),12,TEXT,true));info.addView(text(t.optString("created_at",""),9,MUTED,false));row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));TextView value=text((amount>=0?"+":"−")+formatNumber(Math.abs(amount)),14,amount>=0?GREEN:RED,true);row.addView(value);content.addView(row,rowParams());}
+        LinearLayout paging=new LinearLayout(this);TextView prev=button("PREVIOUS",false),next=button("NEXT",false);prev.setEnabled(walletHistoryOffset>0);next.setEnabled(data.optBoolean("has_more"));prev.setOnClickListener(v->{walletHistoryOffset=Math.max(0,walletHistoryOffset-30);renderTab("wallet_history");});next.setOnClickListener(v->{walletHistoryOffset+=30;renderTab("wallet_history");});paging.addView(prev,new LinearLayout.LayoutParams(0,dp(44),1f));paging.addView(next,new LinearLayout.LayoutParams(0,dp(44),1f));content.addView(paging,rowParams());
+    }
+
+    private void renderPhase15Combos(LinearLayout panel,JSONArray combos){
+        panel.removeAllViews();phase15Heading(panel,"TEAM COMBO  /  SYNERGY");panel.addView(text("Effects are active in Weekly Tower. Other modes retain their existing resonance rules.",10,MUTED,false));
+        if(combos==null){panel.addView(text("No combo information returned.",10,MUTED,false));return;}
+        for(int i=0;i<combos.length();i++){JSONObject c=combos.optJSONObject(i);if(c==null)continue;boolean active=c.optBoolean("active");LinearLayout row=sectionPanel();row.setBackground(gradient(active?Color.rgb(28,50,46):PANEL_LIGHT,PANEL,active?GREEN:Color.rgb(62,73,100),dp(9)));
+            row.addView(text((active?"✓ ACTIVE  ·  ":"○ INACTIVE  ·  ")+c.optString("name"),11,active?GREEN:MUTED,true));row.addView(text(c.optString("requirement"),10,TEXT,true));row.addView(text(c.optString("effect"),10,MUTED,false));panel.addView(row,rowParams());}
+    }
+
+    private void refreshPhase15Combos(LinearLayout panel,String[] slots,int[] revision){
+        int request=++revision[0];JSONArray ids=new JSONArray();for(String id:slots)if(id!=null&&!id.isEmpty())ids.put(id);
+        panel.removeAllViews();panel.addView(text("Checking team combos…",10,MUTED,false));
+        api.post("/api/team/combos",payload("cards",ids),result->ui.post(()->{if(request!=revision[0]||!"formation".equals(activeTab))return;if(result.ok())renderPhase15Combos(panel,result.data.optJSONArray("combos"));else{panel.removeAllViews();panel.addView(text("Combo preview unavailable. "+result.error,10,MUTED,false));}}));
+    }
+
+    private void renderPhase15Showcase(JSONObject data){
+        boolean own=data.optBoolean("is_self");
+        LinearLayout searchPanel=sectionPanel();phase15Heading(searchPanel,"COLLECTOR DIRECTORY");
+        EditText handle=editField("Find collector by username",false);handle.setSingleLine(true);searchPanel.addView(handle,new LinearLayout.LayoutParams(-1,dp(44)));
+        LinearLayout searchActions=new LinearLayout(this);TextView find=button("VIEW SHOWCASE",true),mine=button("MY SHOWCASE",false);searchActions.addView(find,new LinearLayout.LayoutParams(0,dp(42),1f));searchActions.addView(mine,new LinearLayout.LayoutParams(0,dp(42),1f));searchPanel.addView(searchActions);content.addView(searchPanel,rowParams());
+        find.setOnClickListener(v->{String user=handle.getText().toString().trim().replaceFirst("^@","");if(user.isEmpty()){handle.setError("Enter a username");return;}find.setEnabled(false);int req=++activePageRequest;api.get("/api/showcase?username="+Uri.encode(user),res->ui.post(()->{if(req!=activePageRequest||!"showcase".equals(activeTab))return;find.setEnabled(true);if(!res.ok()){showResultDialog("Showcase unavailable",res.error);return;}content.removeAllViews();addScreenHero("showcase");renderPhase15Showcase(res.data);}));});mine.setOnClickListener(v->renderTab("showcase"));
+        addModeSpotlight("COLLECTOR SHOWCASE",data.optString("display_name","Collector"),"@"+data.optString("username","collector"),"✦",GOLD_BRIGHT);
+        LinearLayout favorite=sectionPanel();phase15Heading(favorite,"FAVORITE LEGENDARY");JSONObject card=data.optJSONObject("favorite");
+        if(card!=null){LinearLayout.LayoutParams art=new LinearLayout.LayoutParams(dp(134),dp(188));art.gravity=Gravity.CENTER_HORIZONTAL;favorite.addView(phase11Art(card,GOLD_BRIGHT),art);TextView name=text(card.optString("name"),15,GOLD_BRIGHT,true);name.setGravity(Gravity.CENTER);favorite.addView(name);}
+        else favorite.addView(text("No favorite Legendary selected.",11,MUTED,false));
+        if(own){TextView choose=button("CHOOSE FAVORITE LEGENDARY",true);favorite.addView(choose,new LinearLayout.LayoutParams(-1,dp(44)));choose.setOnClickListener(v->{JSONArray candidates=data.optJSONArray("candidates");showCardPickerDialog(candidates,"Favorite Legendary","Choose a Legendary card you own.",false,c->phase15Favorite(c.optString("card_id")));});if(card!=null){TextView clear=button("REMOVE FAVORITE",false);favorite.addView(clear,new LinearLayout.LayoutParams(-1,dp(42)));clear.setOnClickListener(v->phase15Favorite(null));}}
+        content.addView(favorite,rowParams());
+        LinearLayout formation=sectionPanel();phase15Heading(formation,"MAIN FORMATION");JSONArray cards=data.optJSONArray("formation");HorizontalScrollView sc=new HorizontalScrollView(this);sc.setHorizontalScrollBarEnabled(false);LinearLayout strip=new LinearLayout(this);sc.addView(strip);
+        if(cards!=null)for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c==null)continue;LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(dp(4),0,dp(4),0);tile.addView(phase11Art(c,cardRarityColor(c.optString("rarity","COMMON"))),new LinearLayout.LayoutParams(dp(85),dp(118)));TextView n=text(c.optString("name"),9,TEXT,true);n.setMaxLines(2);tile.addView(n);strip.addView(tile,new LinearLayout.LayoutParams(dp(94),-2));}formation.addView(sc);
+        if(cards==null||cards.length()==0)formation.addView(text("No formation saved.",10,MUTED,false));content.addView(formation,rowParams());
+        LinearLayout completion=sectionPanel();phase15Heading(completion,"BINDER / SET COMPLETION");JSONArray sets=data.optJSONArray("sets");if(sets!=null)for(int i=0;i<sets.length();i++){JSONObject set=sets.optJSONObject(i);if(set==null)continue;int total=Math.max(1,set.optInt("total")),owned=set.optInt("collected");completion.addView(text(set.optString("name")+"  ·  "+owned+" / "+total,11,TEXT,true));ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(total);bar.setProgress(Math.min(owned,total));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));completion.addView(bar,new LinearLayout.LayoutParams(-1,dp(8)));addGap(completion,5);}content.addView(completion,rowParams());
+        LinearLayout rank=sectionPanel();phase15Heading(rank,"HIGHEST RANK");JSONObject best=data.optJSONObject("best_rank");rank.addView(text(best==null?"Unranked":best.optString("tier")+"  ·  "+best.optInt("rating")+" Rating",17,GOLD_BRIGHT,true));content.addView(rank,rowParams());
+        phase15ShowcaseList("EARNED TITLES",data.optJSONArray("titles"),"name");
+        phase15ShowcaseList("ACHIEVEMENTS",data.optJSONArray("achievements"),"title");
+        phase15ShowcaseList("OWNED COSMETICS",data.optJSONArray("cosmetics"),"name");
+    }
+
+    private void phase15Favorite(String id){
+        confirmAction(id==null?"Remove favorite?":"Equip favorite Legendary?","This updates your public Showcase.",()->api.post("/api/showcase/favorite",payload("card_id",id==null?JSONObject.NULL:id),r->ui.post(()->{if(!r.ok()){showResultDialog("Showcase unavailable",r.error);return;}renderTab("showcase");})));
+    }
+
+    private void phase15ShowcaseList(String heading,JSONArray items,String key){
+        LinearLayout panel=sectionPanel();phase15Heading(panel,heading+"  ·  "+(items==null?0:items.length()));
+        if(items==null||items.length()==0)panel.addView(text("Nothing collected yet.",10,MUTED,false));
+        else for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item==null)continue;String subtitle=item.optString("cosmetic_type",item.optString("rarity",""));panel.addView(dataRow(item.optString(key,"Record"),subtitle,item.optInt("equipped")==1?"EQUIPPED":"✦"),rowParams());}content.addView(panel,rowParams());
+    }
+
+    private void renderPhase15Tower(JSONObject data){
+        JSONObject calendar=data.optJSONObject("calendar"),modifier=data.optJSONObject("modifier");
+        String week=calendar==null?"":calendar.optString("week");int best=data.optInt("best");boolean viewOnly=data.optBoolean("view_only");
+        addModeSpotlight("WEEKLY ASCENSION","Floor "+best+" / 20",calendar==null?"Weekly challenge":"Week of "+week+"  ·  Resets "+calendar.optString("next_week"),"♜",GOLD_BRIGHT);
+        LinearLayout event=sectionPanel();phase15Heading(event,"ACTIVE WEEKLY MODIFIER");if(modifier!=null){event.addView(text(modifier.optString("name"),17,CYAN,true));event.addView(text(modifier.optString("description"),11,MUTED,false));}content.addView(event,rowParams());
+        LinearLayout progress=sectionPanel();progress.addView(text("TOWER PROGRESS  ·  "+best+" / 20",11,GOLD_BRIGHT,true));ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(20);bar.setProgress(best);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));progress.addView(bar,new LinearLayout.LayoutParams(-1,dp(9)));content.addView(progress,rowParams());
+        if(viewOnly)showNotice("This account can view the Tower but cannot challenge floors.");
+        JSONArray formation=data.optJSONArray("formation");int teamSize=formation==null?0:formation.length();boolean trio=modifier!=null&&"TRIO_LIMIT".equals(modifier.optString("key"));boolean ready=teamSize>0&&(!trio||teamSize<=3);
+        TextView team=button("FORMATION  ·  "+teamSize+" CARDS  ›",false);team.setOnClickListener(v->renderTab("formation"));content.addView(team,new LinearLayout.LayoutParams(-1,dp(44)));
+        if(!ready)showNotice(trio?"This week requires a team of at most three cards.":"Save a Formation before challenging.");
+        LinearLayout combos=sectionPanel();renderPhase15Combos(combos,data.optJSONArray("combos"));content.addView(combos,rowParams());
+        phase15Heading(content,"THE TWENTY FLOORS");
+        JSONArray floors=data.optJSONArray("floors");if(floors!=null)for(int i=0;i<floors.length();i++){JSONObject f=floors.optJSONObject(i);if(f==null)continue;int floor=f.optInt("floor"),tier=f.optInt("tier");boolean cleared=floor<=best,available=floor==best+1;int accent=tier==3?GOLD_BRIGHT:tier==2?VIOLET:tier==1?CYAN:GREEN;
+            LinearLayout row=sectionPanel();row.setBackground(gradient(PANEL_LIGHT,PANEL,available?accent:Color.rgb(62,73,100),dp(12)));row.addView(text("FLOOR "+floor+"  ·  "+f.optString("name").toUpperCase(java.util.Locale.ROOT),13,accent,true));
+            row.addView(text("HP "+f.optInt("hp")+"  ·  Attack "+f.optInt("attack"),10,MUTED,false));JSONObject reward=f.optJSONObject("reward");if(reward!=null){row.addView(text("◈ "+reward.optLong("coins")+" Gold   ◆ "+reward.optLong("shards")+" Shards",10,GOLD_BRIGHT,true));JSONObject cosmetic=reward.optJSONObject("cosmetic");if(cosmetic!=null)row.addView(text("✦ "+cosmetic.optString("name"),10,VIOLET,true));}
+            TextView challenge=button(cleared?"✓ CLEARED":available?"CHALLENGE FLOOR":"LOCKED",available);challenge.setEnabled(available&&ready&&!viewOnly&&!week.isEmpty());challenge.setOnClickListener(v->{challenge.setEnabled(false);api.post("/api/tower/battle",payload("floor",floor,"week",week),r->ui.post(()->{challenge.setEnabled(true);if(!r.ok()){showResultDialog("Tower challenge unavailable",r.error);return;}if(!"tower".equals(activeTab))return;showPhase15Battle(r.data);refreshAccount(()->{if("tower".equals(activeTab))renderTab("tower");});}));});row.addView(challenge,new LinearLayout.LayoutParams(-1,dp(42)));content.addView(row,rowParams());}
+        LinearLayout standings=sectionPanel();phase15Heading(standings,"WEEKLY LEADERBOARD");JSONArray leaders=data.optJSONArray("leaderboard");if(leaders==null||leaders.length()==0)standings.addView(text("No clears recorded this week.",10,MUTED,false));else for(int i=0;i<leaders.length();i++){JSONObject p=leaders.optJSONObject(i);if(p!=null)standings.addView(dataRow("#"+(i+1)+"  "+p.optString("display_name"),"Weekly Tower","FLOOR "+p.optInt("floor")),rowParams());}content.addView(standings,rowParams());
+    }
+
+    private void showPhase15Battle(JSONObject result){
+        JSONObject battle=result.optJSONObject("battle");if(battle==null)return;boolean won=battle.optBoolean("won");
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);LinearLayout shell=phase11Sheet("WEEKLY TOWER  ·  FLOOR "+result.optInt("floor"),won?"Victory":"Defeat",won?"Floor cleared.":"Improve your formation and try again.",won?GOLD_BRIGHT:RED);
+        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        JSONArray rounds=battle.optJSONArray("rounds");if(rounds!=null)for(int i=0;i<rounds.length();i++){JSONObject r=rounds.optJSONObject(i);if(r==null)continue;LinearLayout turn=sectionPanel();turn.addView(text("ROUND "+r.optInt("turn"),11,CYAN,true));turn.addView(text("Damage "+r.optInt("hit")+"  ·  Enemy HP "+r.optInt("enemy_hp")+"  ·  Team HP "+r.optInt("player_hp"),11,TEXT,false));if(r.optInt("burn")>0)turn.addView(text("✦ Burning Damage +"+r.optInt("burn"),10,GOLD_BRIGHT,true));if(r.optInt("blocked")>0)turn.addView(text("✧ Steam Shield blocked "+r.optInt("blocked"),10,CYAN,true));if(r.optInt("skill")>0)turn.addView(text("✦ Firstlight Steam +"+r.optInt("skill"),11,VIOLET,true));if(r.optInt("absorbed")>0)turn.addView(text("Enemy shield absorbed "+r.optInt("absorbed"),10,MUTED,false));if(r.optInt("healing")>0)turn.addView(text("Healing +"+r.optInt("healing"),10,GREEN,true));body.addView(turn,rowParams());if(!reduceMotionEnabled){turn.setAlpha(0f);turn.animate().alpha(1f).setStartDelay(i*110L).setDuration(240).start();}}
+        JSONObject reward=result.optJSONObject("reward");if(reward!=null){phase15Heading(body,"REWARDS RECEIVED");LinearLayout loot=new LinearLayout(this);loot.addView(claimMetric("GOLD",formatNumber(reward.optLong("coins")),GOLD_BRIGHT),weightParams(1));loot.addView(claimMetric("SHARDS",formatNumber(reward.optLong("shards")),CYAN),weightParams(1));body.addView(loot);if(!reward.isNull("cosmetic_name"))body.addView(text("✦ "+reward.optString("cosmetic_name"),13,VIOLET,true));}
+        TextView close=button("CONTINUE",true);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(45)));phase11ShowSheet(dialog,shell,630);
+    }
+
     private String endpointFor(String tab) {
         switch (tab) {
             case "collection": return "/api/cards";
+            case "tower": return "/api/tower";
+            case "showcase": return "/api/showcase";
+            case "wallet_history": return "/api/wallet/history?currency="+walletHistoryCurrency+"&offset="+walletHistoryOffset;
             case "encyclopedia": return "/api/encyclopedia";
             case "training": return "/api/evolution";
             case "summon_history": return "/api/summon/history?offset=" + summonHistoryOffset;
@@ -8740,6 +8850,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String screenHeading(String tab) {
         switch (tab) {
             case "collection": return "The Card Archive";
+            case "tower": return "Weekly Challenge Tower";
+            case "showcase": return "Player Showcase";
+            case "wallet_history": return "Treasury Ledger";
             case "encyclopedia": return "Card Encyclopedia";
             case "training": return "Training Grounds";
             case "summon_history": return "Summon History";
@@ -8773,6 +8886,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String screenDescription(String tab) {
         switch (tab) {
             case "collection": return "Your owned cards, full catalogue and duplicate copies.";
+            case "tower": return "Ascend twenty floors, conquer weekly modifiers and unlock rare rewards.";
+            case "showcase": return "Your favorite legendary, formation, collection and achievements.";
+            case "wallet_history": return "Review your Gold, Gems and Shards transactions.";
             case "encyclopedia": return "Explore card artwork, base power and signature abilities.";
             case "training": return "Practise moves and formations without affecting progression.";
             case "summon_history": return "Review previous summons and the cards each pack revealed.";
