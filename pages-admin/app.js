@@ -5,7 +5,7 @@ const sections = [
     {id:"players",name:"Players",group:"Accounts",description:"Collector accounts and account operations.",api:"users",rows:"users",cols:["display_name","username","collector_level","role"],legacy:"players"},
     {id:"mail",name:"Global Mail",group:"Accounts",description:"Announcements and player inbox rewards.",api:"mail",rows:"messages",cols:["title","status","created_at","expires_at"],legacy:"mail"},
     {id:"beta",name:"Beta & Titles",group:"Accounts",description:"Manage test access and collector titles.",api:"titles",rows:"titles",cols:["name","category","rarity","award_count"],href:"/admin/phase6"},
-    {id:"guilds",name:"Guild Settings",group:"Accounts",description:"Set member capacity, minimum level, and recruitment.",api:"guilds",rows:"guilds",cols:["name","tag","member_count","member_limit","minimum_level","is_recruiting"],editor:"guild"},
+    {id:"guilds",name:"Guild Settings",group:"Accounts",description:"Manage minimum level and recruitment. Guild capacity is fixed at 50.",api:"guilds",rows:"guilds",cols:["name","tag","member_count","member_limit","minimum_level","is_recruiting"],editor:"guild"},
     {id:"economy",name:"Economy Center",group:"Economy",description:"Review balances, transaction activity, and the game ledger.",api:"economy",rows:"ledger",cols:["currency","reason","amount","created_at"],legacy:"economy"},
     {id:"shop",name:"Universal Shop",group:"Economy",description:"Stock, offers, pricing, and purchase limits.",api:"shop",rows:"items",cols:["title","category","currency","price","is_active"],legacy:"shop"},
     {id:"welcome",name:"Welcome Bonus",group:"Economy",description:"Rewards granted when collectors register.",api:"welcome-bonus",object:"config",legacy:"welcome"},
@@ -129,7 +129,7 @@ async function overview(host) {
     host.replaceChildren(metrics,links);
     for (const [title,description,target] of [
         ["Live Settings","Control incoming actions without shipping another APK.","#live"],
-        ["Guild Settings","Capacity, minimum level, and recruitment.","#guilds"],
+        ["Guild Settings","Roster, minimum level, and recruitment.","#guilds"],
         ["Packs & Odds","Manage banner availability and drop weights.","#packs"],
         ["Audit Log","Review recorded server and account operations.","#audit"]
     ]) {
@@ -248,7 +248,6 @@ function editForm(host, title, inputs, save) {
 
 function guildEditor(host, row, refresh) {
     editForm(host,"Guild policy · "+row.name,[
-        field("Member limit","member_limit",row.member_limit,{type:"number",min:Math.max(5,row.member_count),max:1000}),
         field("Minimum Collector Level","minimum_level",row.minimum_level,{type:"number",min:1,max:100}),
         field("Recruitment","is_recruiting",row.is_recruiting,{choices:[[1,"Open"],[0,"Closed"]]})
     ],async values=>{
