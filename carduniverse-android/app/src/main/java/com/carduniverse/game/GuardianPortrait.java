@@ -17,7 +17,27 @@ public final class GuardianPortrait extends View {
     private final String slug;
     private final int accent;
     private final int dark=Color.rgb(17,22,39);
-    public GuardianPortrait(Context c,String slug){super(c);this.slug=slug==null?"":slug;this.accent=color(this.slug);setContentDescription(this.slug.replace('-',' ')+" guardian portrait");}
+    private android.graphics.drawable.Drawable artwork;
+    public GuardianPortrait(Context c,String slug){
+        super(c);this.slug=slug==null?"":slug;this.accent=color(this.slug);
+        setContentDescription(this.slug.replace('-',' ')+" guardian portrait");
+        if(this.slug.matches("[a-z0-9-]{1,80}")){
+            // Optional packaged art; if missing or invalid the native silhouette remains.
+            try(java.io.InputStream input=c.getAssets().open("raids/"+this.slug+".webp")){
+                android.graphics.BitmapFactory.Options bounds=new android.graphics.BitmapFactory.Options();
+                bounds.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeStream(input,null,bounds);
+                if(bounds.outWidth>0&&bounds.outHeight>0){
+                    android.graphics.BitmapFactory.Options decode=new android.graphics.BitmapFactory.Options();
+                    decode.inSampleSize=1;
+                    while(Math.max(bounds.outWidth,bounds.outHeight)/decode.inSampleSize>1024)decode.inSampleSize*=2;
+                    try(java.io.InputStream image=c.getAssets().open("raids/"+this.slug+".webp")){
+                        android.graphics.Bitmap bitmap=android.graphics.BitmapFactory.decodeStream(image,null,decode);
+                        if(bitmap!=null)artwork=new android.graphics.drawable.BitmapDrawable(getResources(),bitmap);
+                    }
+                }
+            }catch(Exception ignored){}
+        }
+    }
     public static int color(String slug){
         switch(slug==null?"":slug){
             case "ancient-dragon":return Color.rgb(238,153,68);
@@ -35,7 +55,17 @@ public final class GuardianPortrait extends View {
     private void ring(Canvas c,float x,float y,float r,int color,float sw){p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(sw);c.drawCircle(x,y,r,p);p.setStyle(Paint.Style.FILL);}
     @Override protected void onDraw(Canvas c){
         super.onDraw(c);if(getWidth()<=0||getHeight()<=0)return;
-        float w=getWidth(),h=getHeight();p.setShader(new LinearGradient(0,0,w,h,new int[]{dark,a(accent,180),Color.rgb(5,9,21)},null,Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);
+        float w=getWidth(),h=getHeight();
+        if(artwork!=null){
+            c.drawColor(dark);
+            int iw=artwork.getIntrinsicWidth(),ih=artwork.getIntrinsicHeight();
+            if(iw>0&&ih>0){
+                float factor=Math.min(w/iw,h/ih);int dw=Math.round(iw*factor),dh=Math.round(ih*factor);
+                int x=(getWidth()-dw)/2,y=(getHeight()-dh)/2;
+                artwork.setBounds(x,y,x+dw,y+dh);artwork.draw(c);return;
+            }
+        }
+        p.setShader(new LinearGradient(0,0,w,h,new int[]{dark,a(accent,180),Color.rgb(5,9,21)},null,Shader.TileMode.CLAMP));c.drawRect(0,0,w,h,p);p.setShader(null);
         float scale=Math.min(w/320f,h/180f);c.save();c.translate(w/2,h/2);c.scale(scale,scale);
         p.setShader(new RadialGradient(0,0,100,new int[]{a(accent,120),a(accent,24),Color.TRANSPARENT},null,Shader.TileMode.CLAMP));c.drawCircle(0,0,100,p);p.setShader(null);
         ring(c,0,0,72,a(accent,100),1.2f);ring(c,0,0,65,a(accent,65),1);
