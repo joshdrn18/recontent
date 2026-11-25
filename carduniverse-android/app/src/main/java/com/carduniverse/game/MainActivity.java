@@ -2283,11 +2283,16 @@ public final class MainActivity extends Activity {
     }
 
     private void renderArena(JSONObject data) {
-        addArenaHeader(data);
-        addPhase13Link("Training Grounds", "Practise against a dummy, AI, or a simulated boss.",
-                () -> renderTab("training"));
-        addPhase13Link("Battle History", "Open completed battles and turn-by-turn recaps.",
-                () -> openBattleHistory("ARENA", 0));
+        JSONObject currentMatch=data.optJSONObject("activeMatch");
+        if(currentMatch==null){
+            addArenaHeader(data);
+            LinearLayout destinations=new LinearLayout(this);
+            TextView training=button("⚔  TRAINING",false),history=button("BATTLE RECORDS",false);
+            training.setOnClickListener(v->renderTab("training"));history.setOnClickListener(v->openBattleHistory("ARENA",0));
+            destinations.addView(training,new LinearLayout.LayoutParams(0,dp(44),1f));
+            LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(0,dp(44),1f);hp.leftMargin=dp(6);destinations.addView(history,hp);
+            content.addView(destinations,rowParams());
+        }
         boolean betaTester = data.optBoolean("betaTesting")
                 || (me != null && me.optBoolean("is_beta_tester"));
         if (betaTester) {
@@ -2321,7 +2326,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
 
         JSONObject rating = data.optJSONObject("rating");
         JSONObject season = data.optJSONObject("season");
-        if (rating != null) {
+        if (rating != null && currentMatch==null) {
             LinearLayout ranked = sectionPanel();
             ranked.setOrientation(LinearLayout.HORIZONTAL);
             ranked.setGravity(Gravity.CENTER_VERTICAL);
@@ -2371,7 +2376,6 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             matchHeader.addView(text("⚔  VS  ⚔", 13, GOLD_BRIGHT, true));
             content.addView(matchHeader, rowParams());
-            addPhase16ReconnectTimer(active);
 
             FrameLayout battleStage = createArenaBattleStage(active);
             content.addView(battleStage, rowParams());
@@ -2402,6 +2406,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                         ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
                 content.addView(status, rowParams());
             }
+            addPhase16ReconnectTimer(active);
             TextView refresh = button("↻ REFRESH MATCH", false);
             refresh.setOnClickListener(v -> renderTab("arena"));
             content.addView(refresh, new LinearLayout.LayoutParams(dp(170), dp(35)));
@@ -2429,10 +2434,10 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             TextView cancel = button("CANCEL SEARCH", false);
             cancel.setOnClickListener(v -> confirmAction("Cancel matchmaking?",
                     "You will leave the current arena queue.", this::cancelArenaQueue));
-            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(dp(140), dp(36));
+            LinearLayout.LayoutParams actionParams = new LinearLayout.LayoutParams(0, dp(42),1f);
             actionParams.setMargins(dp(4), dp(8), dp(4), 0);
             actions.addView(refresh, actionParams);
-            LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(dp(140), dp(36));
+            LinearLayout.LayoutParams cancelParams = new LinearLayout.LayoutParams(0, dp(42),1f);
             cancelParams.setMargins(dp(4), dp(8), dp(4), 0);
             actions.addView(cancel, cancelParams);
             waiting.addView(actions);
@@ -2451,18 +2456,13 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             hero.addView(copy, new LinearLayout.LayoutParams(0,
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             content.addView(hero, rowParams());
-            TextView casual = button("CASUAL MATCH · FIND OPPONENT", true);
-            casual.setOnClickListener(v -> joinArenaQueue("CASUAL"));
-            content.addView(casual, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+            LinearLayout modes=new LinearLayout(this);
+            modes.addView(arenaModeTile("CASUAL DUEL","Open matchmaking","⚔",CYAN,()->joinArenaQueue("CASUAL")),new LinearLayout.LayoutParams(0,dp(154),1f));
             if (!betaTester && !data.optBoolean("rankedHidden") && !data.optBoolean("rankedBanned")) {
-                TextView rankedMatch = button("RANKED MATCH · SEASON LADDER", false);
-                rankedMatch.setOnClickListener(v -> joinArenaQueue("RANKED"));
-                LinearLayout.LayoutParams rankedParams = new LinearLayout.LayoutParams(
-                        ViewGroup.LayoutParams.MATCH_PARENT, dp(42));
-                rankedParams.topMargin = dp(7);
-                content.addView(rankedMatch, rankedParams);
+                LinearLayout.LayoutParams rankedParams=new LinearLayout.LayoutParams(0,dp(154),1f);rankedParams.leftMargin=dp(7);
+                modes.addView(arenaModeTile("RANKED DUEL","Compete for season rank","♜",GOLD_BRIGHT,()->joinArenaQueue("RANKED")),rankedParams);
             }
+            content.addView(modes,rowParams());
             showNotice("Strike deals damage, Guard reduces incoming damage, and Focus charges your next action.");
         }
 
@@ -2480,6 +2480,18 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 content.addView(row, rowParams());
             }
         }
+    }
+
+    private FrameLayout arenaModeTile(String title,String description,String glyph,int accent,Runnable enter){
+        FrameLayout tile=new FrameLayout(this);tile.setClipToOutline(true);
+        tile.setBackground(gradient(Color.rgb(36,43,62),Color.rgb(10,16,29),accent,dp(13)));
+        tile.addView(new ArenaTableView(this,!reduceMotionEnabled),new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout face=new LinearLayout(this);face.setOrientation(LinearLayout.VERTICAL);face.setGravity(Gravity.CENTER);face.setPadding(dp(5),dp(8),dp(5),dp(8));
+        TextView icon=text(glyph,35,accent,true);icon.setGravity(Gravity.CENTER);face.addView(icon,new LinearLayout.LayoutParams(-1,dp(52)));
+        TextView name=text(title,14,TEXT,true);name.setGravity(Gravity.CENTER);face.addView(name);
+        TextView hint=text(description,9,MUTED,false);hint.setGravity(Gravity.CENTER);hint.setMaxLines(2);face.addView(hint);
+        TextView enterLabel=text("ENTER ARENA  ›",9,accent,true);enterLabel.setGravity(Gravity.CENTER);face.addView(enterLabel);
+        tile.addView(face,new FrameLayout.LayoutParams(-1,-1));tile.setContentDescription(title+" "+description);tile.setFocusable(true);tile.setOnClickListener(v->enter.run());return tile;
     }
 
     private final class ArenaCardFace {
@@ -2582,31 +2594,29 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     private FrameLayout createArenaBattleStage(JSONObject active){
         FrameLayout stage=new FrameLayout(this);stage.setClipChildren(false);stage.setClipToPadding(false);
         stage.setBackground(gradient(Color.rgb(18,30,47),Color.rgb(5,9,19),GOLD,dp(16)));
-        RealmSceneView backdrop=new RealmSceneView(this,"arena",active.optString("mode","LIVE DUEL")+" · TURN "+active.optInt("current_turn"),"A collector-to-collector card battle.",active.optInt("current_turn"),10);
-        backdrop.setMotionEnabled(!reduceMotionEnabled);
-        stage.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
+        stage.addView(new ArenaTableView(this,!reduceMotionEnabled),new FrameLayout.LayoutParams(-1,-1));
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(9),dp(9),dp(9),dp(9));
-        table.setBackground(gradient(Color.argb(222,8,15,28),Color.argb(234,5,10,22),Color.rgb(78,100,132),dp(14)));
+        table.setBackground(gradient(Color.argb(22,8,15,28),Color.argb(32,5,10,22),Color.rgb(78,100,132),dp(14)));
         table.addView(createArenaLifeStrip("RIVAL SIDE",active.optString("opponentName","Opponent"),active.optLong("opponentHp"),active.optLong("opponentMaxHp"),RED));
         LinearLayout rival=new LinearLayout(this);rival.setGravity(Gravity.CENTER_VERTICAL);rival.setPadding(dp(3),dp(3),dp(3),dp(3));
-        rival.setBackground(gradient(Color.argb(190,31,27,42),Color.argb(205,9,16,30),Color.rgb(125,74,91),dp(11)));
+        rival.setBackground(gradient(Color.argb(40,31,27,42),Color.argb(65,9,16,30),Color.argb(100,125,74,91),dp(11)));
         rival.addView(createArenaZoneMarker("DISCARD","▤",RED),new LinearLayout.LayoutParams(dp(38),dp(58)));
         HorizontalScrollView rivalCards=createArenaCardRow(active,false,RED);LinearLayout.LayoutParams rcp=new LinearLayout.LayoutParams(0,dp(168),1f);rcp.setMargins(dp(4),0,dp(4),0);rival.addView(rivalCards,rcp);
         rival.addView(createArenaZoneMarker("DECK","▥",RED),new LinearLayout.LayoutParams(dp(38),dp(58)));
-        LinearLayout.LayoutParams rfp=new LinearLayout.LayoutParams(-1,dp(176));rfp.topMargin=dp(5);table.addView(rival,rfp);
+        LinearLayout.LayoutParams rfp=new LinearLayout.LayoutParams(-1,dp(176));rfp.topMargin=dp(3);table.addView(rival,rfp);
         LinearLayout versus=new LinearLayout(this);versus.setGravity(Gravity.CENTER);versus.setPadding(dp(5),dp(5),dp(5),dp(5));
         View left=new View(this);left.setBackgroundColor(Color.argb(170,178,147,101));versus.addView(left,new LinearLayout.LayoutParams(0,dp(1),1f));
         versus.addView(text("  ⚔  VS  ⚔  ",9,GOLD_BRIGHT,true));View right=new View(this);right.setBackgroundColor(Color.argb(170,178,147,101));versus.addView(right,new LinearLayout.LayoutParams(0,dp(1),1f));
         table.addView(versus,new LinearLayout.LayoutParams(-1,dp(32)));
         table.addView(createArenaLifeStrip("YOUR SIDE",me==null?"YOU":me.optString("display_name","YOU"),active.optLong("myHp"),active.optLong("myMaxHp"),GREEN));
         LinearLayout ours=new LinearLayout(this);ours.setGravity(Gravity.CENTER_VERTICAL);ours.setPadding(dp(3),dp(3),dp(3),dp(3));
-        ours.setBackground(gradient(Color.argb(190,22,42,43),Color.argb(205,8,18,27),Color.rgb(71,132,118),dp(11)));
+        ours.setBackground(gradient(Color.argb(40,22,42,43),Color.argb(65,8,18,27),Color.argb(100,71,132,118),dp(11)));
         ours.addView(createArenaZoneMarker("DECK","▥",GREEN),new LinearLayout.LayoutParams(dp(38),dp(58)));
         HorizontalScrollView ourCards=createArenaCardRow(active,true,GREEN);LinearLayout.LayoutParams ocp=new LinearLayout.LayoutParams(0,dp(168),1f);ocp.setMargins(dp(4),0,dp(4),0);ours.addView(ourCards,ocp);
         ours.addView(createArenaZoneMarker("DISCARD","▤",GREEN),new LinearLayout.LayoutParams(dp(38),dp(58)));
         LinearLayout.LayoutParams ofp=new LinearLayout.LayoutParams(-1,dp(176));ofp.topMargin=dp(5);table.addView(ours,ofp);
         TextView footer=text("FIRSTLIGHT BATTLEFIELD  ·  TURN "+active.optInt("current_turn"),7,GOLD_BRIGHT,true);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(7),0,0);table.addView(footer);
-        stage.addView(table,new FrameLayout.LayoutParams(-1,-1));stage.setMinimumHeight(dp(480));
+        stage.addView(table,new FrameLayout.LayoutParams(-1,-2));stage.setMinimumHeight(dp(470));
         if(arenaLeaderCard==null){api.get("/api/formation",result->ui.post(()->{if(!result.ok()||stage.getParent()==null)return;JSONObject card=firstFormationCard(result.data);if(card==null)return;arenaLeaderCard=card;
             Object tag=ourCards.getTag();if(tag instanceof LinearLayout){LinearLayout row=(LinearLayout)tag;row.removeAllViews();ArenaCardFace face=new ArenaCardFace("YOUR CARD 1",GREEN);face.bind(card,"NO ACTIVE CARD","Set a deck in Formation");row.addView(face.root,new LinearLayout.LayoutParams(dp(126),dp(163)));}}));}
         return stage;
@@ -2614,7 +2624,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     private LinearLayout createArenaMoveHand(JSONObject active){
         LinearLayout holder=new LinearLayout(this);holder.setOrientation(LinearLayout.VERTICAL);holder.setPadding(dp(2),dp(2),dp(2),dp(2));
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.addView(text("TACTIC HAND",8,GOLD_BRIGHT,true),new LinearLayout.LayoutParams(0,-2,1f));heading.addView(text("CHOOSE ONE ACTION",7,MUTED,true));holder.addView(heading);
-        HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setPadding(dp(2),dp(7),dp(2),dp(4));scroll.addView(row,new HorizontalScrollView.LayoutParams(-2,-2));
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setPadding(dp(2),dp(7),dp(2),dp(4));
         String[][] choices={{"STRIKE","⚔","Deal damage to the rival","BATTLE"},{"GUARD","◈","Reduce incoming damage","DEFENCE"},{"FOCUS","✦","Charge your next action","ENERGY"}};
         int[] accents={GOLD_BRIGHT,GREEN,Color.rgb(133,174,255)};
         for(int i=0;i<choices.length;i++){String[] c=choices[i];int tint=accents[i];FrameLayout card=new FrameLayout(this);card.setPadding(dp(9),dp(8),dp(9),dp(8));card.setBackground(gradient(Color.rgb(35,43,67),Color.rgb(10,17,34),tint,dp(12)));card.setElevation(dp(4));
@@ -2624,8 +2634,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             TextView play=text("PLAY ACTION  ›",6,tint,true);play.setGravity(Gravity.CENTER);play.setPadding(0,dp(5),0,0);face.addView(play);card.addView(face,new FrameLayout.LayoutParams(-1,-1));
             card.setClickable(true);card.setFocusable(true);card.setOnClickListener(v->{card.animate().scaleX(.96f).scaleY(.96f).setDuration(75).withEndAction(()->card.animate().scaleX(1f).scaleY(1f).setDuration(140).start()).start();
                 confirmAction("Play "+c[0]+"?","Your selected action is locked for this turn once submitted.",()->submitArenaMove(active.optString("match_id"),c[0],active.optInt("current_turn")));});
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(112),dp(145));p.setMargins(dp(4),0,dp(4),0);row.addView(card,p);}
-        holder.addView(scroll);return holder;
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(139),1f);p.setMargins(dp(3),0,dp(3),0);row.addView(card,p);}
+        holder.addView(row,new LinearLayout.LayoutParams(-1,-2));return holder;
     }
     private JSONObject firstArenaMatchCard(JSONObject match, boolean playerSide) {
         if (match == null) return null;
@@ -3291,18 +3301,20 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             return;
         }
 
-        int tileWidth = Math.max(dp(132), Math.min(dp(188),
-                (getResources().getDisplayMetrics().widthPixels - dp(62)) / 2));
-        int tileHeight = dp(242);
-        for (int i = 0; i < visible.size(); i += 2) {
+        int width=holder.getWidth()>0?holder.getWidth():content.getWidth();
+        if(width<=0)width=getResources().getDisplayMetrics().widthPixels-dp(isCompactLayout()?26:110);
+        int columns=width>=dp(300)?3:2;
+        if(width>=dp(600))columns=4;
+        int tileHeight=dp(columns>=3?226:242);
+        for (int i = 0; i < visible.size(); i += columns) {
             LinearLayout gridRow = new LinearLayout(this);
             gridRow.setOrientation(LinearLayout.HORIZONTAL);
             gridRow.setGravity(Gravity.TOP);
-            for (int column = 0; column < 2; column++) {
+            for (int column = 0; column < columns; column++) {
                 int index = i + column;
                 if (index >= visible.size()) {
                     View spacer = new View(this);
-                    gridRow.addView(spacer, new LinearLayout.LayoutParams(tileWidth, tileHeight));
+                    LinearLayout.LayoutParams gap=new LinearLayout.LayoutParams(0,tileHeight,1f);if(column<columns-1)gap.rightMargin=dp(5);gridRow.addView(spacer,gap);
                     continue;
                 }
                 JSONObject item = visible.get(index);
@@ -3327,7 +3339,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 LinearLayout tile = sectionPanel();
                 tile.setOrientation(LinearLayout.VERTICAL);
                 tile.setGravity(Gravity.CENTER_HORIZONTAL);
-                tile.setPadding(dp(9), dp(8), dp(9), dp(8));
+                tile.setPadding(dp(5), dp(7), dp(5), dp(7));
                 tile.setBackground(gradient(
                         owned ? Color.rgb(29, 42, 46) : Color.rgb(34, 37, 58),
                         Color.rgb(10, 16, 31), accent, dp(13)));
@@ -3345,7 +3357,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                         25, accent, true);
                 glyph.setGravity(Gravity.CENTER);
                 art.addView(glyph, new FrameLayout.LayoutParams(-1, -1));
-                LinearLayout.LayoutParams artParams = new LinearLayout.LayoutParams(dp(58), dp(58));
+                LinearLayout.LayoutParams artParams = new LinearLayout.LayoutParams(dp(48), dp(48));
                 artParams.bottomMargin = dp(4);
                 tile.addView(art, artParams);
 
@@ -3353,7 +3365,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                                 java.util.Locale.ROOT) + "  ·  " + currency,
                         6, accent, true);
                 category.setGravity(Gravity.CENTER);
-                category.setMaxLines(1);
+                category.setMaxLines(1);category.setEllipsize(android.text.TextUtils.TruncateAt.END);
                 tile.addView(category);
 
                 TextView name = text(title, 10, TEXT, true);
@@ -3372,7 +3384,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 tile.addView(details);
 
                 TextView cost = text(formatNumber(price) + " " + currency, 9, GOLD_BRIGHT, true);
-                cost.setGravity(Gravity.CENTER);
+                cost.setGravity(Gravity.CENTER);cost.setMaxLines(2);
                 LinearLayout.LayoutParams costParams = new LinearLayout.LayoutParams(-1, -2);
                 costParams.topMargin = dp(3);
                 tile.addView(cost, costParams);
@@ -3394,7 +3406,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     TextView buy = button(canBuy ? "PURCHASE" : stock == 0 ? "SOLD OUT" : "LOCKED",
                             canBuy);
                     buy.setEnabled(canBuy);
-                    buy.setTextSize(7);
+                    buy.setTextSize(8);buy.setPadding(dp(2),0,dp(2),0);
                     LinearLayout.LayoutParams buyParams = new LinearLayout.LayoutParams(-1, dp(36));
                     buyParams.topMargin = dp(3);
                     tile.addView(buy, buyParams);
@@ -3428,8 +3440,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     tile.addView(ownedHint);
                 }
 
-                LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(tileWidth, tileHeight);
-                if (column == 0) tileParams.rightMargin = dp(8);
+                LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(0, tileHeight, 1f);
+                if (column < columns-1) tileParams.rightMargin = dp(5);
                 gridRow.addView(tile, tileParams);
             }
             LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, tileHeight);
@@ -5860,7 +5872,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         String current=lineup[slot]==null?"":lineup[slot];java.util.HashSet<String> blocked=new java.util.HashSet<>();
         for(int i=0;i<lineup.length;i++)if(i!=slot&&lineup[i]!=null&&!lineup[i].isEmpty())blocked.add(lineup[i]);
         for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c==null||c.optString("card_id").isEmpty()||blocked.contains(c.optString("card_id")))continue;eligible.add(c);}
-        eligible.sort((a,b)->Boolean.compare(current.equals(b.optString("card_id")),current.equals(a.optString("card_id"))));
+        eligible.sort((a,b)->Long.compare(b.optLong("card_power",b.optLong("formation_power")),a.optLong("card_power",a.optLong("formation_power"))));
         for(JSONObject c:eligible){
             boolean active=current.equals(c.optString("card_id"));String rarity=c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);
             int accent=cardRarityColor(rarity);
@@ -5878,14 +5890,40 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }
         TextView empty=text("No matching cards.",12,MUTED,false);empty.setGravity(Gravity.CENTER);empty.setPadding(0,dp(28),0,dp(28));list.addView(empty);
         String[] rarityFilter={"ALL","COMMON","UNCOMMON","RARE","EPIC","LEGENDARY","MYTHIC"};String[] filter={"ALL"};ArrayList<TextView> chips=new ArrayList<>();
+        String[] sorts={"POWER ↓","POWER ↑","RARITY ↓","LEVEL ↓","STARS ↓","NAME A–Z","CURRENT FIRST"};
+        String[] elements={"ALL ELEMENTS","FIRE","WATER","EARTH","WIND","LIGHT","SHADOW","VOID","AETHER"};
+        final int[] sort={0},element={0};
+        LinearLayout controls=new LinearLayout(this);controls.setOrientation(LinearLayout.HORIZONTAL);
+        TextView order=button(sorts[0]+"  ▾",false),elementButton=button(elements[0]+"  ▾",false);
+        order.setTextSize(10);elementButton.setTextSize(10);
+        controls.addView(order,new LinearLayout.LayoutParams(0,dp(40),1f));
+        LinearLayout.LayoutParams ep=new LinearLayout.LayoutParams(0,dp(40),1f);ep.leftMargin=dp(6);controls.addView(elementButton,ep);
+        shell.addView(controls,shell.indexOfChild(filters));
         Runnable update=()->{String q=search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);int shown=0;
-            for(int i=0;i<eligible.size();i++){JSONObject c=eligible.get(i);String r=c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);
-                String h=(c.optString("name")+" "+r+" "+c.optString("element")+" "+c.optString("card_code")).toLowerCase(java.util.Locale.ROOT);
-                boolean visible=(filter[0].equals("ALL")||filter[0].equals(r))&&h.contains(q);rows.get(i).setVisibility(visible?View.VISIBLE:View.GONE);if(visible)shown++;}
-            count.setText(shown+" / "+eligible.size()+" AVAILABLE");empty.setVisibility(shown==0?View.VISIBLE:View.GONE);
+            ArrayList<Integer> ordered=new ArrayList<>();for(int i=0;i<eligible.size();i++)ordered.add(i);
+            ordered.sort((i,j)->{JSONObject a=eligible.get(i),b=eligible.get(j);long ap=a.optLong("card_power",a.optLong("formation_power")),bp=b.optLong("card_power",b.optLong("formation_power"));int compare;
+                switch(sort[0]){
+                    case 1:compare=Long.compare(ap,bp);break;
+                    case 2:compare=Integer.compare(cardRarityRank(b.optString("rarity")),cardRarityRank(a.optString("rarity")));break;
+                    case 3:compare=Integer.compare(b.optInt("level",1),a.optInt("level",1));break;
+                    case 4:compare=Integer.compare(b.optInt("star_rank"),a.optInt("star_rank"));break;
+                    case 5:compare=a.optString("name").compareToIgnoreCase(b.optString("name"));break;
+                    case 6:compare=Boolean.compare(current.equals(b.optString("card_id")),current.equals(a.optString("card_id")));break;
+                    default:compare=Long.compare(bp,ap);
+                }
+                return compare!=0?compare:a.optString("name").compareToIgnoreCase(b.optString("name"));});
+            list.removeAllViews();
+            for(int i:ordered){JSONObject c=eligible.get(i);String r=c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);
+                String e=c.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT);
+                String h=(c.optString("name")+" "+r+" "+e+" "+c.optString("card_code")).toLowerCase(java.util.Locale.ROOT);
+                boolean visible=(filter[0].equals("ALL")||filter[0].equals(r))&&(element[0]==0||elements[element[0]].equals(e))&&h.contains(q);
+                if(visible){list.addView(rows.get(i),rowParams());shown++;}}
+            list.addView(empty);count.setText(shown+" / "+eligible.size()+" AVAILABLE");empty.setVisibility(shown==0?View.VISIBLE:View.GONE);
             for(int i=0;i<chips.size();i++){boolean on=rarityFilter[i].equals(filter[0]);chips.get(i).setTextColor(on?BG:MUTED);chips.get(i).setBackground(gradient(on?GOLD_BRIGHT:PANEL_LIGHT,on?GOLD:PANEL,on?GOLD_BRIGHT:Color.rgb(66,79,105),dp(20)));}};
         for(String r:rarityFilter){TextView chip=text(r,9,MUTED,true);chip.setGravity(Gravity.CENTER);chip.setPadding(dp(12),0,dp(12),0);
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,dp(34));cp.setMargins(0,dp(8),dp(6),0);strip.addView(chip,cp);chips.add(chip);chip.setOnClickListener(v->{filter[0]=r;update.run();});}
+        order.setOnClickListener(v->showChoiceDialog("SORT FORMATION","Choose the card order",sorts,i->{sort[0]=i;order.setText(sorts[i]+"  ▾");update.run();}));
+        elementButton.setOnClickListener(v->showChoiceDialog("ELEMENT FILTER","Choose an element",elements,i->{element[0]=i;elementButton.setText(elements[i]+"  ▾");update.run();}));
         search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){update.run();}public void afterTextChanged(Editable e){}});
         update.run();
         LinearLayout footer=new LinearLayout(this);TextView clear=button("CLEAR SLOT",false),close=button("CANCEL",false);
@@ -6520,10 +6558,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private FrameLayout createBinderCover(JSONObject binder, JSONArray cards,
                                           boolean selected, int width, int height, int index) {
         String theme = binder == null ? "" : binder.optString("theme_key", "").toLowerCase(java.util.Locale.ROOT);
-        int accent = selected ? CYAN : theme.contains("fire") ? RED
-                : theme.contains("shadow") ? VIOLET : theme.contains("gold") ? GOLD_BRIGHT
-                : theme.contains("ocean") ? BLUE
-                : new int[]{GOLD_BRIGHT, VIOLET, CYAN, PINK, BLUE}[Math.floorMod(index, 5)];
+        int accent = "ember".equals(theme)?RED:"verdant".equals(theme)?GREEN:"tide".equals(theme)?CYAN:"astral".equals(theme)?VIOLET:"void".equals(theme)?Color.rgb(174,141,214):"gold".equals(theme)?GOLD_BRIGHT:new int[]{GOLD_BRIGHT,VIOLET,CYAN,PINK,BLUE}[Math.floorMod(index,5)];
         FrameLayout cover = new FrameLayout(this);
         GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{Color.rgb(Color.red(accent) / 2 + 20, Color.green(accent) / 2 + 18,
@@ -6586,15 +6621,32 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
 
     private void showCreateBinderDialog() {
-        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(18),dp(8),dp(18),0);
-        EditText name=editField("Binder name",false);Spinner theme=new Spinner(this);String[] themes={"verdant","ember","tide","astral","void","gold"};
-        theme.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,themes));form.addView(name,fieldParams());form.addView(text("COVER THEME",8,GOLD,true));form.addView(theme);
-        new AlertDialog.Builder(this).setTitle("Create binder").setView(form).setNegativeButton("CANCEL",null).setPositiveButton("CREATE",(d,w)->{
-            String value=name.getText().toString().trim();if(value.length()<2){showResultDialog("Name required","Binder names need at least two characters.");return;}
-            api.post("/api/binders",payload("name",value,"theme_key",themes[theme.getSelectedItemPosition()]),r->ui.post(()->{if(!r.ok())showResultDialog("Binder not created",r.error);else renderTab("binders");}));
-        }).show();
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("COLLECTOR ARCHIVE","Forge a new binder","Choose a cover and name your collection.",GOLD_BRIGHT);
+        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        String[] themes={"verdant","ember","tide","astral","void","gold"};
+        String[] labels={"Verdant","Ember","Tide","Astral","Void","Gold"};
+        String[] runes={"✿","♨","≋","✦","☾","♛"};
+        int[] colors={GREEN,RED,CYAN,VIOLET,Color.rgb(174,141,214),GOLD_BRIGHT};
+        final int[] selected={0};
+        FrameLayout stage=new FrameLayout(this);stage.setBackground(gradient(Color.rgb(37,39,62),Color.rgb(7,12,24),GOLD,dp(14)));
+        FrameLayout book=new FrameLayout(this);FrameLayout.LayoutParams bp=new FrameLayout.LayoutParams(dp(110),dp(146),Gravity.CENTER);stage.addView(book,bp);
+        TextView seal=text(runes[0],42,colors[0],true);seal.setGravity(Gravity.CENTER);book.addView(seal,new FrameLayout.LayoutParams(-1,-1));
+        View spine=new View(this);book.addView(spine,new FrameLayout.LayoutParams(dp(9),-1,Gravity.LEFT));
+        TextView preview=text("VERDANT",9,GOLD_BRIGHT,true);preview.setGravity(Gravity.CENTER);book.addView(preview,new FrameLayout.LayoutParams(-1,dp(28),Gravity.BOTTOM));
+        body.addView(stage,new LinearLayout.LayoutParams(-1,dp(166)));addGap(body,10);
+        EditText name=editField("Binder name",false);name.setSingleLine(true);body.addView(name,fieldParams());
+        body.addView(text("CHOOSE COVER",9,GOLD_BRIGHT,true));
+        ArrayList<TextView> choices=new ArrayList<>();
+        Runnable redraw=()->{int i=selected[0],accent=colors[i];book.setBackground(gradient(Color.rgb(Color.red(accent)/3+24,Color.green(accent)/3+24,Color.blue(accent)/3+24),Color.rgb(9,13,23),accent,dp(9)));spine.setBackgroundColor(accent);seal.setText(runes[i]);seal.setTextColor(accent);preview.setText(labels[i].toUpperCase(java.util.Locale.ROOT));
+            for(int j=0;j<choices.size();j++){TextView choice=choices.get(j);choice.setText(runes[j]+"  "+labels[j]+(i==j?"  ✓":""));choice.setTextColor(i==j?BG:colors[j]);choice.setBackground(gradient(i==j?colors[j]:PANEL_LIGHT,i==j?colors[j]:PANEL,colors[j],dp(9)));}};
+        for(int row=0;row<2;row++){LinearLayout line=new LinearLayout(this);for(int col=0;col<3;col++){final int i=row*3+col;TextView choice=button(labels[i],false);choice.setTextSize(10);choice.setPadding(dp(3),0,dp(3),0);choices.add(choice);LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(44),1f);cp.setMargins(dp(2),dp(4),dp(2),dp(4));line.addView(choice,cp);choice.setOnClickListener(v->{selected[0]=i;redraw.run();});}body.addView(line);}
+        redraw.run();
+        TextView create=button("CREATE BINDER",true),cancel=button("CANCEL",false);LinearLayout actions=new LinearLayout(this);actions.addView(cancel,new LinearLayout.LayoutParams(0,dp(46),1f));LinearLayout.LayoutParams ac=new LinearLayout.LayoutParams(0,dp(46),1f);ac.leftMargin=dp(7);actions.addView(create,ac);addGap(shell,8);shell.addView(actions);
+        cancel.setOnClickListener(v->dialog.dismiss());
+        create.setOnClickListener(v->{String value=name.getText().toString().trim();if(value.length()<2){name.setError("Enter at least two characters");return;}create.setEnabled(false);create.setText("CREATING…");api.post("/api/binders",payload("name",value,"theme_key",themes[selected[0]]),r->ui.post(()->{if(!dialog.isShowing())return;if(!r.ok()){create.setEnabled(true);create.setText("CREATE BINDER");showResultDialog("Binder not created",r.error);}else{dialog.dismiss();renderTab("binders");}}));});
+        phase11ShowSheet(dialog,shell,610);
     }
-
 
     private void renderAchievements(JSONObject data) {
         JSONArray list = data.optJSONArray("achievements");
