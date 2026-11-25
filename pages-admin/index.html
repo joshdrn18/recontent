@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/console-assets/app.css">
+<script type="module" src="/console-assets/app.js"></script>
+<title>CardUniverse Admin Console</title>
+</head>
+<body>
+<a class="skip" href="#workspace">Skip to workspace</a>
+<main id="signin" class="signin" hidden>
+  <form id="login-form" class="login-card">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span> CardUniverse</div>
+    <h1>Admin Console</h1>
+    <p>Sign in with your Master Admin account.</p>
+    <label>Email <input name="email" type="email" autocomplete="username" required></label>
+    <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="primary" type="submit">Sign in</button>
+    <button id="switch-account" class="secondary" type="button" hidden>Sign out of current account</button>
+    <p id="login-feedback" role="status"></p>
+  </form>
+</main>
+<div id="boot" role="status">Checking session…</div>
+<div id="app" class="console" hidden>
+  <aside id="sidebar" aria-label="Console navigation">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">✦</span><span>CardUniverse <small>Admin Console</small></span></div>
+    <label class="nav-search"><span>Find a tool</span><input id="nav-filter" type="search" placeholder="Search tools"></label>
+    <nav id="nav"></nav>
+  </aside>
+  <main id="workspace" tabindex="-1">
+    <header class="topbar">
+      <button id="menu" type="button" class="secondary" aria-expanded="false" aria-controls="sidebar">Menu</button>
+      <span id="operator" class="operator"></span>
+      <button id="logout" class="secondary" type="button">Sign out</button>
+    </header>
+    <section id="stage" aria-live="polite"></section>
+  </main>
+</div>
+</body>
+</html>
