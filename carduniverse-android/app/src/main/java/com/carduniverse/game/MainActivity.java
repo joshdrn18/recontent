@@ -97,6 +97,9 @@ public final class MainActivity extends Activity {
     private String activeTab = "home";
     private int activePageRequest;
     private int summonHistoryOffset;
+    private String walletHistoryCurrency = "COINS";
+    private int walletHistoryOffset;
+    private String showcaseUsername = "";
     private String historyMode = "ARENA";
     private int historyOffset;
     private boolean registering = false;
@@ -495,6 +498,7 @@ public final class MainActivity extends Activity {
                 {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
                 {"training", "⚔", "TRAINING"},
+                {"tower", "♜", "WEEKLY TOWER"},
                 {"battle_history", "☷", "BATTLE HISTORY"},
                 {"trades", "⇄", "TRADES"},
                 {"friends", "♧", "FRIENDS"},
@@ -844,6 +848,9 @@ public final class MainActivity extends Activity {
             }
             if (!result.ok()) {
                 showNotice(result.error == null ? "Unable to load this section." : result.error);
+                if ("showcase".equals(tab) && !showcaseUsername.isEmpty()) {
+                    addPhase13Link("My Showcase", "Return to your collector profile.", () -> openPlayerShowcase(""));
+                }
                 TextView retry = button("TRY AGAIN", false);
                 retry.setOnClickListener(v -> renderTab(tab));
                 content.addView(retry, new LinearLayout.LayoutParams(dp(140), dp(38)));
@@ -979,7 +986,7 @@ public final class MainActivity extends Activity {
         LinearLayout dailyCopy = new LinearLayout(this);
         dailyCopy.setOrientation(LinearLayout.VERTICAL);
         dailyCopy.setPadding(dp(11), 0, 0, 0);
-        dailyCopy.addView(text("DAILY LOGIN REWARD", 8, dailyAccent, true));
+        dailyCopy.addView(text(dailyClaimedToday ? "✓  DAILY LOGIN · CLAIMED" : "✦  DAILY LOGIN · AVAILABLE", 9, dailyAccent, true));
         dailyCopy.addView(text(dailyClaimedToday
                 ? "Today's Starter Pack and 20 Gold have been collected."
                 : "Claim your free Starter Pack and 20 Gold.", 8,
@@ -1003,8 +1010,9 @@ public final class MainActivity extends Activity {
                         refreshAccount(() -> renderTab("home"));
                         return;
                     }
-                    showResultDialog("✦ DAILY REWARD CLAIMED", result.data.optString("message",
-                            "One Starter Pack and 20 Gold have been added."));
+                    JSONObject reward = result.data.optJSONObject("reward");
+                    if (reward == null) reward = payload("coins", 20, "pack_quantity", 1, "pack_name", "Starter Pack");
+                    showRewardItems("Daily login claimed", "Added to your account.", reward, null);
                     refreshAccount(() -> renderTab("home"));
                 }));
             }));
@@ -1029,6 +1037,7 @@ public final class MainActivity extends Activity {
         portalsScroll.addView(portals);
         addHomePortal(portals, "adventure", "⚔", "ADVENTURE", "Explore the Firstlight frontier", "FIGHT", GOLD_BRIGHT);
         addHomePortal(portals, "training", "◈", "TRAINING GROUNDS", "Practise without affecting progression", "TRAIN", VIOLET);
+        addHomePortal(portals, "tower", "♜", "WEEKLY TOWER", "Clear floors and claim weekly rewards", "CLIMB", GOLD_BRIGHT);
         addHomePortal(portals, "dungeons", "⌘", "DUNGEON", "Descend into the deep vault", "ENTER", VIOLET);
         addHomePortal(portals, "raids", "♜", "WORLD RAID", "Challenge the realm guardian", "ATTACK", RED);
         addHomePortal(portals, "summon", "✧", "SUMMON", "Open a rare card seal", "SUMMON", CYAN);
@@ -1097,6 +1106,9 @@ public final class MainActivity extends Activity {
             case "binder_completion": renderBinderCompletion(data); break;
             case "guild_coop": renderGuildCooperative(data); break;
             case "journey": renderNewPlayerJourney(data); break;
+            case "wallet_history": renderWalletHistory(data); break;
+            case "showcase": renderPlayerShowcase(data); break;
+            case "tower": renderWeeklyTower(data); break;
             case "collection": renderCollection(data); break;
             case "binders": renderBinders(data); break;
             case "formation": renderFormation(data); break;
@@ -2985,6 +2997,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             snapshot.put("coins", item.optLong("reward_coins"));
             snapshot.put("xp", item.optLong("reward_xp"));
             snapshot.put("pack", dailyChallenge ? 0 : item.optInt("reward_pack_quantity"));
+            snapshot.put("pack_name", item.optString("reward_pack_name", "Summon Pack"));
             snapshot.put("gems", item.optLong("reward_gems"));
             snapshot.put("shards", item.optLong("reward_shards"));
         } catch (Exception ignored) {}
@@ -3023,104 +3036,14 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         return detail.toString();
     }
 
-    private LinearLayout claimMetric(String label, String value, int accent) {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(11), dp(9), dp(11), dp(9));
-        card.setBackground(gradient(Color.rgb(27, 37, 58), Color.rgb(13, 20, 37),
-                accent, dp(11)));
-        card.addView(text(label, 7, accent, true));
-        TextView amount = text(value, 14, TEXT, true);
-        amount.setPadding(0, dp(2), 0, 0);
-        card.addView(amount);
-        return card;
-    }
-
-    private void showClaimAllSummaryDialog(int succeeded, int failed,
-                                           JSONObject totals, ArrayList<String> details) {
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
-        LinearLayout body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(16), dp(12), dp(16), dp(12));
-        scroll.addView(body);
-
-        TextView stamp = text("✦  REWARDS ADDED TO YOUR ACCOUNT", 8, GOLD_BRIGHT, true);
-        stamp.setGravity(Gravity.CENTER);
-        body.addView(stamp);
-        TextView count = text(succeeded + " REWARD" + (succeeded == 1 ? "" : "S") + " CLAIMED",
-                16, TEXT, true);
-        count.setGravity(Gravity.CENTER);
-        count.setPadding(0, dp(5), 0, dp(3));
-        body.addView(count);
-        if (failed > 0) {
-            TextView warning = text(failed + " claim(s) could not be completed. Only successful rewards are included below.",
-                    8, PINK, false);
-            warning.setGravity(Gravity.CENTER);
-            body.addView(warning);
-        }
-
-        LinearLayout firstRow = new LinearLayout(this);
-        firstRow.setOrientation(LinearLayout.HORIZONTAL);
-        firstRow.addView(claimMetric("TOTAL GOLD", formatNumber(totals.optLong("coins")), GOLD_BRIGHT),
-                weightParams(1));
-        firstRow.addView(claimMetric("TOTAL XP", formatNumber(totals.optLong("xp")), CYAN),
-                weightParams(1));
-        LinearLayout.LayoutParams metricRowParams = new LinearLayout.LayoutParams(-1, -2);
-        metricRowParams.topMargin = dp(10);
-        body.addView(firstRow, metricRowParams);
-
-        LinearLayout secondRow = new LinearLayout(this);
-        secondRow.setOrientation(LinearLayout.HORIZONTAL);
-        secondRow.addView(claimMetric("SUMMON PACKS", formatNumber(totals.optLong("pack")), PINK),
-                weightParams(1));
-        secondRow.addView(claimMetric("GEMS", formatNumber(totals.optLong("gems")), VIOLET),
-                weightParams(1));
-        secondRow.addView(claimMetric("SHARDS", formatNumber(totals.optLong("shards")), BLUE),
-                weightParams(1));
-        LinearLayout.LayoutParams secondParams = new LinearLayout.LayoutParams(-1, -2);
-        secondParams.topMargin = dp(6);
-        body.addView(secondRow, secondParams);
-
-        addGap(body, 11);
-        body.addView(text("CLAIM BREAKDOWN", 8, GOLD_BRIGHT, true));
-        if (details == null || details.isEmpty()) {
-            body.addView(text("No individual reward details were returned.", 8, MUTED, false));
-        } else {
-            for (String item : details) {
-                LinearLayout row = sectionPanel();
-                row.setPadding(dp(10), dp(8), dp(10), dp(8));
-                TextView line = text("✓  " + item, 8, TEXT, false);
-                line.setLineSpacing(dp(2), 1.02f);
-                row.addView(line);
-                LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(-1, -2);
-                lineParams.topMargin = dp(5);
-                body.addView(row, lineParams);
-            }
-        }
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(scroll)
-                .setPositiveButton("DONE", null)
-                .create();
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(gradient(Color.rgb(11, 17, 32),
-                    Color.rgb(8, 13, 26), Color.rgb(100, 89, 139), dp(16)));
-            dialog.getWindow().setLayout(
-                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(440)),
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
-        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GOLD_BRIGHT);
-    }
-
     private void claimAllMissions(ArrayList<String> paths, ArrayList<JSONObject> plannedRewards,
                                   int index, int succeeded, int failed, TextView button,
                                   JSONObject totals, ArrayList<String> claimedDetails) {
         if (index >= paths.size()) {
             button.setEnabled(true);
             button.setText("CLAIM ALL AVAILABLE");
-            showClaimAllSummaryDialog(succeeded, failed, totals, claimedDetails);
+            String summary = succeeded + " claims completed" + (failed > 0 ? " · " + failed + " unsuccessful" : "");
+            showRewardItems("Claim All rewards", summary, totals, claimedDetails);
             refreshAccount(() -> renderTab("missions"));
             return;
         }
@@ -3136,12 +3059,20 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 JSONObject reward = actual == null ? planned : actual;
                 long coins = reward.optLong("coins", planned.optLong("coins"));
                 long xp = reward.optLong("xp", planned.optLong("xp"));
-                int packs = reward.optInt("pack", planned.optInt("pack"));
+                int packs = reward.optInt("pack_quantity", reward.optInt("pack", planned.optInt("pack")));
                 long gems = reward.optLong("gems", planned.optLong("gems"));
                 long shards = reward.optLong("shards", planned.optLong("shards"));
                 addClaimRewardTotal(totals, "coins", coins);
                 addClaimRewardTotal(totals, "xp", xp);
                 addClaimRewardTotal(totals, "pack", packs);
+                if (packs > 0) {
+                    JSONObject byPack = totals.optJSONObject("pack_types");
+                    if (byPack == null) {
+                        byPack = new JSONObject();
+                        try { totals.put("pack_types", byPack); } catch (org.json.JSONException ignored) {}
+                    }
+                    addClaimRewardTotal(byPack, reward.optString("pack_name", planned.optString("pack_name", "Summon Pack")), packs);
+                }
                 addClaimRewardTotal(totals, "gems", gems);
                 addClaimRewardTotal(totals, "shards", shards);
                 claimedDetails.add(claimRewardDetail(planned.optString("title", "Mission reward"),
@@ -3176,6 +3107,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         balances.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Upgrade"), weightParams(1));
         hero.addView(balances);
         content.addView(hero, rowParams());
+        addPhase13Link("Wallet History", "View Gold, Gems, and Shards transactions.", () -> openWalletHistory("COINS", 0));
 
         final String[] filters = {"ALL", "PACKS", "CARDS", "COSMETICS", "SUPPLIES"};
         final int[] currentFilter = {0};
@@ -6151,6 +6083,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             LinearLayout.LayoutParams pr=new LinearLayout.LayoutParams(-1,dp(40));pr.topMargin=dp(5);panel.addView(selector,pr);
             LinearLayout.LayoutParams col=new LinearLayout.LayoutParams(dp(154),-2);col.setMargins(dp(4),dp(5),dp(4),dp(5));grid.addView(panel,col);}
         content.addView(lineupScroll,rowParams());
+        TextView combos = button("PREVIEW TEAM COMBOS", true);
+        combos.setOnClickListener(v -> showTeamCombos(slotCardIds));
+        content.addView(combos, rowParams());
 
         final boolean[] selectorReady = {false};
         deckSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -6816,17 +6751,18 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 int index = reward.optInt("day_index");
                 boolean claimed = reward.optInt("is_claimed") == 1;
                 boolean today = index == day;
-                int accent = claimed ? CYAN : today ? PINK : Color.rgb(99, 111, 149);
+                boolean available = today && login.optBoolean("canClaim") && !claimed;
+                int accent = claimed ? CYAN : available ? PINK : Color.rgb(99, 111, 149);
                 LinearLayout tile = new LinearLayout(this);
                 tile.setOrientation(LinearLayout.VERTICAL);
                 tile.setGravity(Gravity.CENTER);
                 tile.setPadding(dp(3), dp(7), dp(3), dp(7));
-                tile.setBackground(gradient(claimed ? Color.rgb(28, 74, 70) : today
+                tile.setBackground(gradient(claimed ? Color.rgb(28, 74, 70) : available
                         ? Color.rgb(92, 46, 82) : Color.rgb(26, 34, 58),
                         Color.rgb(10, 17, 34), accent, dp(10)));
                 tile.addView(text("DAY " + index, 6, accent, true));
-                tile.addView(text(claimed ? "✓" : today ? "✦" : "◇", 15, accent, true));
-                tile.addView(text(claimed ? "CLAIMED" : today ? "TODAY" : index < day ? "PASSED" : "NEXT",
+                tile.addView(text(claimed ? "✓" : available ? "✦" : "◇", 15, accent, true));
+                tile.addView(text(claimed ? "CLAIMED" : available ? "AVAILABLE" : index <= day ? "LOCKED" : "NEXT",
                         6, TEXT, true));
                 LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, dp(62), 1f);
                 tp.setMargins(dp(2), dp(4), dp(2), dp(4));
@@ -6841,7 +6777,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                             if (!result.ok()) showResultDialog("Event reward unavailable", result.error);
                             else {
                                 if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
-                                showResultDialog("EVENT REWARD CLAIMED", result.data.optString("message", "Your login reward has been added."));
+                                showRewardItems("Event login reward", "Added to your account.",
+                                        result.data.optJSONObject("reward"), null);
                                 refreshAccount(() -> renderTab("events"));
                             }
                         }))));
@@ -6864,7 +6801,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     details += "\n" + reward.optString("reward_card_name");
                 content.addView(dataRow("DAY " + index + " · " + reward.optString("title", "Event reward"),
                         details, reward.optInt("is_claimed") == 1 ? "CLAIMED"
-                                : index == day ? "TODAY" : index < day ? "PASSED" : "UPCOMING"), rowParams());
+                                : index == day && login.optBoolean("canClaim") ? "AVAILABLE" : index < day ? "PASSED" : "UPCOMING"), rowParams());
             }
         } else {
             showNotice("There is no active limited-time login journey right now.");
@@ -7629,12 +7566,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 showResultDialog("Reward unavailable", result.error);
                 return;
             }
-            JSONObject reward = result.data.optJSONObject("reward");
-            String summary = reward == null ? result.data.optString("message", "Mission reward claimed.")
-                    : formatNumber(reward.optLong("coins")) + " Gold  ·  "
-                    + formatNumber(reward.optLong("xp")) + " XP  ·  "
-                    + reward.optInt("pack") + " Pack";
-            showResultDialog("✦ MISSION REWARD", summary);
+            showRewardItems("Mission reward claimed", "Added to your account.",
+                    result.data.optJSONObject("reward"), null);
             refreshAccount(() -> renderTab("missions"));
         }));
     }
@@ -7650,11 +7583,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 showResultDialog("Challenge reward unavailable", result.error);
                 return;
             }
-            JSONObject reward = result.data.optJSONObject("reward");
-            String summary = reward == null ? "Daily challenge reward claimed."
-                    : formatNumber(reward.optLong("coins")) + " Gold  ·  "
-                    + formatNumber(reward.optLong("xp")) + " XP";
-            showResultDialog("✦ DAILY CHALLENGE", summary);
+            showRewardItems("Daily challenge claimed", "Added to your account.",
+                    result.data.optJSONObject("reward"), null);
             refreshAccount(() -> renderTab("missions"));
         }));
     }
@@ -7982,6 +7912,326 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }
     }
 
+    private void showRewardItems(String title, String description, JSONObject reward, ArrayList<String> details) {
+        showRewardItems(title, description, reward, details, "CLAIM BREAKDOWN");
+    }
+
+    private void showRewardItems(String title, String description, JSONObject reward,
+                                 ArrayList<String> details, String detailHeading) {
+        if (reward == null) reward = new JSONObject();
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = phase11Sheet("REWARD SUMMARY", title, description, GOLD_BRIGHT);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout body = sectionPanel();
+        scroll.addView(body);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        long packs = reward.optLong("pack_quantity", reward.optLong("pack"));
+        int initial = body.getChildCount();
+        addRewardItem(body, "◈", "Gold", reward.optLong("coins"), GOLD_BRIGHT);
+        addRewardItem(body, "◆", "Gems", reward.optLong("gems"), VIOLET);
+        addRewardItem(body, "✦", "Shards", reward.optLong("shards"), CYAN);
+        addRewardItem(body, "↑", "Collector XP", reward.optLong("xp"), BLUE);
+        JSONObject packTypes = reward.optJSONObject("pack_types");
+        if (packTypes == null) {
+            addRewardItem(body, "▧", reward.optString("pack_name", "Summon Pack"), packs, PINK);
+        } else {
+            java.util.Iterator<String> names = packTypes.keys();
+            while (names.hasNext()) {
+                String name = names.next();
+                addRewardItem(body, "▧", name, packTypes.optLong(name), PINK);
+            }
+        }
+        if (!reward.isNull("card_id") || !reward.isNull("card_name"))
+            addRewardItem(body, "▣", reward.optString("card_name", "Card"), 1, GOLD_BRIGHT);
+        if (!reward.isNull("cosmetic_name") || !reward.isNull("cosmetic_id"))
+            addRewardItem(body, "✺", reward.optString("cosmetic_name", "Cosmetic"), 1, VIOLET);
+        if (body.getChildCount() == initial) body.addView(text("No items were reported for this claim.", 12, MUTED, false));
+        if (details != null && !details.isEmpty()) {
+            addGap(body, 8);
+            body.addView(text(detailHeading, 10, GOLD_BRIGHT, true));
+            for (String detail : details) body.addView(text(detail, 11, TEXT, false), rowParams());
+        }
+        addPhase13Close(shell, dialog);
+        phase11ShowSheet(dialog, shell, 560);
+    }
+
+    private void addRewardItem(LinearLayout parent, String icon, String name, long amount, int color) {
+        if (amount <= 0) return;
+        LinearLayout row = dataRow(icon + "   " + name, "", "+" + formatNumber(amount));
+        row.setBackground(gradient(Color.rgb(30, 38, 62), Color.rgb(14, 20, 37), color, dp(10)));
+        int index = parent.getChildCount();
+        parent.addView(row, rowParams());
+        if (!reduceMotionEnabled) {
+            row.setAlpha(0f);
+            row.setTranslationY(dp(12));
+            row.animate().alpha(1f).translationY(0f).setDuration(180).setStartDelay(Math.min(index, 7) * 35L).start();
+        }
+    }
+
+    private void openWalletHistory(String currency, int offset) {
+        walletHistoryCurrency = currency;
+        walletHistoryOffset = offset;
+        renderTab("wallet_history");
+    }
+
+    private void renderWalletHistory(JSONObject data) {
+        LinearLayout filters = new LinearLayout(this);
+        String[] currencies = {"COINS", "GEMS", "SHARDS"};
+        String[] labels = {"Gold", "Gems", "Shards"};
+        String current = walletHistoryCurrency;
+        for (int i = 0; i < currencies.length; i++) {
+            String currency = currencies[i];
+            TextView choice = button(labels[i], currency.equals(current));
+            choice.setOnClickListener(v -> openWalletHistory(currency, 0));
+            filters.addView(choice, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        }
+        content.addView(filters, rowParams());
+        JSONArray transactions = data.optJSONArray("transactions");
+        if (transactions == null || transactions.length() == 0) showNotice("No transactions for this currency.");
+        if (transactions != null) for (int i = 0; i < transactions.length(); i++) {
+            JSONObject row = transactions.optJSONObject(i);
+            if (row == null) continue;
+            long amount = row.optLong("amount");
+            String label = humanize(row.optString("reason", "Wallet transaction"));
+            content.addView(dataRow(label, phase14Timestamp(row.optString("created_at")),
+                    (amount > 0 ? "+" : "") + formatNumber(amount)), rowParams());
+        }
+        int offset = walletHistoryOffset;
+        if (offset > 0) addPhase13Link("Newer transactions", "Previous page", () -> openWalletHistory(current, offset - 30));
+        if (data.optBoolean("has_more")) addPhase13Link("Older transactions", "Next page", () -> openWalletHistory(current, offset + 30));
+    }
+
+    private void openPlayerShowcase(String username) {
+        showcaseUsername = username;
+        renderTab("showcase");
+    }
+
+    private void renderPlayerShowcase(JSONObject data) {
+        LinearLayout profile = sectionPanel();
+        profile.setBackground(gradient(Color.rgb(50, 42, 71), Color.rgb(11, 19, 35), GOLD_BRIGHT, dp(14)));
+        profile.addView(text(data.optString("display_name", "Collector"), 20, TEXT, true));
+        String handle = data.optString("username", "");
+        if (!handle.isEmpty()) profile.addView(text("@" + handle, 12, CYAN, true));
+        JSONObject rank = data.optJSONObject("best_rank");
+        profile.addView(dataRow("Highest Ranked tier", rank == null ? "No ranked placement yet"
+                : formatNumber(rank.optLong("rating")) + " peak rating", rank == null ? "" : rank.optString("tier")), rowParams());
+        content.addView(profile, rowParams());
+        LinearLayout find = sectionPanel();
+        EditText username = editField("Collector username", false);
+        username.setSingleLine();
+        find.addView(username, fieldParams());
+        TextView search = button("VIEW COLLECTOR", false);
+        search.setOnClickListener(v -> {
+            String value = username.getText().toString().trim();
+            if (!value.matches("@?[A-Za-z][A-Za-z0-9_]{2,19}")) {
+                username.setError("Enter a collector username.");
+                return;
+            }
+            openPlayerShowcase(value);
+        });
+        find.addView(search, rowParams());
+        if (!data.optBoolean("is_self")) {
+            TextView mine = button("MY SHOWCASE", false);
+            mine.setOnClickListener(v -> openPlayerShowcase(""));
+            find.addView(mine, rowParams());
+        }
+        content.addView(find, rowParams());
+
+        LinearLayout favorite = sectionPanel();
+        favorite.addView(text("FAVORITE LEGENDARY", 12, GOLD_BRIGHT, true));
+        JSONObject picked = data.optJSONObject("favorite");
+        if (picked == null) favorite.addView(text("No Legendary selected.", 12, MUTED, false));
+        else addShowcaseCard(favorite, picked);
+        if (data.optBoolean("is_self")) {
+            JSONArray candidates = data.optJSONArray("candidates");
+            ArrayList<JSONObject> cards = new ArrayList<>();
+            ArrayList<String> names = new ArrayList<>();
+            if (candidates != null) for (int i = 0; i < candidates.length(); i++) {
+                JSONObject card = candidates.optJSONObject(i);
+                if (card == null) continue;
+                cards.add(card);
+                names.add(card.optString("name") + " · " + card.optString("card_code"));
+            }
+            TextView choose = button("CHOOSE LEGENDARY", true);
+            choose.setEnabled(!cards.isEmpty());
+            choose.setOnClickListener(v -> showChoiceDialog("Favorite Legendary", "Choose a card from your collection.",
+                    names.toArray(new String[0]), position -> postPhase14("/api/showcase/favorite",
+                            payload("card_id", cards.get(position).optString("card_id")), choose)));
+            favorite.addView(choose, rowParams());
+            if (picked != null) {
+                TextView remove = button("CLEAR FAVORITE", false);
+                remove.setOnClickListener(v -> postPhase14("/api/showcase/favorite", payload("card_id", JSONObject.NULL), remove));
+                favorite.addView(remove, rowParams());
+            }
+        }
+        content.addView(favorite, rowParams());
+
+        LinearLayout formation = sectionPanel();
+        formation.addView(text("ACTIVE FORMATION", 12, GOLD_BRIGHT, true));
+        JSONArray slots = data.optJSONArray("formation");
+        if (slots == null || slots.length() == 0) formation.addView(text("No active Formation.", 12, MUTED, false));
+        if (slots != null) for (int i = 0; i < slots.length(); i++) {
+            JSONObject card = slots.optJSONObject(i);
+            if (card != null) addShowcaseCard(formation, card);
+        }
+        content.addView(formation, rowParams());
+
+        LinearLayout sets = sectionPanel();
+        sets.addView(text("BINDER COMPLETION", 12, GOLD_BRIGHT, true));
+        JSONArray collection = data.optJSONArray("sets");
+        if (collection != null) for (int i = 0; i < collection.length(); i++) {
+            JSONObject set = collection.optJSONObject(i);
+            if (set != null) addPhase14Progress(sets, set.optString("name"), set.optInt("collected"), set.optInt("total"));
+        }
+        content.addView(sets, rowParams());
+        addShowcaseList("TITLES", data.optJSONArray("titles"), "name", "rarity");
+        addShowcaseList("ACHIEVEMENTS", data.optJSONArray("achievements"), "title", "");
+        addShowcaseList("OWNED COSMETICS", data.optJSONArray("cosmetics"), "name", "rarity");
+    }
+
+    private void addShowcaseCard(LinearLayout parent, JSONObject card) {
+        int accent = cardRarityColor(card.optString("rarity", "COMMON"));
+        LinearLayout row = new LinearLayout(this);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.addView(phase11Art(card, accent), new LinearLayout.LayoutParams(dp(52), dp(72)));
+        LinearLayout info = new LinearLayout(this);
+        info.setOrientation(LinearLayout.VERTICAL);
+        info.setPadding(dp(10), 0, 0, 0);
+        info.addView(text(card.optString("name", "Card"), 14, TEXT, true));
+        info.addView(text(card.optString("rarity") + " · " + card.optString("element"), 11, accent, true));
+        row.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
+        parent.addView(row, rowParams());
+    }
+
+    private void addShowcaseList(String title, JSONArray rows, String labelKey, String metaKey) {
+        LinearLayout panel = sectionPanel();
+        panel.addView(text(title, 12, GOLD_BRIGHT, true));
+        if (rows == null || rows.length() == 0) panel.addView(text("None yet.", 12, MUTED, false));
+        if (rows != null) for (int i = 0; i < rows.length(); i++) {
+            JSONObject item = rows.optJSONObject(i);
+            if (item != null) panel.addView(dataRow(item.optString(labelKey), item.optString(metaKey, ""),
+                    item.optInt("equipped") == 1 ? "EQUIPPED" : ""), rowParams());
+        }
+        content.addView(panel, rowParams());
+    }
+
+    private void showTeamCombos(String[] lineup) {
+        JSONArray ids = new JSONArray();
+        for (String cardId : lineup) if (!cardId.isEmpty()) ids.put(cardId);
+        int page = activePageRequest;
+        api.post("/api/team/combos", payload("cards", ids), result -> ui.post(() -> {
+            if (page != activePageRequest) return;
+            if (!result.ok()) {
+                showResultDialog("Combo preview unavailable", result.error);
+                return;
+            }
+            android.app.Dialog dialog = new android.app.Dialog(this);
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+            LinearLayout shell = phase11Sheet("FORMATION", "Team combos", "Preview from your selected lineup. These effects apply in Weekly Tower.", CYAN);
+            ScrollView scroll = new ScrollView(this);
+            LinearLayout body = sectionPanel();
+            scroll.addView(body);
+            shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+            JSONArray combos = result.data.optJSONArray("combos");
+            if (combos != null) for (int i = 0; i < combos.length(); i++) {
+                JSONObject combo = combos.optJSONObject(i);
+                if (combo == null) continue;
+                LinearLayout row = sectionPanel();
+                row.addView(dataRow(combo.optString("name"), combo.optString("requirement"),
+                        combo.optBoolean("active") ? "ACTIVE" : "LOCKED"), rowParams());
+                row.addView(text(combo.optString("effect"), 11, MUTED, false));
+                body.addView(row, rowParams());
+            }
+            addPhase13Close(shell, dialog);
+            phase11ShowSheet(dialog, shell, 560);
+        }));
+    }
+
+    private void renderWeeklyTower(JSONObject data) {
+        JSONObject modifier = data.optJSONObject("modifier");
+        JSONObject calendar = data.optJSONObject("calendar");
+        if (modifier == null || calendar == null) return;
+        int best = data.optInt("best");
+        String week = calendar.optString("week");
+        LinearLayout hero = sectionPanel();
+        hero.setBackground(gradient(Color.rgb(51, 46, 76), Color.rgb(12, 19, 34), VIOLET, dp(15)));
+        hero.addView(text(modifier.optString("name"), 18, TEXT, true));
+        hero.addView(text(modifier.optString("description"), 12, MUTED, false));
+        hero.addView(text("Resets " + calendar.optString("next_week") + " · 00:00 UTC+8", 11, CYAN, true));
+        addPhase14Progress(hero, "Floors cleared", best, 20);
+        content.addView(hero, rowParams());
+        addPhase13Link("Team decks", "Prepare your active or PvE deck and preview combos.", () -> renderTab("formation"));
+        boolean viewOnly = data.optBoolean("view_only");
+        if (viewOnly) showNotice("Your account can view the leaderboard.");
+        JSONArray floors = data.optJSONArray("floors");
+        if (floors != null) for (int i = 0; i < floors.length(); i++) {
+            JSONObject item = floors.optJSONObject(i);
+            if (item == null) continue;
+            int floor = item.optInt("floor");
+            JSONObject reward = item.optJSONObject("reward");
+            String prize = reward == null ? "" : formatNumber(reward.optLong("coins")) + " Gold · "
+                    + formatNumber(reward.optLong("shards")) + " Shards";
+            JSONObject cosmetic = reward == null ? null : reward.optJSONObject("cosmetic");
+            if (cosmetic != null) prize += " · " + cosmetic.optString("name");
+            boolean ready = floor == best + 1 && !viewOnly;
+            LinearLayout row = dataRow("Floor " + floor + " · " + item.optString("name"), prize,
+                    floor <= best ? "CLEARED" : ready ? "CHALLENGE ›" : "LOCKED");
+            if (ready) {
+                row.setFocusable(true);
+                row.setOnClickListener(v -> confirmAction("Enter floor " + floor + "?",
+                        "Your saved PvE deck is used when one is assigned. The server resolves the battle and rewards.",
+                        () -> startTowerBattle(floor, week, row)));
+            }
+            content.addView(row, rowParams());
+        }
+        content.addView(text("WEEKLY LEADERBOARD", 12, GOLD_BRIGHT, true), rowParams());
+        JSONArray ladder = data.optJSONArray("leaderboard");
+        if (ladder == null || ladder.length() == 0) showNotice("No floors cleared this week yet.");
+        if (ladder != null) for (int i = 0; i < ladder.length(); i++) {
+            JSONObject player = ladder.optJSONObject(i);
+            if (player != null) content.addView(dataRow("#" + (i + 1) + " · " + player.optString("display_name"),
+                    phase14Timestamp(player.optString("created_at")), "FLOOR " + player.optInt("floor")), rowParams());
+        }
+    }
+
+    private void startTowerBattle(int floor, String week, View control) {
+        control.setEnabled(false);
+        int page = activePageRequest;
+        postWithModeDeck("pve", "/api/tower/battle", payload("floor", floor, "week", week), result -> ui.post(() -> {
+            if (page != activePageRequest) return;
+            control.setEnabled(true);
+            if (!result.ok()) {
+                showResultDialog("Tower unavailable", result.error);
+                return;
+            }
+            JSONObject battle = result.data.optJSONObject("battle");
+            if (battle == null) return;
+            boolean won = battle.optBoolean("won");
+            ArrayList<String> recap = new ArrayList<>();
+            JSONArray rounds = battle.optJSONArray("rounds");
+            if (rounds != null) for (int i = 0; i < rounds.length(); i++) {
+                JSONObject turn = rounds.optJSONObject(i);
+                if (turn == null) continue;
+                String line = "Round " + turn.optInt("turn") + " · " + turn.optInt("hit") + " hit · "
+                        + turn.optInt("damage") + " taken · HP " + turn.optInt("player_hp") + " vs " + turn.optInt("enemy_hp");
+                if (turn.optInt("burn") > 0) line += " · Burn +" + turn.optInt("burn");
+                if (turn.optInt("skill") > 0) line += " · Team Skill +" + turn.optInt("skill");
+                if (turn.optInt("blocked") > 0) line += " · Steam blocked " + turn.optInt("blocked");
+                if (turn.optInt("absorbed") > 0) line += " · Boss shield blocked " + turn.optInt("absorbed");
+                if (turn.optInt("healing") > 0) line += " · Healed " + turn.optInt("healing");
+                recap.add(line);
+            }
+            showRewardItems("Floor " + floor + (won ? " cleared" : " defeated"),
+                    won ? "Rewards added to your account." : "Change your lineup to try this floor again.",
+                    result.data.optJSONObject("reward"), recap, "BATTLE RECAP");
+            if (won) refreshAccount(() -> {
+                if ("tower".equals(activeTab)) renderTab("tower");
+            });
+        }));
+    }
+
     private void showPlayerProfile() {
         if(me==null)return;
         android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
@@ -7994,7 +8244,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView name=text(me.optString("display_name","Collector"),22,TEXT,true);name.setGravity(Gravity.CENTER);name.setMaxLines(2);hero.addView(name);
         TextView handle=text("@"+me.optString("username","collector"),11,CYAN,true);handle.setGravity(Gravity.CENTER);hero.addView(handle);
         TextView title=text("LEVEL "+formatNumber(me.optLong("collector_level",1))+"  ·  "+me.optString("role","collector").toUpperCase(java.util.Locale.ROOT),11,GOLD_BRIGHT,true);title.setGravity(Gravity.CENTER);hero.addView(title);
-        if(me.optBoolean("is_beta_tester")){TextView beta=text("BETA TESTER  ·  RANKED BOT ONLY",9,VIOLET,true);hero.addView(beta);}
+        if(me.optBoolean("is_beta_tester")){TextView beta=text("BETA TESTER",9,VIOLET,true);hero.addView(beta);}
         TextView equipped=text("",12,VIOLET,true);equipped.setGravity(Gravity.CENTER);equipped.setVisibility(View.GONE);hero.addView(equipped);
         TextView email=text(me.optString("email","Account email unavailable"),10,MUTED,false);email.setGravity(Gravity.CENTER);hero.addView(email);
         body.addView(hero);addGap(body,12);
@@ -8006,6 +8256,12 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         balances.addView(profileStat("GOLD",formatNumber(wallet.optLong("coins")),GOLD),new LinearLayout.LayoutParams(0,dp(66),1f));
         LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(66),1f);bp.leftMargin=dp(5);balances.addView(profileStat("GEMS",formatNumber(wallet.optLong("gems")),VIOLET),bp);
         LinearLayout.LayoutParams bp2=new LinearLayout.LayoutParams(0,dp(66),1f);bp2.leftMargin=dp(5);balances.addView(profileStat("SHARDS",formatNumber(wallet.optLong("shards")),CYAN),bp2);body.addView(balances);addGap(body,12);
+        TextView showcase = button("PLAYER SHOWCASE", true);
+        showcase.setOnClickListener(v -> { dialog.dismiss(); openPlayerShowcase(""); });
+        body.addView(showcase, rowParams());
+        TextView walletHistory = button("WALLET HISTORY", false);
+        walletHistory.setOnClickListener(v -> { dialog.dismiss(); openWalletHistory("COINS", 0); });
+        body.addView(walletHistory, rowParams());
         TextView edit=button("EDIT PROFILE  ›",true);edit.setOnClickListener(v->{dialog.dismiss();showProfileEditor();});body.addView(edit,new LinearLayout.LayoutParams(-1,dp(47)));addGap(body,7);
         LinearLayout actions=new LinearLayout(this);TextView friends=button("FRIENDS",false),settings=button("SETTINGS",false);actions.addView(friends,new LinearLayout.LayoutParams(0,dp(46),1f));
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(46),1f);sp.leftMargin=dp(7);actions.addView(settings,sp);friends.setOnClickListener(v->{dialog.dismiss();renderTab("friends");});settings.setOnClickListener(v->{dialog.dismiss();renderTab("settings");});body.addView(actions);
@@ -8712,6 +8968,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "binder_completion": return "/api/binders/completion";
             case "guild_coop": return "/api/guilds/cooperative";
             case "journey": return "/api/journey";
+            case "wallet_history": return "/api/wallet/history?currency=" + walletHistoryCurrency + "&offset=" + walletHistoryOffset;
+            case "showcase": return "/api/showcase?username=" + Uri.encode(showcaseUsername);
+            case "tower": return "/api/tower";
             case "battle_history": return "/api/battle-history?mode=" + historyMode + "&offset=" + historyOffset;
             case "binders": return "/api/binders";
             case "formation": return "/api/formation";
@@ -8746,6 +9005,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "binder_completion": return "Binder Completion Rewards";
             case "guild_coop": return "Guild Cooperative Activities";
             case "journey": return "New Player Journey";
+            case "wallet_history": return "Wallet History";
+            case "showcase": return "Player Showcase";
+            case "tower": return "Weekly Challenge Tower";
             case "battle_history": return "Battle History";
             case "binders": return "Collector Binders";
             case "formation": return "Team Decks";
