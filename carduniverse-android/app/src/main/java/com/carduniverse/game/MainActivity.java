@@ -4347,7 +4347,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             int remainder = filtered.size() % columns;
             if (remainder != 0 && currentRow != null) {
                 for (int i = remainder; i < columns; i++) {
-                    currentRow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+                    LinearLayout.LayoutParams spacer=new LinearLayout.LayoutParams(0,1,1f);
+                    spacer.setMargins(dp(3),dp(4),dp(3),dp(7));currentRow.addView(new View(this),spacer);
                 }
             }
         };
@@ -6549,8 +6550,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
             int remainder = visible % columns;
             if (remainder != 0 && grid != null) {
-                for (int i = remainder; i < columns; i++)
-                    grid.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+                for (int i = remainder; i < columns; i++){
+                    LinearLayout.LayoutParams spacer=new LinearLayout.LayoutParams(0,1,1f);
+                    spacer.setMargins(dp(4),dp(4),dp(4),dp(8));grid.addView(new View(this),spacer);
+                }
             }
         }
     }
