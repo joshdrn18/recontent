@@ -4386,21 +4386,44 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private final java.util.Map<String,String> liveCardImages=new java.util.HashMap<>();
+    private final java.util.List<Runnable> pendingImageSyncCallbacks = new java.util.ArrayList<>();
+    private boolean imageSyncInProgress;
+
     private void syncCardImages(Runnable after){
-        api.get("/api/card-image-revisions",result->ui.post(()->{
-            if(result.ok()){
-                JSONArray cards=result.data.optJSONArray("cards");
-                if(cards!=null){
-                    liveCardImages.clear();
-                    for(int i=0;i<cards.length();i++){
-                        JSONObject c=cards.optJSONObject(i);if(c==null)continue;
-                        String path=c.optString("art_path","");
-                        if(path.startsWith("/media/cards/full-uploads/"))
-                            liveCardImages.put(c.optString("card_code","").toUpperCase(java.util.Locale.ROOT),path);
+        if (api == null || isFinishing() || isDestroyed()) {
+            if (after != null) after.run();
+            return;
+        }
+        if (after != null) pendingImageSyncCallbacks.add(after);
+        if (imageSyncInProgress) return;
+        imageSyncInProgress = true;
+        api.get("/api/card-image-revisions", result -> ui.post(() -> {
+            imageSyncInProgress = false;
+            java.util.List<Runnable> callbacks = new java.util.ArrayList<>(pendingImageSyncCallbacks);
+            pendingImageSyncCallbacks.clear();
+            if (isFinishing() || isDestroyed()) return;
+            if (result.ok()) {
+                JSONArray cards = result.data.optJSONArray("cards");
+                if (cards != null) {
+                    java.util.Map<String,String> next = new java.util.HashMap<>();
+                    for (int i = 0; i < cards.length(); i++) {
+                        JSONObject card = cards.optJSONObject(i);
+                        if (card == null) continue;
+                        String code = card.optString("card_code", "").toUpperCase(java.util.Locale.ROOT);
+                        String path = card.optString("art_path", "");
+                        if (!code.isEmpty() && path.matches("/media/cards/full-uploads/[a-zA-Z0-9_-]+/[a-f0-9-]+\\.(png|jpg|webp)")) {
+                            next.put(code, path);
+                        }
+                    }
+                    if (!liveCardImages.equals(next)) {
+                        java.util.Map<String,String> previous = new java.util.HashMap<>(liveCardImages);
+                        liveCardImages.clear();
+                        liveCardImages.putAll(next);
+                        CardArtView.refreshPublishedCards(previous, next);
                     }
                 }
             }
-            if(after!=null)after.run();
+            for (Runnable callback : callbacks) callback.run();
         }));
     }
     private String cardArtworkPath(JSONObject card) {
@@ -7675,6 +7698,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 if (progressResult.ok()) progression = progressResult.data;
                 syncingAccount = false;
                 if (isAdminAccount()) loadAdminProfile();
+                syncCardImages(null);
             }));
         }));
     }
@@ -9388,6 +9412,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     protected void onResume() {
         super.onResume();
         startAutoSync();
+        if (me != null && api != null && autoSyncEnabled) syncCardImages(null);
         if (bgmEnabled && gameAudio != null) gameAudio.startAmbient();
     }
 
