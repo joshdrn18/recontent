@@ -1,23 +1,7 @@
 (() => {
     const byId = id => document.getElementById(id);
     const root = byId("ops-main");
-    if (!root) {
-        function addOperationsLink() {
-            const nav = document.querySelector(".admin-workbench > .admin-tabs");
-            if (!nav || nav.querySelector(".cu-admin-operations")) return;
-            const link = document.createElement("a");
-            link.href = "/admin/operations";
-            link.className = "admin-tab cu-admin-operations";
-            link.textContent = "Game Operations";
-            nav.prepend(link);
-        }
-        const content = byId("content");
-        if (content) {
-            new MutationObserver(addOperationsLink).observe(content, {childList:true,subtree:true});
-            addOperationsLink();
-        }
-        return;
-    }
+    if (!root) return;
 
     const rarities = ["COMMON","UNCOMMON","RARE","EPIC","LEGENDARY","MYTHIC"];
     const steps = [
@@ -138,6 +122,14 @@
             data.guilds.map(guild=>[guild.name+" ["+guild.tag+"]",fmt.format(guild.strikes),fmt.format(guild.players),
                 fmt.format(guild.damage)+" / "+fmt.format(data.boss_hp)]),
             "No Guild Boss strikes logged this week.");
+
+        const rewardNames={BINDER:"Binder",GUILD_WEEK:"Guild weekly",GUILD_SEASON:"Guild season"};
+        table("ops-activity","Daily reward claims",["Date (UTC)","Reward","Claims"],
+            (data.activity??[]).map(row=>[row.day,rewardNames[row.reward_kind]??row.reward_kind,fmt.format(row.claims)]),
+            "No recent reward claims.");
+        table("ops-weekly","Weekly Guild Boss history",["Week starts","Active Guilds","Total strikes","Bosses cleared"],
+            (data.weekly??[]).map(row=>[row.week_start,fmt.format(row.guilds),fmt.format(row.strikes),fmt.format(row.cleared)]),
+            "No Guild Boss history yet.");
 
         const journey = byId("ops-journey");
         journey.replaceChildren();
