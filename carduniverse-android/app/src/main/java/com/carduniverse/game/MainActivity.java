@@ -938,6 +938,7 @@ public final class MainActivity extends Activity {
         RealmSceneView lobby = new RealmSceneView(this, "home", "FIRSTLIGHT REALM",
                 "Your legend begins here. Choose a path and enter the world.",
                 me.optInt("collector_level", 1), Math.max(100, me.optInt("collector_level", 1)));
+        lobby.setMotionEnabled(!reduceMotionEnabled);
         lobby.setContentDescription("Animated fantasy realm lobby");
         LinearLayout.LayoutParams lobbyParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(252));
@@ -2567,6 +2568,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         FrameLayout stage=new FrameLayout(this);stage.setClipChildren(false);stage.setClipToPadding(false);
         stage.setBackground(gradient(Color.rgb(18,30,47),Color.rgb(5,9,19),GOLD,dp(16)));
         RealmSceneView backdrop=new RealmSceneView(this,"arena",active.optString("mode","LIVE DUEL")+" · TURN "+active.optInt("current_turn"),"A collector-to-collector card battle.",active.optInt("current_turn"),10);
+        backdrop.setMotionEnabled(!reduceMotionEnabled);
         stage.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(9),dp(9),dp(9),dp(9));
         table.setBackground(gradient(Color.argb(222,8,15,28),Color.argb(234,5,10,22),Color.rgb(78,100,132),dp(14)));
@@ -7503,8 +7505,19 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         bg.setCornerRadius(dp(10));
         bg.setStroke(dp(1), accent);
         tile.setBackground(bg);
-        FrameLayout art = new FrameLayout(this);
-        art.setBackgroundColor(Color.rgb(7, 12, 22));
+        FrameLayout art = new FrameLayout(this) {
+            @Override protected void onMeasure(int widthSpec,int heightSpec){
+                int width=View.MeasureSpec.getSize(widthSpec);
+                if(width>0&&View.MeasureSpec.getMode(widthSpec)!=View.MeasureSpec.UNSPECIFIED)
+                    super.onMeasure(widthSpec,View.MeasureSpec.makeMeasureSpec(Math.round(width*1.5f),View.MeasureSpec.EXACTLY));
+                else super.onMeasure(widthSpec,heightSpec);
+            }
+        };
+        art.setBackground(gradient(Color.rgb(28,37,57),Color.rgb(7,12,22),accent,dp(8)));
+        art.setClipToOutline(true);
+        TextView placeholder=text(elementSigil(element),30,accent,true);
+        placeholder.setGravity(Gravity.CENTER);
+        art.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
         CardArtView image = new CardArtView(this);
         image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
         image.loadArtwork(cardArtworkPath(card));
@@ -7516,7 +7529,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         FrameLayout.LayoutParams bp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
         bp.setMargins(dp(5), dp(5), 0, 0);
         art.addView(badge, bp);
-        tile.addView(art, new LinearLayout.LayoutParams(-1, dp(186)));
+        tile.addView(art, new LinearLayout.LayoutParams(-1, -2));
         tile.addView(text("NEW DISCOVERY · " + String.format(java.util.Locale.ROOT, "%02d", order),
                 6, GOLD_BRIGHT, true));
         TextView title = text(card.optString("name", "Unknown Card"), 10, TEXT, true);
@@ -8771,8 +8784,88 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         LinearLayout completion=sectionPanel();phase15Heading(completion,"BINDER / SET COMPLETION");JSONArray sets=data.optJSONArray("sets");if(sets!=null)for(int i=0;i<sets.length();i++){JSONObject set=sets.optJSONObject(i);if(set==null)continue;int total=Math.max(1,set.optInt("total")),owned=set.optInt("collected");completion.addView(text(set.optString("name")+"  ·  "+owned+" / "+total,11,TEXT,true));ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(total);bar.setProgress(Math.min(owned,total));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));completion.addView(bar,new LinearLayout.LayoutParams(-1,dp(8)));addGap(completion,5);}content.addView(completion,rowParams());
         LinearLayout rank=sectionPanel();phase15Heading(rank,"HIGHEST RANK");JSONObject best=data.optJSONObject("best_rank");rank.addView(text(best==null?"Unranked":best.optString("tier")+"  ·  "+best.optInt("rating")+" Rating",17,GOLD_BRIGHT,true));content.addView(rank,rowParams());
         phase15ShowcaseList("EARNED TITLES",data.optJSONArray("titles"),"name");
+        renderPhase17AchievementShowcase(own,data.optString("username",""));
         phase15ShowcaseList("ACHIEVEMENTS",data.optJSONArray("achievements"),"title");
         phase15ShowcaseList("OWNED COSMETICS",data.optJSONArray("cosmetics"),"name");
+    }
+
+    private void renderPhase17AchievementShowcase(boolean own,String username) {
+        LinearLayout panel=sectionPanel();
+        phase15Heading(panel,"HALL OF LEGENDS  /  ACHIEVEMENT SHOWCASE");
+        TextView status=text("Loading achievement records…",11,MUTED,false);
+        panel.addView(status);content.addView(panel,rowParams());
+        final int request=activePageRequest;
+        String path="/api/showcase/achievements"+(own?"":"?username="+Uri.encode(username));
+        api.get(path,res->ui.post(()->{
+            if(request!=activePageRequest||!"showcase".equals(activeTab)||panel.getParent()!=content)return;
+            if(!res.ok()){status.setText("Achievement showcase is temporarily unavailable.");return;}
+            panel.removeView(status);
+            JSONArray records=res.data.optJSONArray("achievements");
+            if(records==null)records=new JSONArray();
+            final boolean editable=own&&res.data.optBoolean("is_self");
+            final java.util.LinkedHashSet<String> chosen=new java.util.LinkedHashSet<>();
+            for(int slot=1;slot<=3;slot++)for(int i=0;i<records.length();i++){
+                JSONObject g=records.optJSONObject(i);
+                if(g!=null&&g.optInt("slot")==slot&&g.optBoolean("unlocked"))chosen.add(g.optString("key"));
+            }
+            TextView count=text(editable?"Choose up to three earned badges · "+chosen.size()+"/3":"Featured achievements",11,GOLD_BRIGHT,true);
+            panel.addView(count);
+            if(records.length()==0)panel.addView(text("No achievements featured yet.",11,MUTED,false));
+            for(int i=0;i<records.length();i++){
+                JSONObject g=records.optJSONObject(i);if(g==null)continue;
+                final String key=g.optString("key");
+                boolean unlocked=g.optBoolean("unlocked");
+                int accent=unlocked?GOLD_BRIGHT:VIOLET;
+                LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);
+                row.setPadding(dp(8),dp(8),dp(8),dp(8));
+                row.setBackground(gradient(Color.rgb(38,42,60),Color.rgb(11,17,31),accent,dp(12)));
+                TextView badge=text(unlocked?"✦":"◇",23,accent,true);badge.setGravity(Gravity.CENTER);
+                badge.setBackground(gradient(Color.rgb(30,37,53),Color.rgb(12,17,29),accent,dp(10)));
+                row.addView(badge,new LinearLayout.LayoutParams(dp(42),dp(48)));
+                LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);
+                info.setPadding(dp(9),0,dp(5),0);
+                info.addView(text(g.optString("title","Achievement"),13,TEXT,true));
+                info.addView(text(g.optString("description"),10,MUTED,false));
+                if(editable){
+                    int goal=Math.max(0,g.optInt("target")),progress=Math.max(0,g.optInt("progress"));
+                    if(goal>0){
+                        ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+                        bar.setMax(goal);bar.setProgress(Math.min(goal,progress));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+                        info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));
+                    }
+                    info.addView(text(unlocked?"EARNED":goal>0?progress+" / "+goal:"Not configured",9,accent,true));
+                }
+                row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));
+                if(editable&&unlocked){
+                    android.widget.CheckBox check=new android.widget.CheckBox(this);
+                    check.setContentDescription("Feature "+g.optString("title"));
+                    check.setButtonTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));
+                    check.setChecked(chosen.contains(key));row.addView(check,new LinearLayout.LayoutParams(dp(44),dp(44)));
+                    check.setOnCheckedChangeListener((v,checked)->{
+                        if(checked&&chosen.size()>=3&&!chosen.contains(key)){
+                            check.setChecked(false);return;
+                        }
+                        if(checked)chosen.add(key);else chosen.remove(key);
+                        count.setText("Choose up to three earned badges · "+chosen.size()+"/3");
+                    });
+                }
+                panel.addView(row,rowParams());
+            }
+            if(editable){
+                TextView save=button("SAVE FEATURED ACHIEVEMENTS",true);
+                panel.addView(save,new LinearLayout.LayoutParams(-1,dp(46)));
+                save.setOnClickListener(v->{
+                    save.setEnabled(false);
+                    JSONArray keys=new JSONArray();for(String key:chosen)keys.put(key);
+                    api.post("/api/showcase/achievements",payload("keys",keys),result->ui.post(()->{
+                        if(request!=activePageRequest||panel.getParent()!=content)return;
+                        save.setEnabled(true);
+                        if(!result.ok()){showResultDialog("Showcase unavailable",result.error);return;}
+                        renderTab("showcase");
+                    }));
+                });
+            }
+        }));
     }
 
     private void phase15Favorite(String id){
