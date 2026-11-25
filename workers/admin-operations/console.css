@@ -1,0 +1,77 @@
+/* Existing admin consoles share typography and spacing with Game Operations. */
+.admin-workbench .admin-header h2 { font-family: system-ui, sans-serif; }
+.admin-workbench .admin-header p, .admin-workbench .admin-tab { font-size: 13px; }
+.admin-workbench .admin-tab { min-height: 44px; }
+.admin-workbench .admin-table th, .admin-workbench .admin-table td { font-size: 13px; padding: 10px 12px; }
+.admin-workbench .admin-table td small, .admin-workbench .admin-form label,
+.admin-workbench .admin-label, .admin-workbench .admin-record small { font-size: 11px; }
+.admin-workbench .admin-form :is(input,select,textarea),
+.admin-workbench .admin-quest-form :is(input,select,textarea) { font-size: 14px; min-height: 40px; }
+.admin-workbench .admin-table tbody tr:nth-child(even) { background: #ffffff08; }
+.admin-workbench .admin-tabs .cu-admin-operations { color: #f0ce8b; border: 1px solid #7b6646; text-decoration: none; }
+.admin-workbench :is(a,button,select,input):focus-visible { outline: 2px solid #e9bd73; outline-offset: 2px; }
+
+.cu-ops { color-scheme: dark; --bg:#101418; --panel:#1a2026; --deep:#151b20; --text:#f3f0e9; --muted:#aab5bf;
+  --line:#343f48; --gold:#f2c783; --teal:#7dd9c1; margin:0; background:var(--bg); color:var(--text);
+  font:15px/1.55 system-ui,sans-serif; }
+.cu-ops * {box-sizing:border-box}
+.cu-ops a {color:inherit;text-decoration:none}
+.cu-ops :focus-visible {outline:2px solid var(--gold);outline-offset:3px}
+.cu-ops .ops-skip {position:absolute;left:16px;top:-64px;padding:10px 16px;background:var(--panel);z-index:3}
+.cu-ops .ops-skip:focus {top:12px}
+.ops-layout {display:grid;grid-template-columns:218px minmax(0,1fr);max-width:1560px;min-height:100vh;margin:auto}
+.ops-sidebar {position:sticky;top:0;align-self:start;min-height:100vh;padding:26px 16px;border-right:1px solid var(--line);background:var(--deep)}
+.ops-brand {display:flex;align-items:center;gap:10px;font-weight:700;line-height:1.25;margin:0 8px 28px}
+.ops-brand span {display:grid;place-items:center;background:#362b20;border:1px solid #6a5438;color:var(--gold);border-radius:9px;width:34px;height:34px}
+.ops-sidebar nav,.ops-side-links {display:grid;gap:4px}
+.ops-side-links {border-top:1px solid var(--line);margin:24px 0 0;padding-top:16px}
+.ops-sidebar :is(nav,.ops-side-links) a {display:block;border:1px solid transparent;padding:9px 11px;border-radius:7px;color:var(--muted)}
+.ops-sidebar nav a[aria-current],.ops-sidebar :is(nav,.ops-side-links) a:hover {color:var(--gold);border-color:#64533a;background:#33291e}
+.cu-ops main {min-width:0;padding:30px clamp(18px,4vw,52px) 56px}
+.ops-header {display:flex;justify-content:space-between;align-items:start;gap:20px;margin-bottom:24px}
+.cu-ops h1,.cu-ops h2,.cu-ops h3,.cu-ops p {margin:0}
+.cu-ops h1 {font-size:clamp(30px,4vw,44px);line-height:1.15;letter-spacing:-.035em;margin:3px 0 6px}
+.cu-ops h2 {font-size:22px;letter-spacing:-.02em}
+.cu-ops h3 {font-size:15px;margin:20px 0 8px}
+.cu-ops p {color:var(--muted)}
+.cu-ops .ops-label {color:var(--gold);font-size:12px;font-weight:700;letter-spacing:.08em}
+.cu-ops #ops-status {font-size:12px;margin-top:6px;text-align:right}
+.cu-ops #ops-status.ops-error {color:#ffafad}
+.ops-header button,.ops-section-head select {border:1px solid var(--line);border-radius:8px;background:#262f36;color:var(--text);font:inherit;min-height:42px;padding:7px 12px}
+.ops-header button {display:block;margin-left:auto;cursor:pointer;font-weight:650;white-space:nowrap}
+.ops-header button:disabled {opacity:.55;cursor:wait}
+.ops-section-head label {display:grid;gap:4px;color:var(--muted);white-space:nowrap}
+.ops-kpis {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.ops-kpi,.cu-ops section {background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.ops-kpi {min-width:0;padding:14px 16px}
+.ops-kpi span {display:block;color:var(--muted);font-size:13px}
+.ops-kpi strong {display:block;margin-top:5px;color:var(--gold);font-size:26px;line-height:1.2;font-variant-numeric:tabular-nums}
+.cu-ops section {scroll-margin-top:18px;margin-top:14px}
+.ops-section-head {display:flex;align-items:end;justify-content:space-between;gap:10px}
+.cu-ops .ops-note {margin:10px 0 0;color:var(--teal)}
+.ops-table-frame {margin-top:10px;overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+.cu-ops table {width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}
+.cu-ops th,.cu-ops td {padding:9px 12px;white-space:nowrap}
+.cu-ops th {background:#222b33;color:#dbe2e7;font-size:12px;letter-spacing:.025em}
+.cu-ops td {border-top:1px solid var(--line)}
+.cu-ops tbody tr:nth-child(even) {background:#ffffff05}
+.ops-empty {padding:12px 0}
+.ops-step {display:grid;grid-template-columns:minmax(110px,1fr) 2fr 78px;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)}
+.ops-step progress {width:100%;accent-color:var(--teal)}
+.ops-step small {color:var(--muted);text-align:right}
+@media (max-width:980px) { .ops-kpis {grid-template-columns:repeat(2,minmax(0,1fr))} }
+@media (max-width:700px) {
+  .ops-layout {display:block}
+  .ops-sidebar {min-height:auto;padding:12px;z-index:2;border-right:0;border-bottom:1px solid var(--line)}
+  .ops-sidebar nav {display:flex;overflow:auto}
+  .ops-sidebar nav a {white-space:nowrap;min-height:44px}
+  .ops-brand {margin:0 4px 8px}
+  .ops-side-links {display:flex;flex-wrap:wrap;gap:0;margin-top:6px;padding-top:4px;font-size:12px}
+  .ops-header {display:grid}
+  .ops-header button {margin:0}
+  .cu-ops #ops-status {text-align:left}
+  .cu-ops main {padding:16px}
+  .cu-ops section {scroll-margin-top:176px;padding:14px}
+  .ops-section-head {align-items:start;flex-direction:column}
+  .ops-step {grid-template-columns:minmax(102px,1fr) 1fr 48px;gap:6px;font-size:13px}
+}
