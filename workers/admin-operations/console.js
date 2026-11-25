@@ -166,6 +166,96 @@
         }
     }
 
+    const guildStatus = byId("ops-guild-status");
+    const guildSelect = byId("ops-guild-select");
+    const guildFilter = byId("ops-guild-filter");
+    const guildSave = byId("ops-save-guild");
+    const guildCapacity = byId("ops-guild-capacity");
+    const guildLevel = byId("ops-guild-level");
+    const guildRecruiting = byId("ops-guild-recruiting");
+    let guilds = [];
+
+    async function guildApi(path, request = {}) {
+        const response = await fetch(path, {credentials:"same-origin",cache:"no-store",...request});
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.error || "Request failed.");
+        return result;
+    }
+
+    function setGuildStatus(message, error = false) {
+        guildStatus.classList.toggle("ops-error", error);
+        guildStatus.textContent = message;
+    }
+
+    function renderGuildFields() {
+        const guild = guilds.find(item => item.guild_id === guildSelect.value);
+        guildSave.disabled = !guild;
+        guildCapacity.disabled = !guild;
+        guildLevel.disabled = !guild;
+        guildRecruiting.disabled = !guild;
+        byId("ops-guild-roster").textContent = guild
+            ? fmt.format(guild.member_count) + " current members · Server limit 5–1,000"
+            : "Choose a guild to edit its policy.";
+        guildCapacity.min = Math.max(5, guild?.member_count ?? 0);
+        guildCapacity.value = guild?.member_limit ?? "";
+        guildLevel.value = guild?.minimum_level ?? "";
+        guildRecruiting.value = String(guild?.is_recruiting ?? 0);
+    }
+
+    function renderGuildChoices(preferred = guildSelect.value) {
+        const query = guildFilter.value.trim().toLowerCase();
+        guildSelect.replaceChildren();
+        const matching = guilds.filter(guild => (guild.name + " " + guild.tag).toLowerCase().includes(query));
+        for (const guild of matching) {
+            const option = node("option", guild.name + " [" + guild.tag + "]");
+            option.value = guild.guild_id;
+            guildSelect.append(option);
+        }
+        if (matching.some(guild => guild.guild_id === preferred)) guildSelect.value = preferred;
+        guildSelect.disabled = !matching.length;
+        renderGuildFields();
+    }
+
+    async function loadGuilds() {
+        setGuildStatus("Loading Guild Settings…");
+        try {
+            guilds = (await guildApi("/api/admin/guilds")).guilds;
+            renderGuildChoices();
+            setGuildStatus(guilds.length ? "" : "No guilds to configure.");
+        } catch (error) {
+            setGuildStatus(error.message, true);
+        }
+    }
+
+    guildFilter.addEventListener("input", () => renderGuildChoices());
+    guildSelect.addEventListener("change", renderGuildFields);
+    byId("ops-guild-form").addEventListener("submit", async event => {
+        event.preventDefault();
+        const entry = guilds.find(item => item.guild_id === guildSelect.value);
+        if (!entry || guildSave.disabled) return;
+        const policy = {
+            member_limit:guildCapacity.valueAsNumber,
+            minimum_level:guildLevel.valueAsNumber,
+            is_recruiting:Number(guildRecruiting.value)
+        };
+        const fields = [guildCapacity,guildLevel,guildRecruiting,guildSelect,guildFilter,guildSave];
+        fields.forEach(field => { field.disabled = true; });
+        setGuildStatus("Saving guild settings…");
+        try {
+            await guildApi("/api/admin/guilds/" + encodeURIComponent(entry.guild_id), {
+                method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(policy)
+            });
+            Object.assign(entry, policy);
+            setGuildStatus("Saved. The game now uses this guild policy.");
+        } catch (error) {
+            setGuildStatus(error.message, true);
+        } finally {
+            guildFilter.disabled = false;
+            guildSelect.disabled = false;
+            renderGuildFields();
+        }
+    });
+
     const anchors = [...document.querySelectorAll(".ops-sidebar nav a")];
     function markActive() {
         const active = anchors.find(anchor=>anchor.hash===location.hash) ?? anchors[0];
@@ -178,5 +268,7 @@
     markActive();
     refresh.addEventListener("click",update);
     select.addEventListener("change",renderOdds);
+    renderGuildFields();
+    loadGuilds();
     update();
 })();
