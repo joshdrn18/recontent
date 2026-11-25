@@ -815,6 +815,17 @@ public final class MainActivity extends Activity {
         content.addView(scene, params);
     }
 
+    private boolean isLiveConfigPage(String tab){
+        return java.util.Arrays.asList("collection","binders","formation","summon","events","world_events","shop","raids","dungeons","adventure","missions","progression","ranked","achievements","mastery","encyclopedia","guild","guild_coop").contains(tab);
+    }
+    private void addLiveConfigRefresh(String tab){
+        if(!isLiveConfigPage(tab))return;
+        TextView refresh=button("↻  REFRESH LIVE GAME DATA",false);
+        refresh.setOnClickListener(v->renderTab(tab));
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,dp(38));rp.bottomMargin=dp(6);
+        content.addView(refresh,rp);
+    }
+
     private void renderTab(String tab) {
         ui.removeCallbacks(chatRefreshTick);
         activeTab = tab;
@@ -845,10 +856,13 @@ public final class MainActivity extends Activity {
             showNotice("This section is not available for this account.");
             return;
         }
+        syncCardImages(()->{
+        if (!tab.equals(activeTab) || request != activePageRequest || content == null) return;
         api.get(path, result -> ui.post(() -> {
             if (!tab.equals(activeTab) || request != activePageRequest || content == null) return;
             content.removeAllViews();
             if (!usesRealmScene(tab)) addScreenHero(tab);
+            addLiveConfigRefresh(tab);
             if ("battle_history".equals(tab)) {
                 renderBattleHistory(result.ok() ? result.data : new JSONObject(), requestedMode, requestedOffset);
                 if (!result.ok()) showNotice(result.error);
@@ -868,7 +882,7 @@ public final class MainActivity extends Activity {
             }
             if ("missions".equals(tab)) {
                 api.get("/api/daily-challenges", dailyResult -> ui.post(() -> {
-                    if (!"missions".equals(activeTab) || content == null) return;
+                    if (!"missions".equals(activeTab) || request != activePageRequest || content == null) return;
                     if (dailyResult.ok()) {
                         try { result.data.put("daily_challenges", dailyResult.data.optJSONArray("challenges")); }
                         catch (Exception ignored) {}
@@ -877,7 +891,7 @@ public final class MainActivity extends Activity {
                 }));
             } else if ("events".equals(tab)) {
                 api.get("/api/events/login", loginResult -> ui.post(() -> {
-                    if (!"events".equals(activeTab) || content == null) return;
+                    if (!"events".equals(activeTab) || request != activePageRequest || content == null) return;
                     if (loginResult.ok()) {
                         try { result.data.put("login_event", loginResult.data); }
                         catch (Exception ignored) {}
@@ -886,7 +900,7 @@ public final class MainActivity extends Activity {
                 }));
             } else if ("formation".equals(tab)) {
                 api.get("/api/decks", deckResult -> ui.post(() -> {
-                    if (!"formation".equals(activeTab) || content == null) return;
+                    if (!"formation".equals(activeTab) || request != activePageRequest || content == null) return;
                     if (deckResult.ok()) {
                         try { result.data.put("decks", deckResult.data.optJSONArray("decks")); }
                         catch (Exception ignored) {}
@@ -899,6 +913,7 @@ public final class MainActivity extends Activity {
                 renderModule(tab, result.data);
             }
         }));
+        });
     }
 
         private void renderHome() {
@@ -1587,7 +1602,7 @@ public final class MainActivity extends Activity {
             info.addView(text(canOpen ? (unlimited ? "INFINITE SUMMON ACCESS" : "IN STOCK · " + quantity)
                     : "OUT OF STOCK", 8, GOLD_BRIGHT, true));
             if ("mythic".equals(slug) && pack.has("pity_count"))
-                info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count") + " / 40", 8, PINK, true));
+                info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count") + " · VIEW RATES", 8, PINK, true));
             TextView odds = button("RATES & GUARANTEES", false);
             odds.setOnClickListener(v -> showSummonTransparency(slug));
             info.addView(odds, rowParams());
@@ -2847,7 +2862,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             missionsDailyLoading = true;
             api.get("/api/daily-challenges", result -> ui.post(() -> {
                 missionsDailyLoading = false;
-                if (!"missions".equals(activeTab) || content == null) return;
+                if (!"missions".equals(activeTab) || request != activePageRequest || content == null) return;
                 content.removeView(loading);
                 JSONArray daily = result.ok() ? result.data.optJSONArray("challenges") : null;
                 try { data.put("daily_challenges", daily == null ? new JSONArray() : daily); }
@@ -4369,15 +4384,36 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         return segment == null ? "avatar.webp" : segment;
     }
 
+    private final java.util.Map<String,String> liveCardImages=new java.util.HashMap<>();
+    private void syncCardImages(Runnable after){
+        api.get("/api/card-image-revisions",result->ui.post(()->{
+            if(result.ok()){
+                JSONArray cards=result.data.optJSONArray("cards");
+                if(cards!=null){
+                    liveCardImages.clear();
+                    for(int i=0;i<cards.length();i++){
+                        JSONObject c=cards.optJSONObject(i);if(c==null)continue;
+                        String path=c.optString("art_path","");
+                        if(path.startsWith("/media/cards/full-uploads/"))
+                            liveCardImages.put(c.optString("card_code","").toUpperCase(java.util.Locale.ROOT),path);
+                    }
+                }
+            }
+            if(after!=null)after.run();
+        }));
+    }
     private String cardArtworkPath(JSONObject card) {
-        if (card == null) return "";
-        if("ALTERNATE".equals(card.optString("skin"))){String alternate=card.optString("alternate_art","");if(alternate.startsWith("/media/cards/")||alternate.startsWith("/art/"))return alternate;}
-        String code = card.optString("card_code", "").trim().toUpperCase(java.util.Locale.ROOT);
-        String name = card.optString("name", "").toLowerCase(java.util.Locale.ROOT);
-        if ("FL-001".equals(code) && name.contains("fox")) return "/art/cinder-fox.webp";
-        String path = card.optString("art_path", "").trim();
-        if (path.startsWith("/media/cards/") || path.startsWith("/art/")) return path;
-        if (code.matches("(FL|MY|EV)-\\d{3}")) return "/media/cards/artwork/" + code + ".svg";
+        if(card==null)return "";
+        if("ALTERNATE".equals(card.optString("skin"))){
+            String alternate=card.optString("alternate_art","");
+            if(alternate.startsWith("/media/cards/")||alternate.startsWith("/art/"))return alternate;
+        }
+        String code=card.optString("card_code","").trim().toUpperCase(java.util.Locale.ROOT);
+        String current=liveCardImages.get(code);
+        if(current!=null)return current;
+        String path=card.optString("art_path","").trim();
+        if(path.startsWith("/media/cards/")||path.startsWith("/art/"))return path;
+        if(code.matches("(FL|MY|EV)-\\d{3}"))return "/media/cards/artwork/"+code+".svg";
         return "";
     }
 
