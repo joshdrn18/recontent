@@ -17,8 +17,8 @@ android {
         applicationId 'com.carduniverse.game'
         minSdk 24
         targetSdk 34
-        versionCode 31
-        versionName '2.26.0'
+        versionCode 32
+        versionName '2.27.0'
     }
 
     signingConfigs {

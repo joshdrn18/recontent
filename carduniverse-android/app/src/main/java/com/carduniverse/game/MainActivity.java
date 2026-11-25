@@ -546,63 +546,26 @@ public final class MainActivity extends Activity {
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        right.setPadding(dp(compact ? 8 : 11), dp(compact ? 4 : 6),
-                dp(compact ? 8 : 11), dp(compact ? 4 : 6));
-        right.setBackground(gradient(Color.rgb(25, 35, 59), Color.rgb(8, 15, 31),
-                Color.rgb(119, 145, 191), dp(18)));
-        right.setElevation(dp(4));
-        right.setMinimumHeight(dp(compact ? 42 : 48));
-        right.setClickable(true);
-        right.setFocusable(true);
+        right.setPadding(dp(6),dp(4),dp(8),dp(4));
+        right.setBackground(gradient(Color.rgb(33,39,65),Color.rgb(12,19,34),Color.rgb(151,120,79),dp(13)));
+        right.setMinimumHeight(dp(48));
         right.setContentDescription("Open collector profile");
+        right.setFocusable(true);
         right.setOnClickListener(v -> showPlayerProfile());
-
-        String collectorName = me.optString("display_name", "Collector");
-        accountLabel = text(collectorName, compact ? 8 : 10, GOLD_BRIGHT, true);
-        accountLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        accountLabel.setSingleLine(true);
-        accountLabel.setMaxWidth(dp(compact ? 104 : 178));
-        String profileMeta = "LEVEL " + formatNumber(me.optLong("collector_level", 1))
-                + "  ·  " + walletLine();
-        currencyLabel = text(profileMeta, compact ? 6 : 7, MUTED, true);
-        currencyLabel.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        currencyLabel.setSingleLine(true);
-        currencyLabel.setMaxWidth(dp(compact ? 108 : 190));
-        LinearLayout account = new LinearLayout(this);
-        account.setOrientation(LinearLayout.VERTICAL);
-        account.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        account.addView(accountLabel);
-        account.addView(currencyLabel);
-        TextView profileHint = text(isAdminAccount() ? "MASTER ACCOUNT  ↗" : "VIEW PROFILE  ↗",
-                6, isAdminAccount() ? VIOLET : CYAN, true);
-        profileHint.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        LinearLayout.LayoutParams hintParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        hintParams.topMargin = dp(2);
-        account.addView(profileHint, hintParams);
-        right.addView(account);
-
-        FrameLayout avatarRing = new FrameLayout(this);
-        avatarRing.setPadding(dp(2), dp(2), dp(2), dp(2));
-        avatarRing.setBackground(gradient(Color.rgb(255, 238, 194), GOLD_BRIGHT,
-                Color.rgb(153, 104, 59), dp(24)));
-        avatarRing.setElevation(dp(2));
-        LinearLayout.LayoutParams avp = new LinearLayout.LayoutParams(
-                dp(compact ? 35 : 42), dp(compact ? 35 : 42));
-        avp.leftMargin = dp(compact ? 8 : 11);
-        TextView avatar = text(initials(collectorName), compact ? 10 : 12, BG, true);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(gradient(Color.rgb(249, 231, 190), GOLD_BRIGHT,
-                Color.rgb(185, 133, 66), dp(22)));
-        avatarRing.addView(avatar, new FrameLayout.LayoutParams(-1, -1));
-        right.addView(avatarRing, avp);
-        avatarRing.setClickable(true);
-        avatarRing.setFocusable(true);
-        avatarRing.setContentDescription("Open collector profile");
-        avatarRing.setOnClickListener(v -> showPlayerProfile());
-        top.addView(right);
-        mainColumn.addView(top, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(compact ? 39 : 44)));
+        String collectorName=me.optString("display_name","Collector");
+        FrameLayout avatarRing=phase11Avatar(collectorName,me.optString("avatarUrl",me.optString("avatar_url","")),GOLD_BRIGHT);
+        right.addView(avatarRing,new LinearLayout.LayoutParams(dp(38),dp(38)));
+        LinearLayout account=new LinearLayout(this);account.setOrientation(LinearLayout.VERTICAL);account.setGravity(Gravity.CENTER_VERTICAL);
+        account.setPadding(dp(8),0,dp(5),0);
+        accountLabel=text(collectorName,11,TEXT,true);accountLabel.setSingleLine(true);accountLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        accountLabel.setMaxWidth(dp(compact?116:180));account.addView(accountLabel);
+        currencyLabel=text("LV "+formatNumber(me.optLong("collector_level",1))+"  ·  "+walletLine(),8,GOLD_BRIGHT,true);
+        currencyLabel.setSingleLine(true);currencyLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);currencyLabel.setMaxWidth(dp(compact?125:210));account.addView(currencyLabel);
+        right.addView(account,new LinearLayout.LayoutParams(-2,-2));
+        TextView open=text("›",20,GOLD_BRIGHT,true);open.setGravity(Gravity.CENTER);
+        right.addView(open,new LinearLayout.LayoutParams(dp(15),-1));
+        top.addView(right,new LinearLayout.LayoutParams(-2,dp(48)));
+        mainColumn.addView(top,new LinearLayout.LayoutParams(-1,dp(54)));
 
         if (compact) {
             HorizontalScrollView navScroll = new HorizontalScrollView(this);
@@ -5004,84 +4967,144 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
 
+    private LinearLayout phase11Sheet(String eyebrow,String title,String description,int accent){
+        LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.VERTICAL);
+        shell.setPadding(dp(16),dp(16),dp(16),dp(14));
+        shell.setBackground(gradient(Color.rgb(27,36,57),Color.rgb(9,15,28),accent,dp(19)));
+        TextView label=text(eyebrow,9,accent,true);label.setLetterSpacing(.12f);shell.addView(label);
+        TextView name=text(title,21,TEXT,true);name.setPadding(0,dp(3),0,dp(3));shell.addView(name);
+        if(!description.isEmpty()){TextView desc=text(description,11,MUTED,false);desc.setLineSpacing(dp(2),1f);shell.addView(desc);}
+        addGap(shell,12);return shell;
+    }
+
+    private void phase11ShowSheet(android.app.Dialog dialog,LinearLayout shell,int desiredHeight){
+        dialog.setContentView(shell);dialog.setCanceledOnTouchOutside(true);dialog.show();
+        Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(.80f);
+            int width=Math.max(dp(240),Math.min(dp(560),getResources().getDisplayMetrics().widthPixels-dp(24)));
+            int height=Math.max(dp(200),Math.min(dp(desiredHeight),getResources().getDisplayMetrics().heightPixels-dp(70)));
+            w.setLayout(width,height);w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE | WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);}
+    }
+
+    private FrameLayout phase11Art(JSONObject card,int accent){
+        FrameLayout frame=new FrameLayout(this);
+        frame.setBackground(gradient(Color.rgb(35,43,62),Color.rgb(8,14,25),accent,dp(10)));frame.setClipToOutline(true);
+        TextView sigil=text(elementSigil(card.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT)),30,accent,true);sigil.setGravity(Gravity.CENTER);
+        frame.addView(sigil,new FrameLayout.LayoutParams(-1,-1));
+        CardArtView art=new CardArtView(this);art.setScaleType(ImageView.ScaleType.FIT_CENTER);art.loadArtwork(cardArtworkPath(card));frame.addView(art,new FrameLayout.LayoutParams(-1,-1));return frame;
+    }
+
+    private FrameLayout phase11Avatar(String name,String path,int accent){
+        FrameLayout ring=new FrameLayout(this);ring.setBackground(gradient(Color.rgb(65,55,42),Color.rgb(16,24,40),accent,dp(50)));ring.setClipToOutline(true);
+        TextView fallback=text(initials(name),16,accent,true);fallback.setGravity(Gravity.CENTER);ring.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+        ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setVisibility(View.GONE);
+        FrameLayout.LayoutParams ip=new FrameLayout.LayoutParams(-1,-1);ip.setMargins(dp(2),dp(2),dp(2),dp(2));ring.addView(image,ip);
+        loadProfileAvatar(image,path);return ring;
+    }
+
+    private void showTeamCardPicker(JSONArray cards,String[] lineup,int slot,java.util.function.Consumer<JSONObject> choose){
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("FORMATION  /  POSITION 0"+(slot+1),"Choose your champion","Only cards not assigned to another position are shown.",GOLD_BRIGHT);
+        EditText search=editField("Search cards, rarity or element",false);search.setSingleLine(true);search.setTextSize(13);shell.addView(search,new LinearLayout.LayoutParams(-1,dp(46)));
+        HorizontalScrollView filters=new HorizontalScrollView(this);filters.setHorizontalScrollBarEnabled(false);
+        LinearLayout strip=new LinearLayout(this);strip.setOrientation(LinearLayout.HORIZONTAL);filters.addView(strip);
+        shell.addView(filters,new LinearLayout.LayoutParams(-1,dp(49)));
+        TextView count=text("",10,MUTED,true);shell.addView(count);addGap(shell,5);
+        ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);
+        LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        ArrayList<JSONObject> eligible=new ArrayList<>();ArrayList<LinearLayout> rows=new ArrayList<>();
+        String current=lineup[slot]==null?"":lineup[slot];java.util.HashSet<String> blocked=new java.util.HashSet<>();
+        for(int i=0;i<lineup.length;i++)if(i!=slot&&lineup[i]!=null&&!lineup[i].isEmpty())blocked.add(lineup[i]);
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c==null||c.optString("card_id").isEmpty()||blocked.contains(c.optString("card_id")))continue;eligible.add(c);}
+        eligible.sort((a,b)->Boolean.compare(current.equals(b.optString("card_id")),current.equals(a.optString("card_id"))));
+        for(JSONObject c:eligible){
+            boolean active=current.equals(c.optString("card_id"));String rarity=c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);
+            int accent=cardRarityColor(rarity);
+            LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(9),dp(8),dp(9),dp(8));
+            row.setBackground(gradient(active?Color.rgb(49,43,31):Color.rgb(24,34,53),Color.rgb(10,17,30),active?GOLD_BRIGHT:Color.rgb(65,80,107),dp(12)));
+            row.addView(phase11Art(c,accent),new LinearLayout.LayoutParams(dp(67),dp(94)));
+            LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(11),0,dp(6),0);
+            info.addView(text(rarity+"  ·  "+c.optString("element","AETHER"),9,accent,true));
+            TextView name=text(c.optString("name","Card"),13,TEXT,true);name.setMaxLines(2);info.addView(name);
+            info.addView(text("Power  "+formatNumber(c.optLong("card_power",c.optLong("formation_power")))+"  ·  ×"+c.optInt("owned_count",1),10,MUTED,false));
+            info.addView(text(active?"CURRENT POSITION":c.optString("card_code",""),9,active?GOLD_BRIGHT:MUTED,true));
+            row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));
+            TextView pick=text(active?"✓":"›",22,active?GOLD_BRIGHT:CYAN,true);pick.setGravity(Gravity.CENTER);row.addView(pick,new LinearLayout.LayoutParams(dp(25),dp(42)));
+            row.setFocusable(true);row.setOnClickListener(v->{dialog.dismiss();choose.accept(c);});rows.add(row);list.addView(row,rowParams());
+        }
+        TextView empty=text("No matching cards.",12,MUTED,false);empty.setGravity(Gravity.CENTER);empty.setPadding(0,dp(28),0,dp(28));list.addView(empty);
+        String[] rarityFilter={"ALL","COMMON","UNCOMMON","RARE","EPIC","LEGENDARY","MYTHIC"};String[] filter={"ALL"};ArrayList<TextView> chips=new ArrayList<>();
+        Runnable update=()->{String q=search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);int shown=0;
+            for(int i=0;i<eligible.size();i++){JSONObject c=eligible.get(i);String r=c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);
+                String h=(c.optString("name")+" "+r+" "+c.optString("element")+" "+c.optString("card_code")).toLowerCase(java.util.Locale.ROOT);
+                boolean visible=(filter[0].equals("ALL")||filter[0].equals(r))&&h.contains(q);rows.get(i).setVisibility(visible?View.VISIBLE:View.GONE);if(visible)shown++;}
+            count.setText(shown+" / "+eligible.size()+" AVAILABLE");empty.setVisibility(shown==0?View.VISIBLE:View.GONE);
+            for(int i=0;i<chips.size();i++){boolean on=rarityFilter[i].equals(filter[0]);chips.get(i).setTextColor(on?BG:MUTED);chips.get(i).setBackground(gradient(on?GOLD_BRIGHT:PANEL_LIGHT,on?GOLD:PANEL,on?GOLD_BRIGHT:Color.rgb(66,79,105),dp(20)));}};
+        for(String r:rarityFilter){TextView chip=text(r,9,MUTED,true);chip.setGravity(Gravity.CENTER);chip.setPadding(dp(12),0,dp(12),0);
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-2,dp(34));cp.setMargins(0,dp(8),dp(6),0);strip.addView(chip,cp);chips.add(chip);chip.setOnClickListener(v->{filter[0]=r;update.run();});}
+        search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){update.run();}public void afterTextChanged(Editable e){}});
+        update.run();
+        LinearLayout footer=new LinearLayout(this);TextView clear=button("CLEAR SLOT",false),close=button("CANCEL",false);
+        footer.addView(clear,new LinearLayout.LayoutParams(0,dp(44),1f));LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(0,dp(44),1f);fp.leftMargin=dp(8);footer.addView(close,fp);
+        clear.setOnClickListener(v->{dialog.dismiss();choose.accept(null);});close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(footer);
+        shell.setFocusableInTouchMode(true);shell.requestFocus();phase11ShowSheet(dialog,shell,690);
+    }
+
     private void renderEvolution(JSONObject data) {
-        JSONObject wallet = data.optJSONObject("wallet");
-        if (wallet == null) wallet = new JSONObject();
-        addModeSpotlight("CARD ASCENSION", "Awaken their true potential",
-                "Invest Gold, Gems and Shards to raise the level and star rank of your strongest cards.",
-                "✧", PINK);
-        LinearLayout money = new LinearLayout(this);
-        money.setOrientation(LinearLayout.HORIZONTAL);
-        money.addView(statCard("GOLD", formatNumber(wallet.optLong("coins")), "Training"), weightParams(1));
-        money.addView(statCard("GEMS", formatNumber(wallet.optLong("gems")), "Ascension"), weightParams(1));
-        money.addView(statCard("SHARDS", formatNumber(wallet.optLong("shards")), "Awakening"), weightParams(1));
-        content.addView(money);
-        addGap(content, 9);
-        final JSONObject walletSnapshot = wallet;
-        JSONArray cards = data.optJSONArray("cards");
-        if (cards == null || cards.length() == 0) {
-            showNotice("No cards are ready for evolution. Collect cards from Summon Hall first.");
-            return;
+        JSONObject wallet=data.optJSONObject("wallet");if(wallet==null)wallet=new JSONObject();
+        final JSONObject walletSnapshot=wallet;
+        addModeSpotlight("ASCENSION SANCTUM","Awaken your champions","Train your cards, ascend their star ranks and unlock their true potential.","✧",PINK);
+        LinearLayout balances=new LinearLayout(this);
+        balances.addView(profileStat("GOLD",formatNumber(wallet.optLong("coins")),GOLD_BRIGHT),weightParams(1));
+        balances.addView(profileStat("GEMS",formatNumber(wallet.optLong("gems")),VIOLET),weightParams(1));
+        balances.addView(profileStat("SHARDS",formatNumber(wallet.optLong("shards")),CYAN),weightParams(1));content.addView(balances);addGap(content,14);
+        JSONArray cards=data.optJSONArray("cards");
+        if(cards==null||cards.length()==0){showNotice("Collect cards from Summon Hall to unlock ascension.");return;}
+        int max=Math.max(1,data.optInt("max_level",30));
+        content.addView(text("ASCENSION ROSTER  /  "+cards.length()+" CARDS",11,GOLD_BRIGHT,true));addGap(content,6);
+        EditText search=editField("Find a card…",false);search.setTextSize(13);content.addView(search,new LinearLayout.LayoutParams(-1,dp(44)));addGap(content,7);
+        ArrayList<LinearLayout> rows=new ArrayList<>();ArrayList<String> keys=new ArrayList<>();
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c==null)continue;
+            String rarity=c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);int accent=cardRarityColor(rarity);
+            LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(10),dp(10),dp(10),dp(10));
+            panel.setBackground(gradient(Color.rgb(27,35,53),Color.rgb(10,17,31),accent,dp(14)));
+            LinearLayout head=new LinearLayout(this);head.setGravity(Gravity.CENTER_VERTICAL);head.addView(phase11Art(c,accent),new LinearLayout.LayoutParams(dp(84),dp(118)));
+            LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(12),0,0,0);
+            info.addView(text(rarity+"  ·  "+c.optString("element","AETHER"),9,accent,true));info.addView(text(c.optString("name","Card"),15,TEXT,true));
+            info.addView(text(starMarks(c.optInt("star_rank")),15,GOLD_BRIGHT,true));int level=c.optInt("level",1);
+            info.addView(text("LEVEL "+level+" / "+max,10,CYAN,true));
+            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(max);bar.setProgress(Math.min(max,level));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));
+            info.addView(text(formatNumber(c.optLong("card_power"))+" POWER  ·  "+c.optInt("copies_available")+" COPIES",9,MUTED,true));head.addView(info,new LinearLayout.LayoutParams(0,-2,1f));panel.addView(head);
+            TextView action=button("OPEN ASCENSION  ›",true);action.setOnClickListener(v->showEvolutionCardDialog(c,walletSnapshot));addGap(panel,9);panel.addView(action,new LinearLayout.LayoutParams(-1,dp(43)));content.addView(panel,rowParams());rows.add(panel);
+            keys.add((c.optString("name")+" "+rarity+" "+c.optString("element")+" "+c.optString("card_code")).toLowerCase(java.util.Locale.ROOT));
         }
-        content.addView(text("YOUR ASCENSION ROSTER · " + cards.length() + " CARDS", 8, GOLD_BRIGHT, true));
-        for (int i = 0; i < cards.length(); i++) {
-            JSONObject card = cards.optJSONObject(i);
-            if (card == null) continue;
-            LinearLayout row = sectionPanel();
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            FrameLayout artFrame = new FrameLayout(this);
-            int accent = cardRarityColor(card.optString("rarity", "COMMON"));
-            artFrame.setBackground(gradient(Color.rgb(34, 38, 71), Color.rgb(10, 16, 31), accent, dp(10)));
-            CardArtView illustration = new CardArtView(this);
-            illustration.loadArtwork(cardArtworkPath(card));
-            artFrame.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
-            row.addView(artFrame, new LinearLayout.LayoutParams(dp(78), dp(92)));
-            LinearLayout copy = new LinearLayout(this);
-            copy.setOrientation(LinearLayout.VERTICAL);
-            copy.setPadding(dp(10), 0, dp(7), 0);
-            copy.addView(text(card.optString("rarity", "COMMON").toUpperCase() + " · "
-                    + card.optString("element", "AETHER").toUpperCase(), 7, accent, true));
-            copy.addView(text(card.optString("name", "Card"), 11, TEXT, true));
-            int level = card.optInt("level", 1);
-            int maxLevel = Math.max(1, data.optInt("max_level", 30));
-            copy.addView(text("LEVEL " + level + " / " + maxLevel + " · "
-                    + starMarks(card.optInt("star_rank")), 8, MUTED, false));
-            TextView cardPower = text("CARD POWER  " + formatNumber(card.optLong("card_power")),
-                    8, GOLD_BRIGHT, true);
-            cardPower.setPadding(0, dp(2), 0, dp(2));
-            copy.addView(cardPower);
-            ProgressBar progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-            progress.setMax(maxLevel);
-            progress.setProgress(Math.min(maxLevel, level));
-            progress.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
-            copy.addView(progress, new LinearLayout.LayoutParams(-1, dp(6)));
-            copy.addView(text(card.optInt("copies_available") + " EVOLUTION COPIES READY", 7, CYAN, true));
-            row.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-            TextView ascend = button("ASCEND", true);
-            ascend.setOnClickListener(v -> showEvolutionCardDialog(card, walletSnapshot));
-            row.addView(ascend, new LinearLayout.LayoutParams(dp(86), dp(37)));
-            row.setOnClickListener(v -> showEvolutionCardDialog(card, walletSnapshot));
-            content.addView(row, rowParams());
-        }
+        TextView empty=text("No matching cards.",12,MUTED,false);empty.setVisibility(View.GONE);content.addView(empty);
+        search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){String q=s.toString().trim().toLowerCase(java.util.Locale.ROOT);int n=0;for(int i=0;i<rows.size();i++){boolean on=keys.get(i).contains(q);rows.get(i).setVisibility(on?View.VISIBLE:View.GONE);if(on)n++;}empty.setVisibility(n==0?View.VISIBLE:View.GONE);}public void afterTextChanged(Editable e){}});
     }
 
     private void showEvolutionCardDialog(JSONObject c,JSONObject wallet) {
-        String message=c.optString("card_code")+" · "+c.optString("element")+" · "+c.optString("rarity")
-            +"\\nLevel "+c.optInt("level")+" · Ascension "+c.optInt("star_rank")+"★"
-            +"\\nAvailable copies: "+c.optInt("copies_available")
-            +"\\nCard power: "+formatNumber(c.optLong("card_power"))
-            +"\\n\\nLevel-up: "+formatNumber(c.optLong("level_cost"))+" Gold + "+formatNumber(c.optLong("level_shards"))+" Shards"
-            +"\\n\\nSignature: "+c.optString("skill_name","Firstlight Gift")+"\\n"+c.optString("skill_description","Unlocks at 2★");
-        String[] actions={"LEVEL UP","ASCEND"};
-        new AlertDialog.Builder(this).setTitle(c.optString("name","Card Evolution")).setMessage(message).setItems(actions,(d,w)->{
-            String action=w==0?"LEVEL_UP":"ASCEND";JSONObject cost=c.optJSONObject("next_star_cost");
-            String extra=action.equals("ASCEND")&&cost!=null?"\\nDuplicates "+cost.optInt("duplicates")+" · Gold "+cost.optLong("coins")+" · Gems "+cost.optLong("gems")+" · Shards "+cost.optLong("shards"):"";
-            String warning=action.equals("ASCEND")?"Ascension is permanent. It consumes duplicate copies of this exact card while preserving one primary copy.":"The server will verify your Gold and Shard balance before upgrading.";
-            confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+extra,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
-                if(!r.ok())showResultDialog("Evolution unavailable",r.error);else{showResultDialog("EVOLUTION UPDATED",r.data.optString("message","Your card has been upgraded."));refreshAccount(()->renderTab("evolution"));}
-            })));
-        }).show();
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        int accent=cardRarityColor(c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT));
+        LinearLayout shell=phase11Sheet("ASCENSION SANCTUM",c.optString("name","Card Evolution"),c.optString("rarity")+"  ·  "+c.optString("element")+"  ·  "+c.optString("card_code"),accent);
+        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        FrameLayout art=phase11Art(c,accent);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(dp(128),dp(180));ap.gravity=Gravity.CENTER_HORIZONTAL;body.addView(art,ap);
+        TextView stars=text(starMarks(c.optInt("star_rank")),19,GOLD_BRIGHT,true);stars.setGravity(Gravity.CENTER);body.addView(stars);
+        LinearLayout stats=new LinearLayout(this);stats.addView(profileStat("LEVEL",""+c.optInt("level",1),CYAN),weightParams(1));stats.addView(profileStat("POWER",formatNumber(c.optLong("card_power")),GOLD),weightParams(1));stats.addView(profileStat("COPIES",""+c.optInt("copies_available"),VIOLET),weightParams(1));body.addView(stats);addGap(body,10);
+        LinearLayout skill=sectionPanel();skill.addView(text("SIGNATURE ABILITY",9,accent,true));skill.addView(text(c.optString("skill_name","Firstlight Gift"),13,TEXT,true));skill.addView(text(c.optString("skill_description","Unlocks at 2★"),11,MUTED,false));body.addView(skill,rowParams());
+        JSONObject cost=c.optJSONObject("next_star_cost");
+        String levelCost=formatNumber(c.optLong("level_cost"))+" Gold  ·  "+formatNumber(c.optLong("level_shards"))+" Shards";
+        String starCost=cost==null?"Next ascension cost unavailable":cost.optInt("duplicates")+" duplicates  ·  "+formatNumber(cost.optLong("coins"))+" Gold\n"+formatNumber(cost.optLong("gems"))+" Gems  ·  "+formatNumber(cost.optLong("shards"))+" Shards";
+        for(int i=0;i<2;i++){final String action=i==0?"LEVEL_UP":"ASCEND";final String price=i==0?levelCost:starCost;
+            LinearLayout option=sectionPanel();option.setBackground(gradient(Color.rgb(27,38,54),Color.rgb(12,20,33),i==0?CYAN:PINK,dp(12)));
+            option.addView(text(i==0?"TRAIN  /  LEVEL UP":"AWAKEN  /  ASCEND",12,i==0?CYAN:PINK,true));
+            option.addView(text(i==0?"Increase the card’s level.":"Raise the star rank using duplicate copies.",11,MUTED,false));addGap(option,4);
+            option.addView(text(price,11,GOLD_BRIGHT,true));addGap(option,7);
+            TextView act=button(i==0?"LEVEL UP":"ASCEND",i==1);option.addView(act,new LinearLayout.LayoutParams(-1,dp(43)));
+            act.setOnClickListener(v->{dialog.dismiss();String warning=action.equals("ASCEND")?"Ascension permanently consumes duplicate copies of this card while preserving one primary copy.":"The server verifies your Gold and Shard balance before upgrading.";
+                confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+"\n\n"+price,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
+                    if(!r.ok())showResultDialog("Evolution unavailable",r.error);else{showResultDialog("EVOLUTION UPDATED",r.data.optString("message","Your card has been upgraded."));refreshAccount(()->renderTab("evolution"));}
+                })));});body.addView(option,rowParams());
+        }
+        TextView close=button("CLOSE",false);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(44)));phase11ShowSheet(dialog,shell,710);
     }
 
     private void renderFormation(JSONObject data) {
@@ -5239,7 +5262,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             String savedId=savedSlots.get(i+1);JSONObject initial=savedId==null?null:cardsById.get(savedId);slotCardIds[i]=initial==null?"":initial.optString("card_id","");
             updateFormationCardPreview(initial,art,illustration,sigil,cardName,cardMeta);
             TextView selector=button(initial==null?"＋ CHOOSE CARD":"CHANGE · "+initial.optString("name","CARD"),false);selector.setTextSize(7);
-            selector.setOnClickListener(v->showCardPickerDialog(pickerCards,"CHOOSE POSITION 0"+(slotIndex+1),"Select one card. A card already assigned to another position cannot be reused.",true,chosen->{
+            selector.setOnClickListener(v->showTeamCardPicker(pickerCards,slotCardIds,slotIndex,chosen->{
                 String id=chosen==null?"":chosen.optString("card_id","");for(int j=0;j<slotCardIds.length;j++)if(j!=slotIndex&&!id.isEmpty()&&id.equals(slotCardIds[j])){showResultDialog("CARD ALREADY IN LINEUP","Each card can only occupy one team position.");return;}
                 slotCardIds[slotIndex]=id;updateFormationCardPreview(chosen,art,illustration,sigil,cardName,cardMeta);selector.setText(chosen==null?"＋ CHOOSE CARD":"CHANGE · "+chosen.optString("name","CARD"));}));
             LinearLayout.LayoutParams pr=new LinearLayout.LayoutParams(-1,dp(40));pr.topMargin=dp(5);panel.addView(selector,pr);
@@ -7057,125 +7080,40 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void showPlayerProfile() {
-        if (me == null) return;
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout shell = new LinearLayout(this);
-        shell.setOrientation(LinearLayout.VERTICAL);
-        shell.setPadding(dp(18), dp(17), dp(18), dp(15));
-        shell.setBackground(gradient(Color.rgb(43, 49, 83), Color.rgb(7, 13, 27),
-                Color.rgb(177, 146, 238), dp(20)));
-
-        LinearLayout banner = new LinearLayout(this);
-        banner.setGravity(Gravity.CENTER_VERTICAL);
-        banner.setPadding(dp(12), dp(12), dp(12), dp(12));
-        banner.setBackground(gradient(Color.rgb(66, 61, 105), Color.rgb(15, 25, 48),
-                Color.rgb(177, 146, 238), dp(15)));
-        FrameLayout crest = new FrameLayout(this);
-        crest.setBackground(gradient(Color.rgb(245, 219, 159), Color.rgb(141, 98, 56),
-                GOLD_BRIGHT, dp(36)));
-        TextView initialsView = text(initials(me.optString("display_name", "CU")), 23, BG, true);
-        initialsView.setGravity(Gravity.CENTER);
-        crest.addView(initialsView, new FrameLayout.LayoutParams(-1, -1));
-        banner.addView(crest, new LinearLayout.LayoutParams(dp(66), dp(66)));
-
-        LinearLayout identityCopy = new LinearLayout(this);
-        identityCopy.setOrientation(LinearLayout.VERTICAL);
-        identityCopy.setPadding(dp(12), 0, 0, 0);
-        identityCopy.addView(text(isGodModeEnabled() ? "MASTER COLLECTOR · GOD MODE"
-                : "FIRSTLIGHT COLLECTOR", 7, isGodModeEnabled() ? VIOLET : GOLD_BRIGHT, true));
-        TextView name = text(me.optString("display_name", "Collector"), 19, TEXT, true);
-        name.setMaxLines(1);
-        identityCopy.addView(name);
-        TextView email = text(me.optString("email", "Account email unavailable"), 8, MUTED, false);
-        email.setMaxLines(1);
-        identityCopy.addView(email);
-        TextView handle = text("@" + me.optString("username", "collector"), 8, CYAN, true);
-        handle.setMaxLines(1);
-        identityCopy.addView(handle);
-        TextView rank = text("LEVEL " + formatNumber(me.optLong("collector_level", 1))
-                + "  ·  " + me.optString("role", "collector").toUpperCase(java.util.Locale.ROOT),
-                7, CYAN, true);
-        rank.setPadding(dp(7), dp(4), dp(7), dp(4));
-        rank.setBackground(gradient(Color.rgb(28, 57, 75), Color.rgb(14, 34, 52), CYAN, dp(20)));
-        LinearLayout.LayoutParams rankParams = new LinearLayout.LayoutParams(-2, -2);
-        rankParams.topMargin = dp(5);
-        identityCopy.addView(rank, rankParams);
-        if (me.optBoolean("is_beta_tester")) {
-            TextView betaBadge = text("✦  BETA TESTER · RANKED BOT ONLY", 7, VIOLET, true);
-            betaBadge.setPadding(dp(7), dp(4), dp(7), dp(4));
-            betaBadge.setBackground(gradient(Color.rgb(49, 39, 79), Color.rgb(26, 23, 51), VIOLET, dp(20)));
-            LinearLayout.LayoutParams betaParams = new LinearLayout.LayoutParams(-2, -2);
-            betaParams.topMargin = dp(5);
-            identityCopy.addView(betaBadge, betaParams);
-        }
-        banner.addView(identityCopy, new LinearLayout.LayoutParams(0, -2, 1f));
-        shell.addView(banner);
-
-        JSONObject wallet = me.optJSONObject("wallet");
-        JSONObject collection = me.optJSONObject("collection");
-        if (wallet == null) wallet = new JSONObject();
-        if (collection == null) collection = new JSONObject();
-        addGap(shell, 10);
-        LinearLayout stats = new LinearLayout(this);
-        stats.setOrientation(LinearLayout.HORIZONTAL);
-        stats.addView(profileStat("UNIQUE CARDS",
-                formatNumber(collection.optLong("unique_cards")), CYAN), weightParams(1));
-        stats.addView(profileStat("TOTAL COPIES",
-                formatNumber(collection.optLong("total_cards")), GOLD_BRIGHT), weightParams(1));
-        stats.addView(profileStat("GOLD", formatNumber(wallet.optLong("coins")), GOLD), weightParams(1));
-        shell.addView(stats);
-        addGap(shell, 5);
-        LinearLayout balances = new LinearLayout(this);
-        balances.setOrientation(LinearLayout.HORIZONTAL);
-        balances.addView(profileStat("GEMS", formatNumber(wallet.optLong("gems")), VIOLET),
-                new LinearLayout.LayoutParams(0, dp(59), 1f));
-        balances.addView(profileStat("SHARDS", formatNumber(wallet.optLong("shards")), CYAN),
-                new LinearLayout.LayoutParams(0, dp(59), 1f));
-        shell.addView(balances);
-
-        TextView privacy = text(isAdminAccount()
-                ? "ADMIN ACCESS  ·  GAMEPLAY MATCHMAKING IS DISABLED"
-                : "ACCOUNT DATA AND COLLECTION ARE SAVED TO CARDUNIVERSE CLOUD",
-                7, MUTED, true);
-        privacy.setGravity(Gravity.CENTER);
-        privacy.setPadding(dp(8), dp(11), dp(8), dp(4));
-        shell.addView(privacy);
-
-        LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.CENTER);
-        actions.setPadding(0, dp(11), 0, 0);
-        TextView edit = button("EDIT PROFILE", true);
-        edit.setOnClickListener(v -> { dialog.dismiss(); showProfileEditor(); });
-        actions.addView(edit, new LinearLayout.LayoutParams(0, dp(41), 1f));
-        TextView friends = button("FRIENDS", false);
-        friends.setOnClickListener(v -> { dialog.dismiss(); renderTab("friends"); });
-        LinearLayout.LayoutParams friendsParams = new LinearLayout.LayoutParams(0, dp(41), 1f);
-        friendsParams.leftMargin = dp(7);
-        actions.addView(friends, friendsParams);
-        TextView settings = button("SETTINGS", false);
-        settings.setOnClickListener(v -> { dialog.dismiss(); renderTab("settings"); });
-        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0, dp(41), 1f);
-        settingsParams.leftMargin = dp(7);
-        actions.addView(settings, settingsParams);
-        shell.addView(actions);
-
-        TextView close = text("CLOSE", 8, MUTED, true);
-        close.setGravity(Gravity.CENTER);
-        close.setPadding(0, dp(13), 0, 0);
-        close.setOnClickListener(v -> dialog.dismiss());
-        shell.addView(close);
-
-        dialog.setContentView(shell);
-        dialog.setCanceledOnTouchOutside(true);
-        dialog.show();
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setBackgroundDrawableResource(android.R.color.transparent);
-            window.setLayout(Math.min(dp(560), getResources().getDisplayMetrics().widthPixels - dp(36)),
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-            window.setWindowAnimations(android.R.style.Animation_Dialog);
-        }
+        if(me==null)return;
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("COLLECTOR PASSPORT","Your collector profile","",GOLD_BRIGHT);
+        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        LinearLayout hero=new LinearLayout(this);hero.setOrientation(LinearLayout.VERTICAL);hero.setGravity(Gravity.CENTER_HORIZONTAL);hero.setPadding(dp(13),dp(15),dp(13),dp(15));hero.setBackground(gradient(Color.rgb(47,44,66),Color.rgb(13,23,41),GOLD_BRIGHT,dp(16)));
+        FrameLayout crest=phase11Avatar(me.optString("display_name","Collector"),me.optString("avatarUrl",me.optString("avatar_url","")),GOLD_BRIGHT);
+        hero.addView(crest,new LinearLayout.LayoutParams(dp(84),dp(84)));addGap(hero,7);
+        TextView rank=text(isGodModeEnabled()?"MASTER COLLECTOR  ·  GOD MODE":"FIRSTLIGHT COLLECTOR",9,GOLD_BRIGHT,true);rank.setGravity(Gravity.CENTER);hero.addView(rank);
+        TextView name=text(me.optString("display_name","Collector"),22,TEXT,true);name.setGravity(Gravity.CENTER);name.setMaxLines(2);hero.addView(name);
+        TextView handle=text("@"+me.optString("username","collector"),11,CYAN,true);handle.setGravity(Gravity.CENTER);hero.addView(handle);
+        TextView title=text("LEVEL "+formatNumber(me.optLong("collector_level",1))+"  ·  "+me.optString("role","collector").toUpperCase(java.util.Locale.ROOT),11,GOLD_BRIGHT,true);title.setGravity(Gravity.CENTER);hero.addView(title);
+        if(me.optBoolean("is_beta_tester")){TextView beta=text("BETA TESTER  ·  RANKED BOT ONLY",9,VIOLET,true);hero.addView(beta);}
+        TextView equipped=text("",12,VIOLET,true);equipped.setGravity(Gravity.CENTER);equipped.setVisibility(View.GONE);hero.addView(equipped);
+        TextView email=text(me.optString("email","Account email unavailable"),10,MUTED,false);email.setGravity(Gravity.CENTER);hero.addView(email);
+        body.addView(hero);addGap(body,12);
+        JSONObject wallet=me.optJSONObject("wallet"),collection=me.optJSONObject("collection");if(wallet==null)wallet=new JSONObject();if(collection==null)collection=new JSONObject();
+        body.addView(text("COLLECTION",11,GOLD_BRIGHT,true));addGap(body,5);LinearLayout stats=new LinearLayout(this);
+        stats.addView(profileStat("UNIQUE CARDS",formatNumber(collection.optLong("unique_cards")),CYAN),new LinearLayout.LayoutParams(0,dp(67),1f));
+        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,dp(67),1f);p.leftMargin=dp(7);stats.addView(profileStat("TOTAL COPIES",formatNumber(collection.optLong("total_cards")),GOLD),p);body.addView(stats);addGap(body,12);
+        body.addView(text("TREASURY",11,GOLD_BRIGHT,true));addGap(body,5);LinearLayout balances=new LinearLayout(this);
+        balances.addView(profileStat("GOLD",formatNumber(wallet.optLong("coins")),GOLD),new LinearLayout.LayoutParams(0,dp(66),1f));
+        LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(0,dp(66),1f);bp.leftMargin=dp(5);balances.addView(profileStat("GEMS",formatNumber(wallet.optLong("gems")),VIOLET),bp);
+        LinearLayout.LayoutParams bp2=new LinearLayout.LayoutParams(0,dp(66),1f);bp2.leftMargin=dp(5);balances.addView(profileStat("SHARDS",formatNumber(wallet.optLong("shards")),CYAN),bp2);body.addView(balances);addGap(body,12);
+        TextView edit=button("EDIT PROFILE  ›",true);edit.setOnClickListener(v->{dialog.dismiss();showProfileEditor();});body.addView(edit,new LinearLayout.LayoutParams(-1,dp(47)));addGap(body,7);
+        LinearLayout actions=new LinearLayout(this);TextView friends=button("FRIENDS",false),settings=button("SETTINGS",false);actions.addView(friends,new LinearLayout.LayoutParams(0,dp(46),1f));
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(46),1f);sp.leftMargin=dp(7);actions.addView(settings,sp);friends.setOnClickListener(v->{dialog.dismiss();renderTab("friends");});settings.setOnClickListener(v->{dialog.dismiss();renderTab("settings");});body.addView(actions);
+        addGap(body,9);TextView privacy=text(isAdminAccount()?"ADMIN ACCESS  ·  GAMEPLAY MATCHMAKING DISABLED":"ACCOUNT DATA SAVED TO CARDUNIVERSE CLOUD",9,MUTED,true);privacy.setGravity(Gravity.CENTER);body.addView(privacy);
+        TextView close=button("CLOSE",false);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(44)));
+        phase11ShowSheet(dialog,shell,660);
+        api.get("/api/profile",result->ui.post(()->{if(!result.ok()||!dialog.isShowing())return;JSONObject profile=result.data.optJSONObject("profile");if(profile==null)return;
+            String url=profile.optString("avatarUrl","");if(crest.getChildCount()>1&&crest.getChildAt(1) instanceof ImageView)loadProfileAvatar((ImageView)crest.getChildAt(1),url);
+            String active=profile.optString("activeTitleId","");JSONArray ts=result.data.optJSONArray("titles");
+            if(ts!=null&&!active.isEmpty())for(int i=0;i<ts.length();i++){JSONObject t=ts.optJSONObject(i);if(t!=null&&active.equals(t.optString("title_id"))&&t.optInt("owned")==1){equipped.setText("✦  "+t.optString("name","Collector title"));equipped.setTextColor(cardRarityColor(t.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT)));equipped.setVisibility(View.VISIBLE);break;}}
+        }));
     }
 
     private LinearLayout profileStat(String label, String value, int accent) {
@@ -7330,15 +7268,12 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 titleIds.add(t.optString("title_id", ""));
                 titleLabels.add(t.optString("name", "Collector title") + "  ·  " + t.optString("rarity", "COMMON"));
             }
-            Spinner titleSpinner = new Spinner(this);
-            ArrayAdapter<String> titleAdapter = new ArrayAdapter<>(this,
-                    android.R.layout.simple_spinner_item, titleLabels);
-            titleAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            titleSpinner.setAdapter(titleAdapter);
             String activeTitle = profileData.optString("activeTitleId", "");
-            int activeIndex = titleIds.indexOf(activeTitle);
-            titleSpinner.setSelection(Math.max(0, activeIndex));
-            titlesPanel.addView(titleSpinner, fieldParams());
+            final int[] selectedTitle={Math.max(0,titleIds.indexOf(activeTitle))};
+            TextView titleChoice=button("✦  "+titleLabels.get(selectedTitle[0])+"   ›",false);
+            titleChoice.setTextSize(12);titleChoice.setSingleLine(false);titleChoice.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+            addGap(titlesPanel,8);titlesPanel.addView(titleChoice,new LinearLayout.LayoutParams(-1,dp(54)));
+            titleChoice.setOnClickListener(v->showTitleCollectionPicker(titleLabels,selectedTitle[0],index->{selectedTitle[0]=index;titleChoice.setText("✦  "+titleLabels.get(index)+"   ›");}));
             content.addView(titlesPanel, rowParams());
             addGap(content, 10);
 
@@ -7377,7 +7312,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     payload.put("displayName", nameValue);
                     payload.put("bio", bio.getText().toString().trim());
                     payload.put("activeTitleId", titleIds.get(Math.max(0,
-                            Math.min(titleIds.size() - 1, titleSpinner.getSelectedItemPosition()))));
+                            Math.min(titleIds.size() - 1, selectedTitle[0]))));
                     if (canEditUsername) payload.put("username", usernameValue);
                 } catch (Exception ignored) {}
                 api.patch("/api/profile", payload, saved -> ui.post(() -> {
@@ -7399,6 +7334,26 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 }));
             });
         }));
+    }
+
+    private void showTitleCollectionPicker(ArrayList<String> labels,int selected,java.util.function.IntConsumer choose){
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("COLLECTOR IDENTITY","Title collection","Choose an earned title. Changes apply when you save your profile.",VIOLET);
+        EditText search=editField("Search earned titles",false);search.setTextSize(13);shell.addView(search,new LinearLayout.LayoutParams(-1,dp(45)));addGap(shell,9);
+        TextView count=text("",10,MUTED,true);shell.addView(count);addGap(shell,5);
+        ScrollView scroll=new ScrollView(this);LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        ArrayList<LinearLayout> rows=new ArrayList<>();
+        for(int i=0;i<labels.size();i++){final int index=i;String[] parts=labels.get(i).split("  ·  ",2);String rarity=parts.length>1?parts[1].toUpperCase(java.util.Locale.ROOT):"";
+            int accent=i==0?MUTED:cardRarityColor(rarity);boolean active=i==selected;LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(11),dp(10),dp(11));
+            row.setBackground(gradient(active?Color.rgb(45,39,65):Color.rgb(24,33,51),Color.rgb(11,18,31),active?VIOLET:Color.rgb(64,76,102),dp(12)));
+            TextView sigil=text(i==0?"—":"✦",22,accent,true);sigil.setGravity(Gravity.CENTER);sigil.setBackground(gradient(PANEL_LIGHT,PANEL,accent,dp(10)));row.addView(sigil,new LinearLayout.LayoutParams(dp(42),dp(42)));
+            LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,dp(4),0);info.addView(text(parts[0],13,TEXT,true));
+            info.addView(text(active?"SELECTED":i==0?"Remove equipped title":rarity+"  ·  UNLOCKED",10,active?VIOLET:accent,true));row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));
+            TextView check=text(active?"✓":"›",18,active?VIOLET:MUTED,true);row.addView(check);row.setFocusable(true);row.setOnClickListener(v->{dialog.dismiss();choose.accept(index);});list.addView(row,rowParams());rows.add(row);}
+        TextView empty=text("No titles match your search.",11,MUTED,false);empty.setGravity(Gravity.CENTER);empty.setVisibility(View.GONE);list.addView(empty);
+        Runnable update=()->{String q=search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);int n=0;for(int i=0;i<labels.size();i++){boolean show=labels.get(i).toLowerCase(java.util.Locale.ROOT).contains(q);rows.get(i).setVisibility(show?View.VISIBLE:View.GONE);if(show)n++;}count.setText(n+" OPTIONS  ·  "+Math.max(0,labels.size()-1)+" EARNED TITLES");empty.setVisibility(n==0?View.VISIBLE:View.GONE);};update.run();
+        search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){update.run();}public void afterTextChanged(Editable e){}});
+        TextView close=button("CANCEL",false);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(44)));shell.setFocusableInTouchMode(true);shell.requestFocus();phase11ShowSheet(dialog,shell,600);
     }
 
     private void chooseProfileAvatar() {
