@@ -3571,7 +3571,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
 
             LinearLayout stats = new LinearLayout(this);
             stats.setOrientation(LinearLayout.HORIZONTAL);
-            hero.addView(realmResourceStrip("GUILD RECORD",new String[]{"LEVEL","MEMBERS","TREASURY"},new String[]{String.valueOf(guild.optInt("guild_level")),guild.optInt("member_count")+"/"+guild.optInt("member_limit"),formatNumber(guild.optLong("bank_coins"))},new String[]{"♜","♟","◈"},new int[]{GOLD_BRIGHT,CYAN,GOLD}),rowParams());
+            hero.addView(realmResourceStrip("GUILD RECORD",new String[]{"LEVEL","MEMBERS","TREASURY"},new String[]{String.valueOf(guild.optInt("guild_level")),guild.optInt("member_count")+"/50",formatNumber(guild.optLong("bank_coins"))},new String[]{"♜","♟","◈"},new int[]{GOLD_BRIGHT,CYAN,GOLD}),rowParams());
 
             LinearLayout status = new LinearLayout(this);
             status.setGravity(Gravity.CENTER_VERTICAL);
@@ -3619,7 +3619,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 rosterHead.setGravity(Gravity.CENTER_VERTICAL);
                 rosterHead.addView(text("GUILD ROSTER", 8, GOLD_BRIGHT, true),
                         new LinearLayout.LayoutParams(0, -2, 1f));
-                rosterHead.addView(text(members.length() + " / " + guild.optInt("member_limit")
+                rosterHead.addView(text(members.length() + " / 50"
                         + " MEMBERS", 7, MUTED, true));
                 content.addView(rosterHead, rowParams());
                 for (int i = 0; i < members.length(); i++) {
@@ -3706,7 +3706,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 if (entry == null) continue;
                 int minLevel = Math.max(1, entry.optInt("minimum_level", 1));
                 int memberCount = entry.optInt("member_count");
-                int memberLimit = entry.optInt("member_limit", 30);
+                int memberLimit = 50;
                 boolean eligible = playerLevel >= minLevel && memberCount < memberLimit;
                 LinearLayout card = sectionPanel();
                 card.setOrientation(LinearLayout.HORIZONTAL);
@@ -3847,15 +3847,14 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
 
         LinearLayout limits=sectionPanel();limits.addView(text("04  ·  ROSTER REQUIREMENTS",7,GOLD_BRIGHT,true));addGap(limits,4);
         LinearLayout values=new LinearLayout(this);values.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout capBox=new LinearLayout(this);capBox.setOrientation(LinearLayout.VERTICAL);capBox.addView(text(isAdminAccount() ? "MEMBER CAP  ·  5–1000" : "MEMBER CAP  ·  5–100",6,MUTED,true));
-        EditText cap=editField("30",false);cap.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);cap.setText(String.valueOf(guild.optInt("member_limit",30)));cap.setEnabled(leader);
-        capBox.addView(cap,new LinearLayout.LayoutParams(-1,dp(42)));values.addView(capBox,new LinearLayout.LayoutParams(0,-2,1f));
+        LinearLayout capBox=new LinearLayout(this);capBox.setOrientation(LinearLayout.VERTICAL);capBox.addView(text("MEMBER CAP · FIXED",8,MUTED,true));
+        TextView cap=text("50 MEMBERS",13,GOLD_BRIGHT,true);cap.setGravity(Gravity.CENTER_VERTICAL);capBox.addView(cap,new LinearLayout.LayoutParams(-1,dp(42)));values.addView(capBox,new LinearLayout.LayoutParams(0,-2,1f));
         LinearLayout levelBox=new LinearLayout(this);levelBox.setOrientation(LinearLayout.VERTICAL);levelBox.setPadding(dp(8),0,0,0);levelBox.addView(text("MINIMUM JOIN LEVEL  ·  1–100",6,MUTED,true));
         EditText minimum=editField("1",false);minimum.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);minimum.setText(String.valueOf(Math.max(1,guild.optInt("minimum_level",1))));minimum.setEnabled(leader);
         levelBox.addView(minimum,new LinearLayout.LayoutParams(-1,dp(42)));values.addView(levelBox,new LinearLayout.LayoutParams(0,-2,1f));
         limits.addView(values);
-        limits.addView(text(leader?"Level requirement is checked when a collector joins. Capacity cannot be set below the current roster."
-                :"Only the guild leader can change roster size and minimum join level.",7,MUTED,false));
+        limits.addView(text(leader?"Guild capacity is permanently fixed at 50 for all guilds, including administrators. Minimum level is checked when joining."
+                :"Capacity is fixed at 50. Only the guild leader can change minimum join level.",7,MUTED,false));
         LinearLayout.LayoutParams limitsP=rowParams();limitsP.topMargin=dp(8);form.addView(limits,limitsP);
 
         android.widget.CheckBox announceAccess=null,recruitmentAccess=null,memberAccess=null,identityAccess=null;
@@ -3880,9 +3879,9 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             final android.widget.CheckBox fAnnounce=announceAccess,fRecruit=recruitmentAccess,fMembers=memberAccess,fIdentity=identityAccess;
             TextView save=button("SAVE SETTINGS",true);LinearLayout.LayoutParams saveP=new LinearLayout.LayoutParams(0,dp(44),1f);saveP.leftMargin=dp(7);footer.addView(save,saveP);
             save.setOnClickListener(v->{
-                int capValue=leader?parseGuildSetting(cap,5,isAdminAccount()?1000:100):guild.optInt("member_limit",30);
+                final int capValue=50;
                 int levelValue=leader?parseGuildSetting(minimum,1,100):Math.max(1,guild.optInt("minimum_level",1));
-                if(leader&&(capValue<0||levelValue<0))return;
+                if(leader&&levelValue<0)return;
                 JSONObject body=payload(
                     "description",canEditIdentity?description.getText().toString().trim():guild.optString("description",""),
                     "motto",canEditIdentity?motto.getText().toString().trim():guild.optString("motto",""),
@@ -7989,7 +7988,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
     private void showCreateGuildDialog() {
         android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout shell=phase11Sheet("FIRSTLIGHT ALLIANCE","Found a guild","Choose an identity for your new alliance.",CYAN);
+        LinearLayout shell=phase11Sheet("FIRSTLIGHT ALLIANCE","Found a guild","Choose an identity for your new alliance. Maximum 50 members, including the leader.",CYAN);
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
         String[] emblems={"✦","♜","⚔","✧","◈","❖","☼"};String[] selected={emblems[0]};
         TextView crest=text(selected[0],44,GOLD_BRIGHT,true);crest.setGravity(Gravity.CENTER);crest.setBackground(gradient(Color.rgb(39,69,66),PANEL,CYAN,dp(12)));body.addView(crest,new LinearLayout.LayoutParams(-1,dp(92)));
