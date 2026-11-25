@@ -495,7 +495,6 @@ public final class MainActivity extends Activity {
                 {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
                 {"training", "⚔", "TRAINING"},
-                {"battle_history", "☷", "BATTLE HISTORY"},
                 {"trades", "⇄", "TRADES"},
                 {"friends", "♧", "FRIENDS"},
                 {"chat", "◉", "CHAT"},
@@ -846,10 +845,7 @@ public final class MainActivity extends Activity {
         if (!usesRealmScene(tab)) addScreenHero(tab);
         String requestedMode = historyMode;
         int requestedOffset = historyOffset;
-        if ("battle_history".equals(tab) && "PRACTICE".equals(requestedMode)) {
-            renderBattleHistory(null, requestedMode, 0);
-            return;
-        }
+
         renderLoading();
         String path = endpointFor(tab);
         if (path == null) {
@@ -1783,8 +1779,7 @@ public final class MainActivity extends Activity {
                 () -> showPracticeLineup(cards, lineup));
         addPhase13Link("Boss Simulation", "Set the boss power and learn its attack pattern.",
                 () -> showBossPracticeSetup(cards, lineup));
-        addPhase13Link("Battle History", "Review attacks and results from this device.",
-                () -> openBattleHistory("PRACTICE", 0));
+
     }
 
     private void addPhase13Link(String label, String description, Runnable action) {
@@ -2036,6 +2031,9 @@ public final class MainActivity extends Activity {
             showNotice("The card catalogue is empty.");
             return;
         }
+        addRealmScene("records","CARD ENCYCLOPEDIA","The living archive of the Firstlight Realm",0,0);
+        int discovered=0;for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null&&c.optInt("owned_count")>0)discovered++;}
+        content.addView(realmResourceStrip("DISCOVERY RECORD",new String[]{"DISCOVERED","CATALOGUE"},new String[]{formatNumber(discovered),formatNumber(cards.length())},new String[]{"✦","▤"},new int[]{CYAN,GOLD_BRIGHT}),rowParams());
         EditText search = editField("Search name, code, skill or set", false);
         search.setSingleLine(true);
         content.addView(search, fieldParams());
@@ -2053,7 +2051,7 @@ public final class MainActivity extends Activity {
         TextView elementFilter = button("ALL ELEMENTS", false);
         TextView rarityFilter = button("ALL RARITIES", false);
         filterRow.addView(elementFilter, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        filterRow.addView(rarityFilter, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        LinearLayout.LayoutParams rarityParams=new LinearLayout.LayoutParams(0,dp(44),1f);rarityParams.leftMargin=dp(6);filterRow.addView(rarityFilter,rarityParams);
         content.addView(filterRow, rowParams());
         TextView count = text("", 11, GOLD_BRIGHT, true);
         content.addView(count, rowParams());
@@ -2066,7 +2064,8 @@ public final class MainActivity extends Activity {
         Runnable update = () -> {
             String query = search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
             list.removeAllViews();
-            int matches = 0;
+            int matches = 0,shown=0;LinearLayout gridRow=null;
+            final int columns=3;
             for (int i = 0; i < cards.length(); i++) {
                 JSONObject card = cards.optJSONObject(i);
                 if (card == null) continue;
@@ -2081,12 +2080,11 @@ public final class MainActivity extends Activity {
                 if (!searchable.toLowerCase(java.util.Locale.ROOT).contains(query)) continue;
                 matches++;
                 if (matches > limit[0]) continue;
-                String owned = card.optInt("owned_count") > 0 ? "OWNED" : "UNDISCOVERED";
-                LinearLayout row = dataRow(name, code + " · " + rarity + " · " + element, owned + " ›");
-                row.setFocusable(true);
-                row.setOnClickListener(v -> showEncyclopediaCard(card));
-                list.addView(row, rowParams());
+                if(shown%columns==0){gridRow=new LinearLayout(this);list.addView(gridRow,new LinearLayout.LayoutParams(-1,-2));}
+                LinearLayout tile=encyclopediaTile(card);
+                LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1f);tp.setMargins(dp(3),dp(4),dp(3),dp(5));gridRow.addView(tile,tp);shown++;
             }
+            if(gridRow!=null&&shown%columns!=0)for(int i=shown%columns;i<columns;i++){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,1,1f);p.setMargins(dp(3),dp(4),dp(3),dp(5));gridRow.addView(new View(this),p);}
             count.setText(matches == 0 ? "No matching cards"
                     : Math.min(limit[0], matches) + " of " + matches + " cards");
             more.setVisibility(matches > limit[0] ? View.VISIBLE : View.GONE);
@@ -2116,6 +2114,17 @@ public final class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {}
         });
         update.run();
+    }
+
+    private LinearLayout encyclopediaTile(JSONObject card){
+        String rarity=card.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);int accent=cardRarityColor(rarity);boolean owned=card.optInt("owned_count")>0;
+        LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(dp(4),dp(4),dp(4),dp(6));tile.setBackground(gradient(Color.rgb(27,35,53),Color.rgb(8,14,26),accent,dp(10)));
+        FrameLayout art=new FrameLayout(this){@Override protected void onMeasure(int w,int h){int width=View.MeasureSpec.getSize(w);if(width>0&&View.MeasureSpec.getMode(w)!=View.MeasureSpec.UNSPECIFIED)super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(Math.round(width*1.5f),View.MeasureSpec.EXACTLY));else super.onMeasure(w,h);}};
+        art.addView(phase11Art(card,accent),new FrameLayout.LayoutParams(-1,-1));tile.addView(art,new LinearLayout.LayoutParams(-1,-2));
+        TextView name=text(card.optString("name","Card"),10,TEXT,true);name.setGravity(Gravity.CENTER);name.setMinLines(2);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
+        TextView code=text(card.optString("card_code")+" · "+rarity,7,accent,true);code.setGravity(Gravity.CENTER);code.setMinLines(2);code.setMaxLines(2);tile.addView(code);
+        TextView status=text(owned?"✓ OWNED":"UNDISCOVERED",7,owned?GREEN:MUTED,true);status.setGravity(Gravity.CENTER);status.setSingleLine(true);status.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(status);
+        tile.setFocusable(true);tile.setContentDescription(card.optString("name")+" "+rarity+(owned?" owned":" undiscovered"));tile.setOnClickListener(v->showEncyclopediaCard(card));return tile;
     }
 
     private void showEncyclopediaCard(JSONObject card) {
@@ -2155,28 +2164,17 @@ public final class MainActivity extends Activity {
         phase11ShowSheet(dialog, shell, 660);
     }
 
-    private static final String[] HISTORY_MODES = {"ARENA", "ADVENTURE", "DUNGEON", "RAID", "PRACTICE"};
-
     private void openBattleHistory(String mode, int offset) {
-        historyMode = mode;
-        historyOffset = offset;
+        historyMode = "ARENA";
+        historyOffset = Math.max(0,offset);
         renderTab("battle_history");
     }
 
     private void renderBattleHistory(JSONObject data, String mode, int offset) {
-        JSONArray entries = data == null ? localPracticeHistory(me == null ? "" : me.optString("user_id"))
-                : data.optJSONArray("entries");
-        HorizontalScrollView strip = new HorizontalScrollView(this);
-        strip.setHorizontalScrollBarEnabled(false);
-        LinearLayout filters = new LinearLayout(this);
-        strip.addView(filters);
-        for (String option : HISTORY_MODES) {
-            TextView choose = button(humanize(option), mode.equals(option));
-            choose.setContentDescription(humanize(option) + " history");
-            choose.setOnClickListener(v -> openBattleHistory(option, 0));
-            filters.addView(choose, new LinearLayout.LayoutParams(dp(103), dp(42)));
-        }
-        content.addView(strip, rowParams());
+        JSONArray entries=data==null?null:data.optJSONArray("entries");
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
+        heading.addView(text("ARENA MATCH RECORDS",12,GOLD_BRIGHT,true),new LinearLayout.LayoutParams(0,-2,1f));
+        TextView back=button("‹ ARENA",false);back.setOnClickListener(v->renderTab("arena"));heading.addView(back,new LinearLayout.LayoutParams(dp(105),dp(40)));content.addView(heading,rowParams());
         if (entries == null || entries.length() == 0) {
             showNotice("No " + humanize(mode).toLowerCase(java.util.Locale.ROOT) + " battles recorded yet.");
         } else {
@@ -2186,10 +2184,7 @@ public final class MainActivity extends Activity {
                 LinearLayout row = dataRow(historyTitle(mode, entry), entry.optString("played_at"),
                         historyOutcome(mode, entry) + " ›");
                 row.setFocusable(true);
-                row.setOnClickListener(v -> {
-                    if ("ARENA".equals(mode)) fetchArenaRecap(entry);
-                    else showMatchRecap(mode, entry, entry.optJSONArray("rounds"));
-                });
+                row.setOnClickListener(v -> fetchArenaRecap(entry));
                 content.addView(row, rowParams());
             }
         }
@@ -5955,17 +5950,21 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         int accent=cardRarityColor(c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT));
         LinearLayout shell=phase11Sheet("ASCENSION SANCTUM",c.optString("name","Card Evolution"),c.optString("rarity")+"  ·  "+c.optString("element")+"  ·  "+c.optString("card_code"),accent);
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
-        FrameLayout art=phase11Art(c,accent);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(dp(128),dp(180));ap.gravity=Gravity.CENTER_HORIZONTAL;body.addView(art,ap);
-        TextView stars=text(starMarks(c.optInt("star_rank")),19,GOLD_BRIGHT,true);stars.setGravity(Gravity.CENTER);body.addView(stars);
-        LinearLayout stats=new LinearLayout(this);stats.addView(profileStat("LEVEL",""+c.optInt("level",1),CYAN),weightParams(1));stats.addView(profileStat("POWER",formatNumber(c.optLong("card_power")),GOLD),weightParams(1));stats.addView(profileStat("COPIES",""+c.optInt("copies_available"),VIOLET),weightParams(1));body.addView(stats);addGap(body,10);
-        LinearLayout skill=sectionPanel();skill.addView(text("SIGNATURE ABILITY",9,accent,true));skill.addView(text(c.optString("skill_name","Firstlight Gift"),13,TEXT,true));skill.addView(text(c.optString("skill_description","Unlocks at 2★"),11,MUTED,false));body.addView(skill,rowParams());
+        LinearLayout summary=new LinearLayout(this);summary.setGravity(Gravity.CENTER_VERTICAL);summary.setPadding(dp(5),dp(4),dp(5),dp(4));
+        summary.addView(phase11Art(c,accent),new LinearLayout.LayoutParams(dp(66),dp(99)));
+        LinearLayout stats=new LinearLayout(this);stats.setOrientation(LinearLayout.VERTICAL);stats.setPadding(dp(10),0,0,0);
+        stats.addView(text(starMarks(c.optInt("star_rank")),15,GOLD_BRIGHT,true));
+        stats.addView(text("LV "+c.optInt("level",1)+" / "+maxLevel+"  ·  "+c.optInt("copies_available")+" COPIES",10,CYAN,true));
+        stats.addView(text(formatNumber(c.optLong("card_power"))+" POWER",17,TEXT,true));
+        TextView skill=button("✦  SIGNATURE ABILITY  ›",false);skill.setTextSize(9);skill.setOnClickListener(v->showResultDialog(c.optString("skill_name","Signature ability"),c.optString("skill_description","No ability description recorded.")));stats.addView(skill,new LinearLayout.LayoutParams(-1,dp(36)));
+        summary.addView(stats,new LinearLayout.LayoutParams(0,-2,1f));body.addView(summary,rowParams());
         JSONObject cost=c.optJSONObject("next_star_cost");
         String levelCost=formatNumber(c.optLong("level_cost"))+" Gold  ·  "+formatNumber(c.optLong("level_shards"))+" Shards";
         String starCost=cost==null?"Next ascension cost unavailable":cost.optInt("duplicates")+" duplicates  ·  "+formatNumber(cost.optLong("coins"))+" Gold\n"+formatNumber(cost.optLong("gems"))+" Gems  ·  "+formatNumber(cost.optLong("shards"))+" Shards";
         for(int i=0;i<2;i++){final String action=i==0?"LEVEL_UP":"ASCEND";final String price=i==0?levelCost:starCost;
             LinearLayout option=sectionPanel();option.setBackground(gradient(Color.rgb(27,38,54),Color.rgb(12,20,33),i==0?CYAN:PINK,dp(12)));
             option.addView(text(i==0?"TRAIN  /  LEVEL UP":"AWAKEN  /  ASCEND",12,i==0?CYAN:PINK,true));
-            option.addView(text(i==0?"Increase the card’s level.":"Raise the star rank using duplicate copies.",11,MUTED,false));addGap(option,4);
+            option.setPadding(dp(10),dp(8),dp(10),dp(8));
             boolean ascend = action.equals("ASCEND");
             int level = c.optInt("level", 1);
             int rank = c.optInt("star_rank");
@@ -5989,9 +5988,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                         + (powerGain >= 0 ? "+" : "−") + formatNumber(Math.abs(powerGain)) + ")";
             }
             final String upgradePreview = preview;
-            option.addView(text("CARD POWER PREVIEW", 10, GOLD_BRIGHT, true));
             option.addView(text(upgradePreview, 12, TEXT, true));
-            addGap(option, 6);
             if (!atCap) {
                 option.addView(text(price, 11, GOLD_BRIGHT, true));
                 boolean enough = ascend
@@ -6001,10 +5998,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                             && wallet.optLong("shards") >= cost.optLong("shards")
                         : wallet.optLong("coins") >= c.optLong("level_cost")
                             && wallet.optLong("shards") >= c.optLong("level_shards");
-                if (!enough) option.addView(text("Missing upgrade materials or currency.", 11, RED, false));
+                if (!enough) option.addView(text("Insufficient materials", 9, RED, true));
             }
-            addGap(option, 7);
-            TextView act=button(i==0?"LEVEL UP":"ASCEND",i==1);option.addView(act,new LinearLayout.LayoutParams(-1,dp(43)));
+            addGap(option, 4);
+            TextView act=button(i==0?"LEVEL UP":"ASCEND",i==1);option.addView(act,new LinearLayout.LayoutParams(-1,dp(40)));
             act.setEnabled(!atCap);
             act.setOnClickListener(v->{dialog.dismiss();String warning=action.equals("ASCEND")?"Ascension permanently consumes duplicate copies of this card while preserving one primary copy.":"The server verifies your Gold and Shard balance before upgrading.";
                 confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+"\n\n"+upgradePreview+"\n\n"+price,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
@@ -9136,7 +9133,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "binder_completion": return "/api/binders/completion";
             case "guild_coop": return "/api/guilds/cooperative";
             case "journey": return "/api/journey";
-            case "battle_history": return "/api/battle-history?mode=" + historyMode + "&offset=" + historyOffset;
+            case "battle_history": return "/api/battle-history?mode=ARENA&offset=" + historyOffset;
             case "binders": return "/api/binders";
             case "formation": return "/api/formation";
             case "evolution": return "/api/evolution";
@@ -9213,7 +9210,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "binder_completion": return "Collect cards from each set and claim milestone rewards.";
             case "guild_coop": return "Strike the shared boss and complete Guild missions.";
             case "journey": return "Follow your first milestones from the tutorial to the Arena.";
-            case "battle_history": return "Review results, rewards and Arena turns.";
+            case "battle_history": return "Review Arena results and turn-by-turn recaps.";
             case "binders": return "Organize the cards in your personal archive binders.";
             case "formation": return "Assign up to five cards to strengthen every battle.";
             case "evolution": return "Train cards, awaken signature skills and ascend ranks.";
