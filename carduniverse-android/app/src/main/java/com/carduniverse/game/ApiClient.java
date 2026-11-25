@@ -129,50 +129,71 @@ public final class ApiClient {
         sessionStore.clear();
     }
 
+    void postWithDeck(String deckId, String path, JSONObject body, Callback callback) {
+        if (deckId.isEmpty()) {
+            post(path, body, callback);
+            return;
+        }
+        executor.execute(() -> {
+            Result activated = executeRequest("POST", "/api/decks/" + android.net.Uri.encode(deckId)
+                    + "/activate", new JSONObject());
+            if (!activated.ok()) {
+                callback.complete(new Result(activated.status, null,
+                        "Mode deck could not be activated. Check your selection in Team. " + activated.error));
+                return;
+            }
+            callback.complete(executeRequest("POST", path, body));
+        });
+    }
+
     private void request(String method, String path, JSONObject body, Callback callback) {
         executor.execute(() -> {
-            HttpURLConnection connection = null;
-            Result result;
-            try {
-                URL url = new URL(API_ROOT + path);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod(method);
-                connection.setConnectTimeout(15000);
-                connection.setReadTimeout(20000);
-                connection.setUseCaches(false);
-                connection.setRequestProperty("Accept", "application/json");
-                connection.setRequestProperty("X-Client-Platform", "android-native");
-                connection.setRequestProperty("X-Client-Version", "2.22.0");
-                if (session != null && !session.isEmpty()) {
-                    connection.setRequestProperty("Cookie", "cu_session=" + session);
-                }
-                if (body != null) {
-                    connection.setDoOutput(true);
-                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                    byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
-                    try (OutputStream output = connection.getOutputStream()) {
-                        output.write(payload);
-                    }
-                }
-                int status = connection.getResponseCode();
-                String setCookie = connection.getHeaderField("Set-Cookie");
-                captureSession(setCookie);
-                InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-                String response = stream == null ? "" : readAll(stream);
-                JSONObject json = response.isEmpty() ? new JSONObject() : new JSONObject(response);
-                if (status == 401 && path.equals("/api/me")) {
-                    clearSession();
-                }
-                String error = json.optString("error", status >= 400 ? "Request failed (" + status + ")" : "");
-                result = new Result(status, json, error);
-            } catch (Exception ex) {
-                result = new Result(0, null, ex.getMessage() == null ? "Unable to connect to CardUniverse." : ex.getMessage());
-            } finally {
-                if (connection != null) connection.disconnect();
-            }
-            Result finalResult = result;
-            if (callback != null) callback.complete(finalResult);
+            Result result = executeRequest(method, path, body);
+            if (callback != null) callback.complete(result);
         });
+    }
+
+    private Result executeRequest(String method, String path, JSONObject body) {
+        HttpURLConnection connection = null;
+        Result result;
+        try {
+            URL url = new URL(API_ROOT + path);
+            connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod(method);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(20000);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("X-Client-Platform", "android-native");
+            connection.setRequestProperty("X-Client-Version", "2.22.0");
+            if (session != null && !session.isEmpty()) {
+                connection.setRequestProperty("Cookie", "cu_session=" + session);
+            }
+            if (body != null) {
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
+                byte[] payload = body.toString().getBytes(StandardCharsets.UTF_8);
+                try (OutputStream output = connection.getOutputStream()) {
+                    output.write(payload);
+                }
+            }
+            int status = connection.getResponseCode();
+            String setCookie = connection.getHeaderField("Set-Cookie");
+            captureSession(setCookie);
+            InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            String response = stream == null ? "" : readAll(stream);
+            JSONObject json = response.isEmpty() ? new JSONObject() : new JSONObject(response);
+            if (status == 401 && path.equals("/api/me")) {
+                clearSession();
+            }
+            String error = json.optString("error", status >= 400 ? "Request failed (" + status + ")" : "");
+            result = new Result(status, json, error);
+        } catch (Exception ex) {
+            result = new Result(0, null, ex.getMessage() == null ? "Unable to connect to CardUniverse." : ex.getMessage());
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        return result;
     }
 
     private void captureSession(String header) {
