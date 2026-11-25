@@ -130,19 +130,48 @@ jobs:
         run: gradle -p carduniverse-android :app:assembleRelease
 
       - name: Name and verify APK
+        id: apk
         if: steps.signing.outputs.configured == 'true'
         run: |
           set -euo pipefail
-          cp carduniverse-android/app/build/outputs/apk/release/app-release.apk CardUniverse-v2.26.0.apk
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify --verbose CardUniverse-v2.26.0.apk
-          $ANDROID_HOME/build-tools/35.0.0/aapt dump badging CardUniverse-v2.26.0.apk | grep -F "package: name='com.carduniverse.game' versionCode='31' versionName='2.26.0'"
+          release_dir=carduniverse-android/app/build/outputs/apk/release
+          build_tools="$ANDROID_HOME/build-tools/35.0.0"
+          "$build_tools/apksigner" verify --verbose "$release_dir/app-release.apk"
+          "$build_tools/aapt" dump badging "$release_dir/app-release.apk" > "$RUNNER_TEMP/carduniverse-badging.txt"
+
+          python3 - "$release_dir" <<'PYCODE'
+          import json
+          import os
+          from pathlib import Path
+          import shutil
+          import sys
+
+          release_dir = Path(sys.argv[1])
+          metadata = json.loads((release_dir / "output-metadata.json").read_text())
+          apk, = metadata["elements"]
+          if metadata["applicationId"] != "com.carduniverse.game" or apk["outputFile"] != "app-release.apk":
+              raise SystemExit("Unexpected CardUniverse release APK metadata")
+
+          version = apk["versionName"]
+          expected = f"package: name='com.carduniverse.game' versionCode='{apk['versionCode']}' versionName='{version}'"
+          badging = (Path(os.environ["RUNNER_TEMP"]) / "carduniverse-badging.txt").read_text()
+          package = next((line for line in badging.splitlines() if line.startswith("package: ")), "")
+          if package != expected and not package.startswith(expected + " "):
+              raise SystemExit(f"APK package or version mismatch: expected {expected}, got {package}")
+
+          filename = f"CardUniverse-v{version}.apk"
+          shutil.copyfile(release_dir / apk["outputFile"], filename)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              print(f"version={version}", file=out)
+              print(f"filename={filename}", file=out)
+          PYCODE
 
       - name: Upload APK artifact
         if: steps.signing.outputs.configured == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: CardUniverse-Android-v2.26.0
-          path: CardUniverse-v2.26.0.apk
+          name: CardUniverse-Android-v${{ steps.apk.outputs.version }}
+          path: ${{ steps.apk.outputs.filename }}
           if-no-files-found: error
           retention-days: 30
 
@@ -150,11 +179,11 @@ jobs:
         if: github.ref == 'refs/heads/carduniverse-android' && steps.signing.outputs.configured == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: carduniverse-android-v2.26.0-build-${{ github.run_number }}
-          name: CardUniverse Android v2.26.0 (build ${{ github.run_number }})
+          tag_name: carduniverse-android-v${{ steps.apk.outputs.version }}-build-${{ github.run_number }}
+          name: CardUniverse Android v${{ steps.apk.outputs.version }} (build ${{ github.run_number }})
           prerelease: true
           generate_release_notes: false
-          files: CardUniverse-v2.26.0.apk
+          files: ${{ steps.apk.outputs.filename }}
 
       - name: Explain skipped APK build
         if: steps.signing.outputs.configured != 'true'
