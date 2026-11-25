@@ -1017,47 +1017,19 @@ public final class MainActivity extends Activity {
         content.addView(portalsTitle);
         addGap(content, 7);
 
-        String[][] modes = {
-                {"adventure", "⚔", "ADVENTURE", "Explore the Firstlight frontier", "FIGHT"},
-                {"training", "◈", "TRAINING GROUNDS", "Practise without affecting progression", "TRAIN"},
-                {"dungeons", "⌘", "DUNGEON", "Descend into the deep vault", "ENTER"},
-                {"raids", "♜", "WORLD RAID", "Challenge the realm guardian", "ATTACK"},
-                {"summon", "✧", "SUMMON", "Open a rare card seal", "SUMMON"},
-                {"collection", "▧", "CARD ARCHIVE", "Browse your discovered cards", "OPEN"},
-                {"binders", "▤", "BINDER VAULT", "Curate your favourite collection", "OPEN"}
-        };
         HorizontalScrollView portalsScroll = new HorizontalScrollView(this);
         portalsScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout portals = new LinearLayout(this);
         portals.setOrientation(LinearLayout.HORIZONTAL);
         portals.setPadding(dp(1), dp(2), dp(1), dp(8));
         portalsScroll.addView(portals);
-        int[] accents = {GOLD_BRIGHT, VIOLET, RED, CYAN, BLUE, Color.rgb(116, 206, 192)};
-        for (int i = 0; i < modes.length; i++) {
-            final String key = modes[i][0];
-            int accent = accents[i];
-            LinearLayout tile = new LinearLayout(this);
-            tile.setOrientation(LinearLayout.VERTICAL);
-            tile.setPadding(dp(12), dp(10), dp(12), dp(10));
-            tile.setBackground(gradient(Color.rgb(33, 42, 65), Color.rgb(11, 17, 31), accent, dp(12)));
-            TextView icon = text(modes[i][1], 23, accent, true);
-            tile.addView(icon);
-            TextView title = text(modes[i][2], 9, TEXT, true);
-            title.setPadding(0, dp(5), 0, dp(2));
-            tile.addView(title);
-            TextView desc = text(modes[i][3], 7, MUTED, false);
-            desc.setMaxLines(2);
-            tile.addView(desc);
-            TextView enter = text("›  " + modes[i][4], 8, accent, true);
-            enter.setPadding(0, dp(8), 0, 0);
-            tile.addView(enter);
-            tile.setClickable(true);
-            tile.setFocusable(true);
-            tile.setOnClickListener(v -> renderTab(key));
-            LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(dp(185), dp(126));
-            tileParams.rightMargin = dp(8);
-            portals.addView(tile, tileParams);
-        }
+        addHomePortal(portals, "adventure", "⚔", "ADVENTURE", "Explore the Firstlight frontier", "FIGHT", GOLD_BRIGHT);
+        addHomePortal(portals, "training", "◈", "TRAINING GROUNDS", "Practise without affecting progression", "TRAIN", VIOLET);
+        addHomePortal(portals, "dungeons", "⌘", "DUNGEON", "Descend into the deep vault", "ENTER", VIOLET);
+        addHomePortal(portals, "raids", "♜", "WORLD RAID", "Challenge the realm guardian", "ATTACK", RED);
+        addHomePortal(portals, "summon", "✧", "SUMMON", "Open a rare card seal", "SUMMON", CYAN);
+        addHomePortal(portals, "collection", "▧", "CARD ARCHIVE", "Browse your discovered cards", "OPEN", BLUE);
+        addHomePortal(portals, "binders", "▤", "BINDER VAULT", "Curate your favourite collection", "OPEN", Color.rgb(116, 206, 192));
         content.addView(portalsScroll, rowParams());
 
         LinearLayout extras = new LinearLayout(this);
@@ -1089,6 +1061,30 @@ public final class MainActivity extends Activity {
     }
 
 
+
+    private void addHomePortal(LinearLayout portals, String tab, String glyph, String label,
+                               String description, String action, int accent) {
+        LinearLayout tile = new LinearLayout(this);
+        tile.setOrientation(LinearLayout.VERTICAL);
+        tile.setPadding(dp(12), dp(10), dp(12), dp(10));
+        tile.setBackground(gradient(Color.rgb(33, 42, 65), Color.rgb(11, 17, 31), accent, dp(12)));
+        tile.addView(text(glyph, 23, accent, true));
+        TextView title = text(label, 9, TEXT, true);
+        title.setPadding(0, dp(5), 0, dp(2));
+        tile.addView(title);
+        TextView detail = text(description, 7, MUTED, false);
+        detail.setMaxLines(2);
+        tile.addView(detail);
+        TextView enter = text("›  " + action, 8, accent, true);
+        enter.setPadding(0, dp(8), 0, 0);
+        tile.addView(enter);
+        tile.setFocusable(true);
+        tile.setOnClickListener(v -> renderTab(tab));
+
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(dp(185), dp(126));
+        params.rightMargin = dp(8);
+        portals.addView(tile, params);
+    }
 
     private void renderModule(String tab, JSONObject data) {
         switch (tab) {
