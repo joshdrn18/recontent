@@ -1378,7 +1378,8 @@ public final class MainActivity extends Activity {
     }
 
     private void renderGuildCooperative(JSONObject data) {
-        addPhase13Link("Guild Headquarters", "Return to your guild.", () -> renderTab("guild"));
+        addRealmScene("guild","GUILD CAMPAIGN","Fight together. Claim shared rewards.",0,0);
+        TextView headquarters=button("‹  GUILD HEADQUARTERS",false);headquarters.setOnClickListener(v->renderTab("guild"));content.addView(headquarters,rowParams());
         JSONObject calendar = data.optJSONObject("calendar");
         JSONObject boss = data.optJSONObject("boss");
         if (boss == null || calendar == null) {
@@ -1389,7 +1390,8 @@ public final class MainActivity extends Activity {
         LinearLayout lair = sectionPanel();
         lair.setBackground(gradient(Color.rgb(51, 35, 63), PANEL, PINK, dp(15)));
         lair.addView(text("GUILD BOSS", 10, PINK, true));
-        lair.addView(text(boss.optString("name"), 17, TEXT, true));
+        lair.addView(text(boss.optString("name"), 19, TEXT, true));
+        GuardianPortrait guardian=new GuardianPortrait(this,boss.optString("slug","guild-boss"));lair.addView(guardian,new LinearLayout.LayoutParams(-1,dp(140)));
         addPhase14Progress(lair, "Shared vitality", boss.optInt("remaining"), boss.optInt("hp"));
         lair.addView(text("One strike per day · Next boss on " + calendar.optString("nextWeek")
                 + " at 00:00 UTC+8", 11, MUTED, false), rowParams());
@@ -3505,8 +3507,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         boolean canManageGuildSettings = leader || (inGuild && (guild.optBoolean("canAnnounce")
                 || guild.optBoolean("canManageRecruitment") || canEditIdentity));
 
-        if (inGuild) addPhase13Link("Guild Cooperative Activities",
-                "Shared Boss, weekly missions, contribution ranking and season rewards.", () -> renderTab("guild_coop"));
+        addRealmScene("guild",inGuild?guild.optString("name","Guild Headquarters"):"GUILD HALL",inGuild?"Your alliance in the Firstlight Realm":"Find allies. Build a legacy.",0,0);
+        final int guildContentStart=content.getChildCount();
         if (!inGuild) {
             LinearLayout intro = sectionPanel();
             intro.setGravity(Gravity.CENTER);
@@ -3574,10 +3576,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
 
             LinearLayout stats = new LinearLayout(this);
             stats.setOrientation(LinearLayout.HORIZONTAL);
-            stats.addView(statCard("GUILD LEVEL", String.valueOf(guild.optInt("guild_level")), "Realm progress"), weightParams(1));
-            stats.addView(statCard("ROSTER", guild.optInt("member_count") + "/" + guild.optInt("member_limit"), "Collectors"), weightParams(1));
-            stats.addView(statCard("TREASURY", formatNumber(guild.optLong("bank_coins")), "Gold"), weightParams(1));
-            hero.addView(stats);
+            hero.addView(realmResourceStrip("GUILD RECORD",new String[]{"LEVEL","MEMBERS","TREASURY"},new String[]{String.valueOf(guild.optInt("guild_level")),guild.optInt("member_count")+"/"+guild.optInt("member_limit"),formatNumber(guild.optLong("bank_coins"))},new String[]{"♜","♟","◈"},new int[]{GOLD_BRIGHT,CYAN,GOLD}),rowParams());
 
             LinearLayout status = new LinearLayout(this);
             status.setGravity(Gravity.CENTER_VERTICAL);
@@ -3604,7 +3603,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             LinearLayout.LayoutParams actionsP = new LinearLayout.LayoutParams(-1, -2);
             actionsP.topMargin = dp(7);
             content.addView(actions, actionsP);
-
+            TextView coop=button("⚔  GUILD CAMPAIGN  ·  BOSS & REWARDS  ›",true);coop.setOnClickListener(v->renderTab("guild_coop"));content.addView(coop,new LinearLayout.LayoutParams(-1,dp(48)));
+            addGap(content,7);
             String announcement = guild.optString("announcement", "").trim();
             if (!announcement.isEmpty()) {
                 LinearLayout notice = sectionPanel();
@@ -3637,16 +3637,13 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     row.setPadding(dp(9), dp(8), dp(9), dp(8));
                     row.setBackground(gradient(Color.rgb(23, 34, 52), Color.rgb(10, 17, 32),
                             Color.rgb(62, 85, 105), dp(10)));
-                    TextView avatar = text(member.optString("display_name", "C").trim().isEmpty()
-                            ? "C" : member.optString("display_name", "C").trim().substring(0, 1)
-                            .toUpperCase(java.util.Locale.ROOT), 13, CYAN, true);
-                    avatar.setGravity(Gravity.CENTER);
-                    avatar.setBackground(gradient(Color.rgb(36, 65, 76), Color.rgb(14, 26, 40), CYAN, dp(8)));
-                    row.addView(avatar, new LinearLayout.LayoutParams(dp(35), dp(35)));
+                    int memberAccent="LEADER".equals(memberRole)?GOLD_BRIGHT:"OFFICER".equals(memberRole)?VIOLET:CYAN;
+                    FrameLayout avatar=phase11Avatar(member.optString("display_name","Collector"),member.optString("avatar_url",member.optString("avatarUrl","")),memberAccent);
+                    row.addView(avatar,new LinearLayout.LayoutParams(dp(44),dp(44)));
                     LinearLayout meta = new LinearLayout(this);
                     meta.setOrientation(LinearLayout.VERTICAL);
                     meta.setPadding(dp(8), 0, dp(4), 0);
-                    TextView memberName = text(member.optString("display_name", "Collector"), 9, TEXT, true);
+                    TextView memberName = text(member.optString("display_name", "Collector"), 12, TEXT, true);
                     memberName.setMaxLines(1);
                     meta.addView(memberName);
                     meta.addView(text("LV " + member.optInt("collector_level") + "  ·  "
@@ -3660,7 +3657,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     rolePill.setBackground(gradient(Color.rgb(29, 38, 56), Color.rgb(14, 22, 38),
                             rolePill.getCurrentTextColor(), dp(7)));
                     row.addView(rolePill);
-                    if (canManageMembers && !"LEADER".equals(memberRole)) {
+                    if (canManageMembers && !"LEADER".equals(memberRole) && (me==null||!member.optString("user_id").equals(me.optString("user_id")))) {
                         TextView manage = button("•••", false);
                         manage.setTextSize(10);
                         manage.setOnClickListener(v -> showGuildMemberRoleDialog(member));
@@ -3735,10 +3732,11 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 copy.addView(text("LV " + entry.optInt("guild_level") + "  ·  "
                         + memberCount + "/" + memberLimit + " MEMBERS  ·  MIN LV " + minLevel,
                         6, GOLD_BRIGHT, true));
-                copy.addView(text("LEADER · " + entry.optString("leader_name", "Unknown"), 6, MUTED, false));
+                copy.addView(text("LEADER · " + entry.optString("leader_name", "Unknown"), 8, MUTED, false));
+                RealmMeter capacity=new RealmMeter(this);capacity.setMax(Math.max(1,memberLimit));capacity.setProgress(Math.min(memberCount,Math.max(1,memberLimit)));capacity.setProgressTintList(android.content.res.ColorStateList.valueOf(GREEN));copy.addView(capacity,new LinearLayout.LayoutParams(-1,dp(8)));
                 card.addView(copy, new LinearLayout.LayoutParams(0, -2, 1f));
-                TextView join = button(eligible ? "JOIN" : (playerLevel < minLevel ? "LV " + minLevel : "FULL"), eligible);
-                join.setEnabled(eligible);
+                TextView join = button(inGuild?"MEMBER":eligible ? "JOIN" : (playerLevel < minLevel ? "LV " + minLevel : "FULL"), !inGuild&&eligible);
+                join.setEnabled(!inGuild&&eligible);
                 join.setOnClickListener(v -> confirmAction("Join [" + entry.optString("tag") + "]?",
                         "You can only belong to one guild at a time.", () -> joinGuild(entry.optString("tag"))));
                 card.addView(join, new LinearLayout.LayoutParams(dp(70), dp(36)));
@@ -3819,13 +3817,9 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         LinearLayout.LayoutParams accessP=rowParams();accessP.topMargin=dp(8);form.addView(access,accessP);
 
         String[] emblems={"✦","♜","⚔","✧","◈","❖","☼"};
-        Spinner emblemPicker=new Spinner(this);
-        ArrayAdapter<String> emblemAdapter=new ArrayAdapter<>(this,android.R.layout.simple_spinner_item,emblems);
-        emblemAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        emblemPicker.setAdapter(emblemAdapter);
-        for(int i=0;i<emblems.length;i++)if(emblems[i].equals(guild.optString("emblem","✦")))emblemPicker.setSelection(i);
-        emblemPicker.setBackground(gradient(Color.rgb(20,31,50),Color.rgb(9,15,28),Color.rgb(73,121,112),dp(9)));
-        emblemPicker.setEnabled(canEditIdentity);
+        String[] selectedEmblem={guild.optString("emblem","✦")};
+        TextView emblemPicker=button(selectedEmblem[0]+"  CHANGE EMBLEM",false);emblemPicker.setEnabled(canEditIdentity);
+        emblemPicker.setOnClickListener(v->showChoiceDialog("GUILD EMBLEM","Choose your guild crest",emblems,i->{selectedEmblem[0]=emblems[i];emblemPicker.setText(emblems[i]+"  CHANGE EMBLEM");emblemPreview.setText(emblems[i]);}));
 
         LinearLayout identity=sectionPanel();identity.addView(text("01  ·  GUILD IDENTITY",7,GOLD_BRIGHT,true));addGap(identity,5);
         identity.addView(text("EMBLEM",7,MUTED,true));identity.addView(emblemPicker,new LinearLayout.LayoutParams(-1,dp(40)));
@@ -3883,17 +3877,21 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             LinearLayout.LayoutParams delegationParams=rowParams();delegationParams.topMargin=dp(8);form.addView(delegation,delegationParams);
         }
         ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.setClipToPadding(false);scroll.addView(form);
-        AlertDialog.Builder builder=new AlertDialog.Builder(this).setView(scroll).setNegativeButton(leader?"CANCEL":"CLOSE",null);
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("GUILD MANAGEMENT","Guild control room","Update identity, recruitment and officer access.",CYAN);
+        shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        LinearLayout footer=new LinearLayout(this);TextView close=button(canSave?"CANCEL":"CLOSE",false);close.setOnClickListener(v->dialog.dismiss());footer.addView(close,new LinearLayout.LayoutParams(0,dp(44),1f));
         if(canSave){
             final android.widget.CheckBox fAnnounce=announceAccess,fRecruit=recruitmentAccess,fMembers=memberAccess,fIdentity=identityAccess;
-            builder.setPositiveButton("SAVE SETTINGS",(dialog,which)->{
+            TextView save=button("SAVE SETTINGS",true);LinearLayout.LayoutParams saveP=new LinearLayout.LayoutParams(0,dp(44),1f);saveP.leftMargin=dp(7);footer.addView(save,saveP);
+            save.setOnClickListener(v->{
                 int capValue=leader?parseGuildSetting(cap,5,isAdminAccount()?1000:100):guild.optInt("member_limit",30);
                 int levelValue=leader?parseGuildSetting(minimum,1,100):Math.max(1,guild.optInt("minimum_level",1));
                 if(leader&&(capValue<0||levelValue<0))return;
                 JSONObject body=payload(
                     "description",canEditIdentity?description.getText().toString().trim():guild.optString("description",""),
                     "motto",canEditIdentity?motto.getText().toString().trim():guild.optString("motto",""),
-                    "emblem",canEditIdentity?String.valueOf(emblemPicker.getSelectedItem()):guild.optString("emblem","✦"),
+                    "emblem",canEditIdentity?selectedEmblem[0]:guild.optString("emblem","✦"),
                     "announcement",canAnnounce?announcement.getText().toString().trim():guild.optString("announcement",""),
                     "is_recruiting",canRecruit?(recruiting.isChecked()?1:0):guild.optInt("is_recruiting",1),
                     "member_limit",capValue,"minimum_level",levelValue,
@@ -3901,18 +3899,10 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     "officer_can_manage_recruitment",leader&&fRecruit.isChecked()?1:leader?0:guild.optInt("officer_can_manage_recruitment"),
                     "officer_can_manage_members",leader&&fMembers.isChecked()?1:leader?0:guild.optInt("officer_can_manage_members"),
                     "officer_can_edit_identity",leader&&fIdentity.isChecked()?1:leader?0:guild.optInt("officer_can_edit_identity"));
-                saveGuildSettings(body);
+                dialog.dismiss();saveGuildSettings(body);
             });
         }
-        AlertDialog dialog=builder.create();dialog.show();
-        if(dialog.getWindow()!=null){
-            dialog.getWindow().setBackgroundDrawable(gradient(Color.rgb(10,17,31),Color.rgb(7,12,25),Color.rgb(83,118,126),dp(17)));
-            dialog.getWindow().setLayout(Math.min(getResources().getDisplayMetrics().widthPixels-dp(26),dp(480)),
-                    Math.min(getResources().getDisplayMetrics().heightPixels-dp(90),dp(730)));
-            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        }
-        if(dialog.getButton(AlertDialog.BUTTON_POSITIVE)!=null)dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(GOLD_BRIGHT);
-        if(dialog.getButton(AlertDialog.BUTTON_NEGATIVE)!=null)dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(MUTED);
+        addGap(shell,8);shell.addView(footer);phase11ShowSheet(dialog,shell,730);
     }
 
     private void saveGuildSettings(JSONObject body) {
@@ -3939,11 +3929,10 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             labels.add("Promote to Officer");
             roles.add("OFFICER");
         }
+        // The server remains authoritative for role changes; preserve all existing options.
         labels.add("Transfer Guild Leadership");
         roles.add("LEADER");
-        new AlertDialog.Builder(this)
-                .setTitle("Manage " + member.optString("display_name", "Collector"))
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+        showChoiceDialog("GUILD ROSTER","Manage "+member.optString("display_name","Collector"),labels.toArray(new String[0]),which->{
                     String nextRole = roles.get(which);
                     String title = "LEADER".equals(nextRole)
                             ? "Transfer guild leadership?" : "Change member role?";
@@ -3961,7 +3950,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                                     refreshAccount(() -> renderTab("guild"));
                                 }
                             })));
-                }).setNegativeButton("CANCEL", null).show();
+                });
     }
 
     private void renderSettings(JSONObject data) {
@@ -8001,35 +7990,26 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void showCreateGuildDialog() {
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(8), dp(8), dp(8), 0);
-        EditText name = editField("Guild name (3–28 characters)", false);
-        EditText tag = editField("Guild tag (2–5 letters/numbers)", false);
-        EditText description = editField("Guild description (optional)", false);
-        description.setSingleLine(false);
-        description.setMinLines(2);
-        form.addView(name, fieldParams());
-        form.addView(tag, fieldParams());
-        form.addView(description, fieldParams());
-        new AlertDialog.Builder(this).setTitle("Found a guild")
-                .setMessage("Guild names and tags must be unique.")
-                .setView(form)
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("CREATE", (dialog, which) -> {
-                    JSONObject payload = new JSONObject();
-                    try {
-                        payload.put("name", name.getText().toString().trim());
-                        payload.put("tag", tag.getText().toString().trim().toUpperCase(java.util.Locale.US));
-                        payload.put("description", description.getText().toString().trim());
-                        payload.put("emblem", "✦");
-                    } catch (Exception ignored) {}
-                    api.post("/api/guilds", payload, result -> ui.post(() -> {
-                        if (!result.ok()) { showResultDialog("Guild creation failed", result.error); return; }
-                        showResultDialog("✦ GUILD FOUNDED", "Your guild has been created.");
-                        refreshAccount(() -> renderTab("guild"));
-                    }));
-                }).show();
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("FIRSTLIGHT ALLIANCE","Found a guild","Choose an identity for your new alliance.",CYAN);
+        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        String[] emblems={"✦","♜","⚔","✧","◈","❖","☼"};String[] selected={emblems[0]};
+        TextView crest=text(selected[0],44,GOLD_BRIGHT,true);crest.setGravity(Gravity.CENTER);crest.setBackground(gradient(Color.rgb(39,69,66),PANEL,CYAN,dp(12)));body.addView(crest,new LinearLayout.LayoutParams(-1,dp(92)));
+        TextView pick=button("CHOOSE GUILD EMBLEM",false);pick.setOnClickListener(v->showChoiceDialog("GUILD EMBLEM","Choose your crest",emblems,i->{selected[0]=emblems[i];crest.setText(selected[0]);}));body.addView(pick,rowParams());
+        body.addView(text("GUILD NAME",9,GOLD_BRIGHT,true));EditText name=editField("3–28 characters",false);name.setSingleLine(true);body.addView(name,fieldParams());
+        body.addView(text("GUILD TAG",9,GOLD_BRIGHT,true));EditText tag=editField("2–5 letters/numbers",false);tag.setSingleLine(true);body.addView(tag,fieldParams());
+        body.addView(text("DESCRIPTION",9,GOLD_BRIGHT,true));EditText description=editField("Optional public description",false);description.setSingleLine(false);body.addView(description,new LinearLayout.LayoutParams(-1,dp(70)));
+        LinearLayout actions=new LinearLayout(this);TextView cancel=button("CANCEL",false),create=button("FOUND GUILD",true);actions.addView(cancel,new LinearLayout.LayoutParams(0,dp(44),1f));LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(0,dp(44),1f);cp.leftMargin=dp(7);actions.addView(create,cp);addGap(shell,8);shell.addView(actions);
+        cancel.setOnClickListener(v->dialog.dismiss());create.setOnClickListener(v->{
+            String n=name.getText().toString().trim(),t=tag.getText().toString().trim().toUpperCase(java.util.Locale.ROOT);
+            if(n.length()<3||n.length()>28){name.setError("Use 3–28 characters");return;}if(!t.matches("[A-Z0-9]{2,5}")){tag.setError("Use 2–5 letters/numbers");return;}
+            create.setEnabled(false);create.setText("FOUNDING…");
+            api.post("/api/guilds",payload("name",n,"tag",t,"description",description.getText().toString().trim(),"emblem",selected[0]),result->ui.post(()->{
+                if(!dialog.isShowing())return;if(!result.ok()){create.setEnabled(true);create.setText("FOUND GUILD");showResultDialog("Guild creation failed",result.error);return;}
+                dialog.dismiss();showResultDialog("✦ GUILD FOUNDED","Your guild has been created.");refreshAccount(()->renderTab("guild"));
+            }));
+        });
+        phase11ShowSheet(dialog,shell,630);
     }
 
     private void chooseGuildContribution() {
@@ -8054,7 +8034,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         for (int index = 0; index < presets.length; index++) {
             final int amount = presets[index];
             TextView chip = button(formatNumber(amount), amount == selected[0]);
-            chip.setTextSize(8);
+            chip.setTextSize(8);chip.setPadding(dp(2),0,dp(2),0);
             chip.setOnClickListener(v -> {
                 selected[0] = amount;
                 for (int i = 0; i < choices.getChildCount(); i++) {
