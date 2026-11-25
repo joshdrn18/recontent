@@ -5266,6 +5266,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         lineupScroll.setClipToPadding(false);
         lineupScroll.setPadding(0, 0, dp(3), dp(5));
         lineupScroll.addView(grid, new HorizontalScrollView.LayoutParams(-2, -2));
+        final JSONArray pickerCards = cards;
         final String[] slotCardIds=new String[5];
         for(int i=0;i<5;i++){final int slotIndex=i;LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(6),dp(7),dp(6),dp(7));
             panel.setBackground(gradient(PANEL_LIGHT,PANEL,Color.rgb(72,88,67),dp(10)));panel.addView(text("POSITION 0"+(i+1),7,GOLD,true));
@@ -5278,7 +5279,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             String savedId=savedSlots.get(i+1);JSONObject initial=savedId==null?null:cardsById.get(savedId);slotCardIds[i]=initial==null?"":initial.optString("card_id","");
             updateFormationCardPreview(initial,art,illustration,sigil,cardName,cardMeta);
             TextView selector=button(initial==null?"＋ CHOOSE CARD":"CHANGE · "+initial.optString("name","CARD"),false);selector.setTextSize(7);
-            selector.setOnClickListener(v->showCardPickerDialog(cards,"CHOOSE POSITION 0"+(slotIndex+1),"Select one card. A card already assigned to another position cannot be reused.",true,chosen->{
+            selector.setOnClickListener(v->showCardPickerDialog(pickerCards,"CHOOSE POSITION 0"+(slotIndex+1),"Select one card. A card already assigned to another position cannot be reused.",true,chosen->{
                 String id=chosen==null?"":chosen.optString("card_id","");for(int j=0;j<slotCardIds.length;j++)if(j!=slotIndex&&!id.isEmpty()&&id.equals(slotCardIds[j])){showResultDialog("CARD ALREADY IN LINEUP","Each card can only occupy one team position.");return;}
                 slotCardIds[slotIndex]=id;updateFormationCardPreview(chosen,art,illustration,sigil,cardName,cardMeta);selector.setText(chosen==null?"＋ CHOOSE CARD":"CHANGE · "+chosen.optString("name","CARD"));}));
             LinearLayout.LayoutParams pr=new LinearLayout.LayoutParams(-1,dp(40));pr.topMargin=dp(5);panel.addView(selector,pr);
