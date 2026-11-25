@@ -84,10 +84,9 @@ public final class MainActivity extends Activity {
     private boolean reduceMotionEnabled = false;
     private boolean purchaseConfirmationsEnabled = true;
     private int chatRefreshSeconds = 5;
-    private static final int REQUEST_CARD_ARTWORK = 7301;
     private static final int REQUEST_PROFILE_AVATAR = 7302;
     private TextView pendingProfileAvatar;
-    private TextView pendingArtworkUpload;
+    private Runnable profileAvatarUploaded;
     private boolean missionsDailyLoading = false;
     private final Map<String, TextView> navLabels = new LinkedHashMap<>();
     private JSONObject arenaLeaderCard;
@@ -1867,7 +1866,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                         JSONObject request=new JSONObject();
                         try{request.put("requestId",newActionId());}catch(Exception ignored){}
                         fight.setEnabled(false);fight.setText("FIGHTING...");
-                        api.post("/api/adventure/"+slug+"/battle",request,result->ui.post(()->{
+                        postWithModeDeck("pve", "/api/adventure/"+slug+"/battle",request,result->ui.post(()->{
                             fight.setEnabled(true);fight.setText(cleared?"REPLAY":"BATTLE");
                             if(!result.ok()){showResultDialog("Encounter unavailable",result.error);return;}
                             JSONObject run=result.data.optJSONObject("run");
@@ -3224,7 +3223,6 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         totals.addView(statCard("CATALOGUE", formatNumber(cards.length()),
                 "Released designs"), weightParams(1));
         content.addView(totals);
-        addAdminArtworkStudio(content, cards);
         addGap(content, 9);
 
         String[][] selectorOptions = new String[4][];
@@ -3393,76 +3391,19 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         content.addView(duplicates, new LinearLayout.LayoutParams(dp(220), dp(36)));
     }
 
-    private void addAdminArtworkStudio(LinearLayout parent, JSONArray cards) {
-        if (!isAdminAccount()) return;
-        LinearLayout panel = sectionPanel();
-        panel.setBackground(gradient(Color.rgb(41, 47, 79), Color.rgb(9, 16, 31), VIOLET, dp(14)));
-        panel.addView(text("MASTER ADMIN · ARTWORK STUDIO", 8, VIOLET, true));
-        panel.addView(text("Upload finished card illustrations to the shared collection catalogue.",
-                9, TEXT, true));
-
-        LinearLayout aiPanel = sectionPanel();
-        aiPanel.setBackground(gradient(Color.rgb(34, 38, 56), Color.rgb(10, 16, 29), Color.rgb(90, 103, 128), dp(12)));
-        aiPanel.addView(text("AI CARD GENERATOR DISABLED", 8, MUTED, true));
-        aiPanel.addView(text("AI artwork generation has been switched off. Use the manual artwork upload below to add approved card illustrations.", 8, MUTED, false));
-        panel.addView(aiPanel, rowParams());
-
-        addGap(panel, 10);
-        panel.addView(text("BULK ARTWORK UPLOAD", 8, GOLD_BRIGHT, true));
-        panel.addView(text("Upload finished art using the exact card code in each file name, for example FL-001.webp.",
-                8, MUTED, false));
-        TextView rules = text("1–20 images per batch  ·  5 MB each  ·  40 MB total  ·  JPG / PNG / WEBP",
-                7, MUTED, false);
-        rules.setPadding(0, dp(4), 0, dp(8));
-        panel.addView(rules);
-        TextView upload = button("＋  CHOOSE CARD ARTWORK FILES", false);
-        upload.setOnClickListener(v -> {
-            pendingArtworkUpload = upload;
-            Intent pick = new Intent(Intent.ACTION_OPEN_DOCUMENT);
-            pick.addCategory(Intent.CATEGORY_OPENABLE);
-            pick.setType("image/*");
-            pick.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-            pick.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            try { startActivityForResult(pick, REQUEST_CARD_ARTWORK); }
-            catch (Exception error) {
-                showResultDialog("Artwork picker unavailable", "Unable to open the image picker on this device.");
-            }
-        });
-        LinearLayout.LayoutParams uploadParams = new LinearLayout.LayoutParams(-1, dp(40));
-        uploadParams.topMargin = dp(8);
-        panel.addView(upload, uploadParams);
-        parent.addView(panel, rowParams());
-    }
-
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_PROFILE_AVATAR) {
-            if (resultCode == RESULT_OK && data != null && data.getData() != null) uploadProfileAvatar(data.getData());
-            return;
+        if (requestCode != REQUEST_PROFILE_AVATAR) return;
+        if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+            uploadProfileAvatar(data.getData());
+        } else {
+            pendingProfileAvatar = null;
+            profileAvatarUploaded = null;
         }
-        if (requestCode != REQUEST_CARD_ARTWORK || resultCode != RESULT_OK || data == null) return;
-        ArrayList<Uri> selected = new ArrayList<>();
-        if (data.getClipData() != null) {
-            for (int i = 0; i < data.getClipData().getItemCount() && selected.size() < 20; i++) {
-                Uri uri = data.getClipData().getItemAt(i).getUri();
-                if (uri != null) selected.add(uri);
-            }
-        } else if (data.getData() != null) selected.add(data.getData());
-        if (selected.isEmpty()) return;
-        if (selected.size() > 20) {
-            showResultDialog("Too many images", "Choose up to 20 card artworks per batch.");
-            return;
-        }
-        TextView button = pendingArtworkUpload;
-        if (button != null) {
-            button.setEnabled(false);
-            button.setText("PREPARING " + selected.size() + " FILE(S)…");
-        }
-        uploadArtworkFiles(selected, button);
     }
 
-    private String artworkFilename(Uri uri) {
+    private String selectedImageFilename(Uri uri) {
         Cursor cursor = null;
         try {
             cursor = getContentResolver().query(uri,
@@ -3476,69 +3417,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (cursor != null) cursor.close();
         }
         String segment = uri.getLastPathSegment();
-        return segment == null ? "artwork.webp" : segment;
-    }
-
-    private void uploadArtworkFiles(ArrayList<Uri> uris, TextView button) {
-        new Thread(() -> {
-            ArrayList<ApiClient.UploadFile> files = new ArrayList<>();
-            long total = 0L;
-            String problem = "";
-            for (Uri uri : uris) {
-                try (InputStream input = getContentResolver().openInputStream(uri);
-                     ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-                    if (input == null) throw new IllegalStateException("Unable to read selected image.");
-                    byte[] buffer = new byte[8192];
-                    int count;
-                    while ((count = input.read(buffer)) != -1) {
-                        total += count;
-                        if (output.size() + count > 5 * 1024 * 1024 || total > 40L * 1024 * 1024) {
-                            throw new IllegalArgumentException("Image size exceeds the upload limit.");
-                        }
-                        output.write(buffer, 0, count);
-                    }
-                    String filename = artworkFilename(uri);
-                    String mime = getContentResolver().getType(uri);
-                    if (mime == null) {
-                        String lower = filename.toLowerCase(java.util.Locale.ROOT);
-                        mime = lower.endsWith(".png") ? "image/png"
-                                : lower.endsWith(".jpg") || lower.endsWith(".jpeg") ? "image/jpeg"
-                                : lower.endsWith(".webp") ? "image/webp" : "";
-                    }
-                    if ("image/jpg".equalsIgnoreCase(mime)) mime = "image/jpeg";
-                    if (!"image/jpeg".equalsIgnoreCase(mime)
-                            && !"image/png".equalsIgnoreCase(mime)
-                            && !"image/webp".equalsIgnoreCase(mime)) {
-                        throw new IllegalArgumentException("Use JPEG, PNG or WebP files. Unsupported: " + filename);
-                    }
-                    files.add(new ApiClient.UploadFile(filename, mime, output.toByteArray()));
-                } catch (Exception error) {
-                    problem = error.getMessage() == null ? "Unable to read selected artwork." : error.getMessage();
-                    break;
-                }
-            }
-            if (!problem.isEmpty()) {
-                String message = problem;
-                ui.post(() -> {
-                    if (button != null) { button.setEnabled(true); button.setText("＋  CHOOSE CARD ARTWORK"); }
-                    showResultDialog("Artwork not uploaded", message);
-                });
-                return;
-            }
-            api.postMultipart("/api/admin/cards/artwork-bulk", files,
-                    result -> ui.post(() -> {
-                        if (button != null) { button.setEnabled(true); button.setText("＋  CHOOSE CARD ARTWORK"); }
-                        if (!result.ok()) {
-                            showResultDialog("Artwork upload failed", result.error);
-                            return;
-                        }
-                        showResultDialog("ARTWORK STUDIO",
-                                result.data.optString("message", "Card artwork upload processed.")
-                                        + "\n\nUploaded: " + result.data.optInt("uploaded")
-                                        + "  ·  Needs attention: " + result.data.optInt("failed"));
-                        refreshAccount(() -> renderTab("collection"));
-                    }));
-        }, "cu-artwork-upload").start();
+        return segment == null ? "avatar.webp" : segment;
     }
 
     private String cardArtworkPath(JSONObject card) {
@@ -3925,7 +3804,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 enter.setEnabled(run == null && remaining > 0);
                 enter.setOnClickListener(v -> confirmAction("Enter " + dungeon.optString("name") + "?",
                         "This uses one of your daily expedition entries.", () ->
-                        api.post("/api/dungeons/" + dungeon.optString("slug") + "/start",
+                        postWithModeDeck("pve", "/api/dungeons/" + dungeon.optString("slug") + "/start",
                                 new JSONObject(), result -> ui.post(() -> {
                                     if (!result.ok()) showResultDialog("Cannot enter dungeon", result.error);
                                     else refreshAccount(() -> renderTab("dungeons"));
@@ -4141,7 +4020,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 attack.setEnabled(boss.optLong("my_today_damage") <= 0);
                 attack.setOnClickListener(v -> confirmAction("Strike " + boss.optString("name") + "?",
                         "Your formation power determines the damage. One strike is allowed per day.", () ->
-                        api.post("/api/raids/" + boss.optString("slug") + "/attack",
+                        postWithModeDeck("pve", "/api/raids/" + boss.optString("slug") + "/attack",
                                 payload("requestId", newActionId()), result -> ui.post(() -> {
                                     if (!result.ok()) showResultDialog("Raid strike failed", result.error);
                                     else {
@@ -5074,14 +4953,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             info.addView(text("LEVEL "+level+" / "+max,10,CYAN,true));
             ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(max);bar.setProgress(Math.min(max,level));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));
             info.addView(text(formatNumber(c.optLong("card_power"))+" POWER  ·  "+c.optInt("copies_available")+" COPIES",9,MUTED,true));head.addView(info,new LinearLayout.LayoutParams(0,-2,1f));panel.addView(head);
-            TextView action=button("OPEN ASCENSION  ›",true);action.setOnClickListener(v->showEvolutionCardDialog(c,walletSnapshot));addGap(panel,9);panel.addView(action,new LinearLayout.LayoutParams(-1,dp(43)));content.addView(panel,rowParams());rows.add(panel);
+            TextView action=button("OPEN ASCENSION  ›",true);action.setOnClickListener(v->showEvolutionCardDialog(c,walletSnapshot,max));addGap(panel,9);panel.addView(action,new LinearLayout.LayoutParams(-1,dp(43)));content.addView(panel,rowParams());rows.add(panel);
             keys.add((c.optString("name")+" "+rarity+" "+c.optString("element")+" "+c.optString("card_code")).toLowerCase(java.util.Locale.ROOT));
         }
         TextView empty=text("No matching cards.",12,MUTED,false);empty.setVisibility(View.GONE);content.addView(empty);
         search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int st,int c,int a){}public void onTextChanged(CharSequence s,int st,int b,int c){String q=s.toString().trim().toLowerCase(java.util.Locale.ROOT);int n=0;for(int i=0;i<rows.size();i++){boolean on=keys.get(i).contains(q);rows.get(i).setVisibility(on?View.VISIBLE:View.GONE);if(on)n++;}empty.setVisibility(n==0?View.VISIBLE:View.GONE);}public void afterTextChanged(Editable e){}});
     }
 
-    private void showEvolutionCardDialog(JSONObject c,JSONObject wallet) {
+    private void showEvolutionCardDialog(JSONObject c,JSONObject wallet,int maxLevel) {
         android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         int accent=cardRarityColor(c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT));
         LinearLayout shell=phase11Sheet("ASCENSION SANCTUM",c.optString("name","Card Evolution"),c.optString("rarity")+"  ·  "+c.optString("element")+"  ·  "+c.optString("card_code"),accent);
@@ -5097,14 +4976,89 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             LinearLayout option=sectionPanel();option.setBackground(gradient(Color.rgb(27,38,54),Color.rgb(12,20,33),i==0?CYAN:PINK,dp(12)));
             option.addView(text(i==0?"TRAIN  /  LEVEL UP":"AWAKEN  /  ASCEND",12,i==0?CYAN:PINK,true));
             option.addView(text(i==0?"Increase the card’s level.":"Raise the star rank using duplicate copies.",11,MUTED,false));addGap(option,4);
-            option.addView(text(price,11,GOLD_BRIGHT,true));addGap(option,7);
+            boolean ascend = action.equals("ASCEND");
+            int level = c.optInt("level", 1);
+            int rank = c.optInt("star_rank");
+            boolean atCap = ascend ? cost == null : level >= maxLevel;
+            long currentPower = c.optLong("card_power", -1);
+            long powerGain = 16;
+            if (ascend) {
+                // Match the Worker’s Evolution card_power formula, including the skill unlock step.
+                long skillPowerPerRank = 10L * c.optInt("skill_power");
+                int unlockRank = c.optInt("unlock_star_rank", 1);
+                long currentSkill = rank >= unlockRank ? rank * skillPowerPerRank : 0;
+                long upgradedSkill = rank + 1 >= unlockRank ? (rank + 1) * skillPowerPerRank : 0;
+                powerGain = 70 + upgradedSkill - currentSkill;
+            }
+            String preview = atCap ? (ascend ? "No further ascension available" : "Maximum level reached")
+                    : ascend ? "Stars  " + (rank + 1) + "★ → " + (rank + 2) + "★"
+                    : "Level  " + level + " → " + (level + 1);
+            if (!atCap && currentPower >= 0) {
+                preview += "\nPower  " + formatNumber(currentPower) + " → "
+                        + formatNumber(currentPower + powerGain) + " ("
+                        + (powerGain >= 0 ? "+" : "−") + formatNumber(Math.abs(powerGain)) + ")";
+            }
+            final String upgradePreview = preview;
+            option.addView(text("CARD POWER PREVIEW", 10, GOLD_BRIGHT, true));
+            option.addView(text(upgradePreview, 12, TEXT, true));
+            addGap(option, 6);
+            if (!atCap) {
+                option.addView(text(price, 11, GOLD_BRIGHT, true));
+                boolean enough = ascend
+                        ? c.optInt("copies_available") > cost.optInt("duplicates")
+                            && wallet.optLong("coins") >= cost.optLong("coins")
+                            && wallet.optLong("gems") >= cost.optLong("gems")
+                            && wallet.optLong("shards") >= cost.optLong("shards")
+                        : wallet.optLong("coins") >= c.optLong("level_cost")
+                            && wallet.optLong("shards") >= c.optLong("level_shards");
+                if (!enough) option.addView(text("Missing upgrade materials or currency.", 11, RED, false));
+            }
+            addGap(option, 7);
             TextView act=button(i==0?"LEVEL UP":"ASCEND",i==1);option.addView(act,new LinearLayout.LayoutParams(-1,dp(43)));
+            act.setEnabled(!atCap);
             act.setOnClickListener(v->{dialog.dismiss();String warning=action.equals("ASCEND")?"Ascension permanently consumes duplicate copies of this card while preserving one primary copy.":"The server verifies your Gold and Shard balance before upgrading.";
-                confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+"\n\n"+price,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
+                confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+"\n\n"+upgradePreview+"\n\n"+price,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
                     if(!r.ok())showResultDialog("Evolution unavailable",r.error);else{showResultDialog("EVOLUTION UPDATED",r.data.optString("message","Your card has been upgraded."));refreshAccount(()->renderTab("evolution"));}
                 })));});body.addView(option,rowParams());
         }
         TextView close=button("CLOSE",false);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(44)));phase11ShowSheet(dialog,shell,710);
+    }
+
+    private String modeDeckKey(String mode) {
+        if (me == null || me.optString("user_id").isEmpty()) return "";
+        return me.optString("user_id") + ":" + mode;
+    }
+
+    private void postWithModeDeck(String mode, String path, JSONObject body, ApiClient.Callback callback) {
+        String deckId = getSharedPreferences("cu_mode_decks", MODE_PRIVATE).getString(modeDeckKey(mode), "");
+        api.postWithDeck(deckId, path, body, callback);
+    }
+
+    private void addModeDeckSelector(LinearLayout panel, String mode, String label,
+                                     String[] deckIds, String[] deckNames) {
+        String key = modeDeckKey(mode);
+        if (key.isEmpty()) return;
+        android.content.SharedPreferences preferences = getSharedPreferences("cu_mode_decks", MODE_PRIVATE);
+        String current = preferences.getString(key, "");
+        ArrayList<String> ids = new ArrayList<>();
+        ArrayList<String> names = new ArrayList<>();
+        ids.add("");
+        names.add("Use active team deck");
+        for (int i = 0; i < deckIds.length; i++) {
+            if (deckIds[i].isEmpty()) continue;
+            ids.add(deckIds[i]);
+            names.add(deckNames[i]);
+        }
+        int index = ids.indexOf(current);
+        panel.addView(text(label, 11, GOLD_BRIGHT, true));
+        TextView choose = button(index < 0 ? "Deck unavailable · choose again" : names.get(index), false);
+        choose.setTextSize(12);
+        panel.addView(choose, rowParams());
+        choose.setOnClickListener(v -> showChoiceDialog(label, "Choose from your saved decks.",
+                names.toArray(new String[0]), selected -> {
+                    preferences.edit().putString(key, ids.get(selected)).apply();
+                    choose.setText(names.get(selected));
+                }));
     }
 
     private void renderFormation(JSONObject data) {
@@ -5217,6 +5171,16 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         deleteParams.topMargin = dp(6);
         deckPanel.addView(deleteDeck, deleteParams);
         content.addView(deckPanel, rowParams());
+        if (data.has("decks")) {
+            LinearLayout modeDecks = sectionPanel();
+            modeDecks.addView(text("MODE-SPECIFIC DECKS", 13, TEXT, true));
+            modeDecks.addView(text("Choose which saved deck Android activates when you enter each mode.",
+                    11, MUTED, false));
+            addGap(modeDecks, 8);
+            addModeDeckSelector(modeDecks, "pvp", "PVP · Arena and Ranked", deckIds, deckNames);
+            addModeDeckSelector(modeDecks, "pve", "PVE · Adventure, Dungeons and Raids", deckIds, deckNames);
+            content.addView(modeDecks, rowParams());
+        }
 
         LinearLayout power = sectionPanel();
         power.setOrientation(LinearLayout.HORIZONTAL);
@@ -5370,6 +5334,11 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     () -> api.delete("/api/decks/" + Uri.encode(deckId), result -> ui.post(() -> {
                         if (!result.ok()) showResultDialog("DECK NOT DELETED", result.error);
                         else {
+                            android.content.SharedPreferences preferences = getSharedPreferences("cu_mode_decks", MODE_PRIVATE);
+                            for (String mode : new String[]{"pvp", "pve"}) {
+                                String key = modeDeckKey(mode);
+                                if (deckId.equals(preferences.getString(key, ""))) preferences.edit().remove(key).apply();
+                            }
                             showResultDialog("DECK DELETED", result.data.optString("message",
                                     "The saved deck was removed."));
                             renderTab("formation");
@@ -6165,7 +6134,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             TextView enter = button("FIND RANKED MATCH", true);
             enter.setOnClickListener(v -> confirmAction("Queue for Ranked Arena?",
                     "Ranked matchmaking uses your live rating and season.", () ->
-                    api.post("/api/arena/queue", payload("mode", "RANKED"), result -> ui.post(() -> {
+                    postWithModeDeck("pvp", "/api/arena/queue", payload("mode", "RANKED"), result -> ui.post(() -> {
                         if (!result.ok()) showResultDialog("Ranked queue unavailable", result.error);
                         else {
                             showResultDialog("RANKED MATCHMAKING", result.data.optString("message",
@@ -6800,7 +6769,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         confirmAction("Find a " + mode + " match?", "CardUniverse will search for an opponent within the current matchmaking rules.", () -> {
             JSONObject payload = new JSONObject();
             try { payload.put("mode", mode); } catch (Exception ignored) {}
-            api.post("/api/arena/queue", payload, result -> ui.post(() -> {
+            postWithModeDeck("pvp", "/api/arena/queue", payload, result -> ui.post(() -> {
                 if (!result.ok()) {
                     showResultDialog("Matchmaking unavailable", result.error);
                     return;
@@ -7130,7 +7099,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
 
     private void showProfileEditor() {
+        String originTab = activeTab;
         api.get("/api/profile", result -> ui.post(() -> {
+            if (!originTab.equals(activeTab) || content == null) return;
             if (!result.ok()) { showResultDialog("Profile unavailable", result.error); return; }
             JSONObject profileUser = result.data.optJSONObject("user");
             JSONObject profileData = result.data.optJSONObject("profile");
@@ -7146,6 +7117,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (content == null) return;
             if (pageTitle != null) pageTitle.setText("EDIT PROFILE");
             content.removeAllViews();
+            ScrollView editorScroll = (ScrollView) content.getParent();
+            editorScroll.scrollTo(0, 0);
 
             LinearLayout heading = new LinearLayout(this);
             heading.setOrientation(LinearLayout.VERTICAL);
@@ -7159,7 +7132,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
             LinearLayout avatarPanel = sectionPanel();
             avatarPanel.setBackground(gradient(Color.rgb(38, 43, 73), Color.rgb(11, 17, 32), VIOLET, dp(14)));
-            avatarPanel.addView(text("PROFILE APPEARANCE", 8, GOLD_BRIGHT, true));
+            avatarPanel.addView(text("LIVE PUBLIC PROFILE PREVIEW", 12, GOLD_BRIGHT, true));
             LinearLayout avatarRow = new LinearLayout(this);
             avatarRow.setGravity(Gravity.CENTER_VERTICAL);
             avatarRow.setPadding(0, dp(8), 0, 0);
@@ -7177,33 +7150,72 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             LinearLayout avatarCopy = new LinearLayout(this);
             avatarCopy.setOrientation(LinearLayout.VERTICAL);
             avatarCopy.setPadding(dp(12), 0, 0, 0);
-            avatarCopy.addView(text("YOUR COLLECTOR AVATAR", 8, TEXT, true));
+            TextView previewName = text("", 17, TEXT, true);
+            TextView previewHandle = text("", 11, CYAN, true);
+            TextView previewTitle = text("", 11, GOLD_BRIGHT, true);
+            avatarCopy.addView(previewName);
+            avatarCopy.addView(previewHandle);
+            avatarCopy.addView(previewTitle);
             avatarCopy.addView(text("JPG, PNG or WebP · up to 2 MB", 7, MUTED, false));
             TextView upload = button("CHANGE PHOTO", false);
             LinearLayout.LayoutParams uploadParams = new LinearLayout.LayoutParams(-2, dp(34));
             uploadParams.topMargin = dp(6);
             avatarCopy.addView(upload, uploadParams);
-            upload.setOnClickListener(v -> chooseProfileAvatar());
             avatarRow.addView(avatarCopy, new LinearLayout.LayoutParams(0, -2, 1f));
             avatarPanel.addView(avatarRow);
-            String avatarUrl = profileData.optString("avatarUrl", "");
-            loadProfileAvatar(avatarImage, avatarUrl);
-            pendingProfileAvatar = upload;
-            if (!avatarUrl.isEmpty()) {
-                TextView removeAvatar = text("REMOVE PROFILE PHOTO", 7, RED, true);
-                removeAvatar.setPadding(dp(2), dp(8), 0, dp(1));
-                removeAvatar.setOnClickListener(v -> confirmAction("Remove profile photo?",
-                        "Your collector profile will return to its default emblem.", () ->
-                        api.delete("/api/profile/avatar", removed -> ui.post(() -> {
-                            if (!removed.ok()) { showResultDialog("Photo not removed", removed.error); return; }
-                            Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
-                            showProfileEditor();
-                        }))));
-                avatarPanel.addView(removeAvatar);
-            }
+            TextView previewBio = text("", 12, MUTED, false);
+            addGap(avatarPanel, 8);
+            avatarPanel.addView(previewBio);
+            TextView removeAvatar = button("REMOVE PHOTO", false);
+            avatarPanel.addView(removeAvatar, rowParams());
+            java.util.function.Consumer<String> updateAvatar = path -> {
+                avatarImage.setTag(null);
+                avatarImage.setVisibility(View.GONE);
+                removeAvatar.setEnabled(!path.isEmpty());
+                loadProfileAvatar(avatarImage, path);
+            };
+            updateAvatar.accept(profileData.optString("avatarUrl", ""));
+            upload.setOnClickListener(v -> {
+                pendingProfileAvatar = upload;
+                profileAvatarUploaded = () -> api.get("/api/profile", fresh -> ui.post(() -> {
+                    if (!upload.isAttachedToWindow() || !fresh.ok()) return;
+                    JSONObject refreshed = fresh.data.optJSONObject("profile");
+                    if (refreshed != null) updateAvatar.accept(refreshed.optString("avatarUrl", ""));
+                }));
+                chooseProfileAvatar();
+            });
+            removeAvatar.setOnClickListener(v -> confirmAction("Remove profile photo?",
+                    "Your collector profile will return to its default emblem.", () -> {
+                removeAvatar.setEnabled(false);
+                api.delete("/api/profile/avatar", removed -> ui.post(() -> {
+                    if (!removeAvatar.isAttachedToWindow()) return;
+                    if (!removed.ok()) {
+                        removeAvatar.setEnabled(true);
+                        showResultDialog("Photo not removed", removed.error);
+                    } else {
+                        updateAvatar.accept("");
+                        Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
+                    }
+                }));
+            }));
             content.addView(avatarPanel, rowParams());
             addGap(content, 8);
 
+            JSONObject stats = result.data.optJSONObject("stats");
+            if (stats != null) {
+                LinearLayout overview = sectionPanel();
+                overview.addView(text("COLLECTOR STATS", 12, GOLD_BRIGHT, true));
+                LinearLayout collection = new LinearLayout(this);
+                collection.addView(profileStat("LEVEL", formatNumber(stats.optLong("level", 1)), CYAN), weightParams(1));
+                collection.addView(profileStat("UNIQUE CARDS", formatNumber(stats.optLong("uniqueCards")), GOLD), weightParams(1));
+                collection.addView(profileStat("CARD COPIES", formatNumber(stats.optLong("cardCopies")), VIOLET), weightParams(1));
+                overview.addView(collection);
+                overview.addView(dataRow("Ranked", formatNumber(stats.optLong("rankedWins")) + " wins",
+                        formatNumber(stats.optLong("rating")) + " rating"), rowParams());
+                overview.addView(dataRow("Raids", formatNumber(stats.optLong("raidAttempts")) + " strikes",
+                        formatNumber(stats.optLong("raidDamage")) + " damage"), rowParams());
+                content.addView(overview, rowParams());
+            }
             LinearLayout identity = sectionPanel();
             identity.addView(text("PUBLIC IDENTITY", 8, GOLD_BRIGHT, true));
             EditText displayName = editField("Display name", false);
@@ -7273,7 +7285,37 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             TextView titleChoice=button("✦  "+titleLabels.get(selectedTitle[0])+"   ›",false);
             titleChoice.setTextSize(12);titleChoice.setSingleLine(false);titleChoice.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
             addGap(titlesPanel,8);titlesPanel.addView(titleChoice,new LinearLayout.LayoutParams(-1,dp(54)));
-            titleChoice.setOnClickListener(v->showTitleCollectionPicker(titleLabels,selectedTitle[0],index->{selectedTitle[0]=index;titleChoice.setText("✦  "+titleLabels.get(index)+"   ›");}));
+            Runnable updatePreview = () -> {
+                String name = displayName.getText().toString().trim();
+                String handle = username.getText().toString().trim();
+                previewName.setText(name.isEmpty() ? "Collector" : name);
+                avatarFallback.setText(initials(name.isEmpty() ? "Collector" : name));
+                previewHandle.setText(handle.isEmpty() ? "" : "@" + handle);
+                previewTitle.setText(titleLabels.get(selectedTitle[0]));
+                previewBio.setText(bio.getText().toString().trim());
+            };
+            TextWatcher previewWatcher = new TextWatcher() {
+                @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    updatePreview.run();
+                }
+                @Override public void afterTextChanged(Editable s) {}
+            };
+            displayName.addTextChangedListener(previewWatcher);
+            username.addTextChangedListener(previewWatcher);
+            bio.addTextChangedListener(previewWatcher);
+            updatePreview.run();
+            titleChoice.setOnClickListener(v -> showTitleCollectionPicker(titleLabels, selectedTitle[0], index -> {
+                selectedTitle[0] = index;
+                titleChoice.setText("✦  " + titleLabels.get(index) + "   ›");
+                updatePreview.run();
+            }));
+            if (titles != null) {
+                TextView catalogue = button("ALL TITLES · " + (titleIds.size() - 1)
+                        + " / " + titles.length() + " EARNED", false);
+                catalogue.setOnClickListener(v -> showProfileTitleCatalogue(titles, titleIds.get(selectedTitle[0])));
+                titlesPanel.addView(catalogue, rowParams());
+            }
             content.addView(titlesPanel, rowParams());
             addGap(content, 10);
 
@@ -7316,6 +7358,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     if (canEditUsername) payload.put("username", usernameValue);
                 } catch (Exception ignored) {}
                 api.patch("/api/profile", payload, saved -> ui.post(() -> {
+                    if (!save.isAttachedToWindow()) return;
                     if (!saved.ok()) {
                         save.setEnabled(true);
                         save.setText("SAVE PROFILE");
@@ -7330,10 +7373,41 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                         }
                     } catch (Exception ignored) {}
                     Toast.makeText(this, "Collector profile saved.", Toast.LENGTH_SHORT).show();
-                    showProfileEditor();
+                    save.setEnabled(true);
+                    save.setText("SAVE PROFILE");
                 }));
             });
         }));
+    }
+
+    private void showProfileTitleCatalogue(JSONArray titles, String selectedId) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = phase11Sheet("TITLE COLLECTION", "Titles & achievements", "", VIOLET);
+        ScrollView scroll = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        for (int i = 0; i < titles.length(); i++) {
+            JSONObject title = titles.optJSONObject(i);
+            if (title == null) continue;
+            boolean earned = title.optInt("owned") == 1;
+            boolean selected = earned && !selectedId.isEmpty() && selectedId.equals(title.optString("title_id"));
+            LinearLayout row = sectionPanel();
+            row.addView(text(title.optString("name", "Collector title"), 14, TEXT, true));
+            row.addView(text(title.optString("rarity", "COMMON") + " · "
+                    + (selected ? "SELECTED" : earned ? "EARNED" : "LOCKED"), 10, VIOLET, true));
+            String description = title.optString("description");
+            if (!description.isEmpty()) row.addView(text(description, 12, MUTED, false));
+            String hint = title.optString("unlockHint");
+            if (!earned && !hint.isEmpty()) row.addView(text(hint, 11, GOLD_BRIGHT, false));
+            list.addView(row, rowParams());
+        }
+        scroll.addView(list);
+        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+        TextView close = button("CLOSE", false);
+        close.setOnClickListener(v -> dialog.dismiss());
+        shell.addView(close, rowParams());
+        phase11ShowSheet(dialog, shell, 640);
     }
 
     private void showTitleCollectionPicker(ArrayList<String> labels,int selected,java.util.function.IntConsumer choose){
@@ -7401,6 +7475,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private void uploadProfileAvatar(Uri uri) {
         if (uri == null) return;
         TextView status = pendingProfileAvatar;
+        Runnable refreshAvatar = profileAvatarUploaded;
+        pendingProfileAvatar = null;
+        profileAvatarUploaded = null;
         if (status != null) {
             status.setEnabled(false);
             status.setText("UPLOADING PHOTO…");
@@ -7420,7 +7497,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     output.write(buffer, 0, count);
                 }
                 String mime = getContentResolver().getType(uri);
-                String filename = artworkFilename(uri);
+                String filename = selectedImageFilename(uri);
                 if (mime == null) {
                     String lower = filename.toLowerCase(java.util.Locale.ROOT);
                     mime = lower.endsWith(".png") ? "image/png"
@@ -7456,7 +7533,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     return;
                 }
                 Toast.makeText(this, "Profile photo updated.", Toast.LENGTH_SHORT).show();
-                showProfileEditor();
+                if (refreshAvatar != null) refreshAvatar.run();
             }));
         }, "cu-profile-photo-upload").start();
     }
