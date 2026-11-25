@@ -3508,7 +3508,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 || guild.optBoolean("canManageRecruitment") || canEditIdentity));
 
         addRealmScene("guild",inGuild?guild.optString("name","Guild Headquarters"):"GUILD HALL",inGuild?"Your alliance in the Firstlight Realm":"Find allies. Build a legacy.",0,0);
-        final int guildContentStart=content.getChildCount();
+        
         if (!inGuild) {
             LinearLayout intro = sectionPanel();
             intro.setGravity(Gravity.CENTER);
@@ -3660,7 +3660,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     if (canManageMembers && !"LEADER".equals(memberRole) && (me==null||!member.optString("user_id").equals(me.optString("user_id")))) {
                         TextView manage = button("•••", false);
                         manage.setTextSize(10);
-                        manage.setOnClickListener(v -> showGuildMemberRoleDialog(member));
+                        manage.setOnClickListener(v -> showGuildMemberRoleDialog(member,leader));
                         LinearLayout.LayoutParams manageP = new LinearLayout.LayoutParams(dp(38), dp(33));
                         manageP.leftMargin = dp(5);
                         row.addView(manage, manageP);
@@ -3916,7 +3916,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         }));
     }
 
-    private void showGuildMemberRoleDialog(JSONObject member) {
+    private void showGuildMemberRoleDialog(JSONObject member,boolean leader) {
         if (member == null) return;
         String currentRole = member.optString("role", "MEMBER")
                 .toUpperCase(java.util.Locale.ROOT);
@@ -3930,8 +3930,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             roles.add("OFFICER");
         }
         // The server remains authoritative for role changes; preserve all existing options.
-        labels.add("Transfer Guild Leadership");
-        roles.add("LEADER");
+        if(leader){labels.add("Transfer Guild Leadership");roles.add("LEADER");}
         showChoiceDialog("GUILD ROSTER","Manage "+member.optString("display_name","Collector"),labels.toArray(new String[0]),which->{
                     String nextRole = roles.get(which);
                     String title = "LEADER".equals(nextRole)
@@ -6026,7 +6025,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void addModeDeckSelector(LinearLayout panel, String mode, String label,
-                                     String[] deckIds, String[] deckNames) {
+                                     String[] deckIds, String[] deckNames,ArrayList<JSONObject> deckItems,Map<String,JSONObject> cardsById) {
         String key = modeDeckKey(mode);
         if (key.isEmpty()) return;
         android.content.SharedPreferences preferences = getSharedPreferences("cu_mode_decks", MODE_PRIVATE);
@@ -6053,12 +6052,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             String saved=preferences.getString(key,"");
             for(int i=0;i<ids.size();i++){
                 final int choice=i;boolean selected=ids.get(i).equals(saved);
-                TextView item=button((selected?"✦  ":"◇  ")+names.get(i)+(selected?"  ·  SELECTED":"  ›"),selected);
-                rows.addView(item,new LinearLayout.LayoutParams(-1,dp(54)));addGap(rows,7);
+                JSONObject record=null;for(JSONObject d:deckItems)if(ids.get(i).equals(d.optString("deck_id"))){record=d;break;}
+                LinearLayout dossier=record==null?sectionPanel():deckDossier(names.get(i),record,cardsById,selected);
+                if(record==null)dossier.addView(text("Follow the currently active formation",12,TEXT,true));
+                TextView item=button(selected?"✓  SELECTED":"USE THIS DECK  ›",!selected);dossier.addView(item,new LinearLayout.LayoutParams(-1,dp(44)));rows.addView(dossier,rowParams());
                 item.setOnClickListener(x->{preferences.edit().putString(key,ids.get(choice)).apply();choose.setText(names.get(choice));dialog.dismiss();});
             }
             TextView cancel=button("CLOSE",false);cancel.setOnClickListener(x->dialog.dismiss());shell.addView(cancel,new LinearLayout.LayoutParams(-1,dp(44)));
-            phase11ShowSheet(dialog,shell,440);
+            phase11ShowSheet(dialog,shell,650);
         });
     }
 
@@ -6220,8 +6221,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             modeDecks.addView(text("Choose which saved deck Android activates when you enter each mode.",
                     11, MUTED, false));
             addGap(modeDecks, 8);
-            addModeDeckSelector(modeDecks, "pvp", "PVP · Arena and Ranked", deckIds, deckNames);
-            addModeDeckSelector(modeDecks, "pve", "PVE · Adventure, Dungeons and Raids", deckIds, deckNames);
+            addModeDeckSelector(modeDecks, "pvp", "PVP · Arena and Ranked", deckIds, deckNames,deckItems,cardsById);
+            addModeDeckSelector(modeDecks, "pve", "PVE · Adventure, Dungeons and Raids", deckIds, deckNames,deckItems,cardsById);
             content.addView(modeDecks, rowParams());
         }
 
