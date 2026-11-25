@@ -170,7 +170,6 @@
     const guildSelect = byId("ops-guild-select");
     const guildFilter = byId("ops-guild-filter");
     const guildSave = byId("ops-save-guild");
-    const guildCapacity = byId("ops-guild-capacity");
     const guildLevel = byId("ops-guild-level");
     const guildRecruiting = byId("ops-guild-recruiting");
     let guilds = [];
@@ -190,14 +189,11 @@
     function renderGuildFields() {
         const guild = guilds.find(item => item.guild_id === guildSelect.value);
         guildSave.disabled = !guild;
-        guildCapacity.disabled = !guild;
         guildLevel.disabled = !guild;
         guildRecruiting.disabled = !guild;
         byId("ops-guild-roster").textContent = guild
-            ? fmt.format(guild.member_count) + " current members · Server limit 5–1,000"
+            ? fmt.format(guild.member_count) + " current members · Fixed capacity 50"
             : "Choose a guild to edit its policy.";
-        guildCapacity.min = Math.max(5, guild?.member_count ?? 0);
-        guildCapacity.value = guild?.member_limit ?? "";
         guildLevel.value = guild?.minimum_level ?? "";
         guildRecruiting.value = String(guild?.is_recruiting ?? 0);
     }
@@ -234,11 +230,10 @@
         const entry = guilds.find(item => item.guild_id === guildSelect.value);
         if (!entry || guildSave.disabled) return;
         const policy = {
-            member_limit:guildCapacity.valueAsNumber,
             minimum_level:guildLevel.valueAsNumber,
             is_recruiting:Number(guildRecruiting.value)
         };
-        const fields = [guildCapacity,guildLevel,guildRecruiting,guildSelect,guildFilter,guildSave];
+        const fields = [guildLevel,guildRecruiting,guildSelect,guildFilter,guildSave];
         fields.forEach(field => { field.disabled = true; });
         setGuildStatus("Saving guild settings…");
         try {

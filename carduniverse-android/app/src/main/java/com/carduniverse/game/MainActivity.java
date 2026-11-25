@@ -82,6 +82,7 @@ public final class MainActivity extends Activity {
     private boolean hapticsEnabled = true;
     private boolean autoSyncEnabled = true;
     private boolean reduceMotionEnabled = false;
+    private boolean scene3dEnabled = true;
     private boolean purchaseConfirmationsEnabled = true;
     private int chatRefreshSeconds = 5;
     private static final int REQUEST_PROFILE_AVATAR = 7302;
@@ -140,6 +141,7 @@ public final class MainActivity extends Activity {
         hapticsEnabled = gamePrefs.getBoolean("haptics_enabled", true);
         autoSyncEnabled = gamePrefs.getBoolean("auto_sync_enabled", true);
         reduceMotionEnabled = gamePrefs.getBoolean("reduce_motion_enabled", false);
+        scene3dEnabled = gamePrefs.getBoolean("firstlight_scene_3d", true);
         purchaseConfirmationsEnabled = gamePrefs.getBoolean("purchase_confirmations_enabled", true);
         chatRefreshSeconds = Math.max(3, Math.min(15, gamePrefs.getInt("chat_refresh_seconds", 5)));
         gameAudio = new GameAudioEngine();
@@ -170,6 +172,14 @@ public final class MainActivity extends Activity {
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
     }
 
+    private ImageView firstlightCrest() {
+        ImageView crest = new ImageView(this);
+        crest.setImageResource(R.drawable.firstlight_crest);
+        crest.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        crest.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return crest;
+    }
+
     private void showSplash() {
         showingAuth = false;
         FrameLayout splash = new FrameLayout(this);
@@ -177,10 +187,10 @@ public final class MainActivity extends Activity {
         LinearLayout center = new LinearLayout(this);
         center.setGravity(Gravity.CENTER);
         center.setOrientation(LinearLayout.VERTICAL);
-        TextView sigil = text("✦", 42, GOLD_BRIGHT, true);
-        sigil.setGravity(Gravity.CENTER);
+        ImageView sigil = firstlightCrest();
         TextView brand = text("CARDUNIVERSE", 23, TEXT, true);
-        brand.setLetterSpacing(0.22f);
+        brand.setLetterSpacing(0.15f);
+        brand.setTypeface(android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD));
         brand.setGravity(Gravity.CENTER);
         TextView subtitle = text("FIRSTLIGHT REALM  ·  ANDROID", 9, GOLD, true);
         subtitle.setLetterSpacing(0.2f);
@@ -189,7 +199,7 @@ public final class MainActivity extends Activity {
         spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(GOLD));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(30), dp(30));
         sp.topMargin = dp(24);
-        center.addView(sigil);
+        center.addView(sigil, new LinearLayout.LayoutParams(dp(114), dp(114)));
         center.addView(brand);
         center.addView(subtitle);
         center.addView(spinner, sp);
@@ -285,13 +295,16 @@ public final class MainActivity extends Activity {
 
         FrameLayout artwork = new FrameLayout(this);
         artwork.setBackground(gradient(Color.rgb(35, 65, 49), Color.rgb(13, 25, 22), Color.rgb(120, 105, 71), dp(18)));
-        TextView moon = text("◉", 68, GOLD_BRIGHT, true);
-        moon.setAlpha(0.8f);
-        FrameLayout.LayoutParams mp = new FrameLayout.LayoutParams(dp(100), dp(100), Gravity.TOP | Gravity.END);
-        mp.setMargins(0, dp(4), dp(24), 0);
-        artwork.addView(moon, mp);
-        TextView crest = text("✦", 62, GOLD_BRIGHT, true);
-        FrameLayout.LayoutParams crestP = new FrameLayout.LayoutParams(dp(100), dp(100), Gravity.CENTER);
+        artwork.setClipToOutline(true);
+        if (scene3dEnabled && !compact) {
+            artwork.addView(new FirstlightSceneView(this, FirstlightSceneView.Scene.GATE,
+                    !reduceMotionEnabled, false), new FrameLayout.LayoutParams(-1, -1));
+        }
+        ImageView crest = firstlightCrest();
+        int crestSize = dp(compact ? 74 : 84);
+        FrameLayout.LayoutParams crestP = new FrameLayout.LayoutParams(crestSize, crestSize,
+                compact ? Gravity.CENTER_VERTICAL | Gravity.END : Gravity.TOP | Gravity.START);
+        crestP.setMargins(dp(5), dp(2), dp(9), 0);
         artwork.addView(crest, crestP);
         LinearLayout artCaption = new LinearLayout(this);
         artCaption.setOrientation(LinearLayout.VERTICAL);
@@ -477,32 +490,32 @@ public final class MainActivity extends Activity {
         appRoot.setBackgroundColor(BG);
 
         String[][] items = {
-                {"home", "⌂", "HOME"},
-                {"collection", "▧", "CARDS"},
-                {"encyclopedia", "▤", "ENCYCLOPEDIA"},
-                {"binders", "▤", "BINDERS"},
-                {"formation", "♟", "TEAM"},
-                {"evolution", "✧", "EVOLVE"},
-                {"achievements", "✦", "RECORDS"},
-                {"progression", "⌁", "REWARDS"},
-                {"journey", "✦", "JOURNEY"},
-                {"events", "✺", "EVENTS"},
-                {"leaderboards", "▥", "RANKINGS"},
-                {"ranked", "♛", "RANKED"},
-                {"summon", "✧", "SUMMON"},
-                {"adventure", "⚔", "ADVENTURE"},
-                {"dungeons", "⌘", "DUNGEON"},
-                {"raids", "♜", "RAIDS"},
-                {"arena", "◈", "ARENA"},
-                {"training", "⚔", "TRAINING"},
-                {"trades", "⇄", "TRADES"},
-                {"friends", "♧", "FRIENDS"},
-                {"chat", "◉", "CHAT"},
-                {"missions", "☷", "MISSIONS"},
-                {"shop", "♢", "SHOP"},
-                {"inbox", "✉", "INBOX"},
-                {"guild", "♜", "GUILD"},
-                {"settings", "⚙", "SETTINGS"}
+                {"home", "HOME"},
+                {"collection", "CARDS"},
+                {"encyclopedia", "ENCYCLOPEDIA"},
+                {"binders", "BINDERS"},
+                {"formation", "TEAM"},
+                {"evolution", "EVOLVE"},
+                {"achievements", "RECORDS"},
+                {"progression", "REWARDS"},
+                {"journey", "JOURNEY"},
+                {"events", "EVENTS"},
+                {"leaderboards", "RANKINGS"},
+                {"ranked", "RANKED"},
+                {"summon", "SUMMON"},
+                {"adventure", "ADVENTURE"},
+                {"dungeons", "DUNGEON"},
+                {"raids", "RAIDS"},
+                {"arena", "ARENA"},
+                {"training", "TRAINING"},
+                {"trades", "TRADES"},
+                {"friends", "FRIENDS"},
+                {"chat", "CHAT"},
+                {"missions", "MISSIONS"},
+                {"shop", "SHOP"},
+                {"inbox", "INBOX"},
+                {"guild", "GUILD"},
+                {"settings", "SETTINGS"}
         };
 
         if (!compact) {
@@ -513,9 +526,8 @@ public final class MainActivity extends Activity {
             rail.setBackground(gradient(Color.rgb(20, 22, 47), Color.rgb(8, 11, 25), Color.rgb(72, 65, 125), 0));
             appRoot.addView(rail, new LinearLayout.LayoutParams(dp(82), ViewGroup.LayoutParams.MATCH_PARENT));
 
-            TextView emblem = text("✦", 25, GOLD_BRIGHT, true);
-            emblem.setGravity(Gravity.CENTER);
-            rail.addView(emblem, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(42)));
+            ImageView emblem = firstlightCrest();
+            rail.addView(emblem, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(51)));
             TextView brand = text("CU", 8, GOLD, true);
             brand.setGravity(Gravity.CENTER);
             brand.setLetterSpacing(0.18f);
@@ -526,7 +538,7 @@ public final class MainActivity extends Activity {
             navScroll.setFillViewport(false);
             LinearLayout navStack = new LinearLayout(this);
             navStack.setOrientation(LinearLayout.VERTICAL);
-            for (String[] item : items) addNavItem(navStack, item[0], item[1], item[2]);
+            for (String[] item : items) addNavItem(navStack, item[0], item[1]);
             navScroll.addView(navStack);
             rail.addView(navScroll, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -579,7 +591,7 @@ public final class MainActivity extends Activity {
             navScroll.setFillViewport(false);
             LinearLayout navStack = new LinearLayout(this);
             navStack.setOrientation(LinearLayout.HORIZONTAL);
-            for (String[] item : items) addCompactNavItem(navStack, item[0], item[1], item[2]);
+            for (String[] item : items) addCompactNavItem(navStack, item[0], item[1]);
             navScroll.addView(navStack);
             mainColumn.addView(navScroll, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(43)));
@@ -604,22 +616,23 @@ public final class MainActivity extends Activity {
         startAutoSync();
     }
 
-    private void addCompactNavItem(LinearLayout target, String key, String icon, String label) {
+    private void addCompactNavItem(LinearLayout target, String key, String label) {
         LinearLayout item = new LinearLayout(this);
         item.setGravity(Gravity.CENTER);
         item.setOrientation(LinearLayout.HORIZONTAL);
         item.setPadding(dp(10), dp(6), dp(10), dp(6));
         item.setBackground(gradient(PANEL, PANEL, Color.TRANSPARENT, dp(9)));
-        TextView glyph = text(icon, 14, MUTED, true);
-        glyph.setGravity(Gravity.CENTER);
+        ImageView glyph = navIcon(key);
         TextView name = text(label, 7, MUTED, true);
         name.setGravity(Gravity.CENTER);
         name.setLetterSpacing(0.02f);
         LinearLayout.LayoutParams nameParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         nameParams.leftMargin = dp(5);
-        item.addView(glyph);
+        item.addView(glyph, new LinearLayout.LayoutParams(dp(17), dp(17)));
         item.addView(name, nameParams);
+        item.setContentDescription(label);
+        item.setFocusable(true);
         item.setOnClickListener(v -> renderTab(key));
         LinearLayout.LayoutParams itemParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, dp(36));
@@ -628,19 +641,20 @@ public final class MainActivity extends Activity {
         navLabels.put(key, name);
     }
 
-    private void addNavItem(LinearLayout target, String key, String icon, String label) {
+    private void addNavItem(LinearLayout target, String key, String label) {
         LinearLayout item = new LinearLayout(this);
         item.setGravity(Gravity.CENTER);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setPadding(dp(2), dp(7), dp(2), dp(7));
         item.setBackground(gradient(PANEL, PANEL, Color.TRANSPARENT, dp(9)));
-        TextView glyph = text(icon, 17, MUTED, true);
-        glyph.setGravity(Gravity.CENTER);
+        ImageView glyph = navIcon(key);
         TextView name = text(label, 6, MUTED, true);
         name.setGravity(Gravity.CENTER);
         name.setLetterSpacing(0.03f);
-        item.addView(glyph);
+        item.addView(glyph, new LinearLayout.LayoutParams(dp(17), dp(17)));
         item.addView(name);
+        item.setContentDescription(label);
+        item.setFocusable(true);
         item.setOnClickListener(v -> renderTab(key));
         target.addView(item, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(47)));
         LinearLayout.LayoutParams gap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3));
@@ -649,16 +663,41 @@ public final class MainActivity extends Activity {
         navLabels.put(key, name);
     }
 
+    private ImageView navIcon(String key) {
+        int art = switch (key) {
+            case "home" -> R.drawable.nav_realm;
+            case "collection", "binders" -> R.drawable.nav_cards;
+            case "formation", "guild" -> R.drawable.nav_team;
+            case "ranked", "leaderboards", "achievements" -> R.drawable.nav_crown;
+            case "arena", "adventure", "training" -> R.drawable.nav_swords;
+            case "dungeons", "raids" -> R.drawable.nav_tower;
+            case "friends", "chat" -> R.drawable.nav_social;
+            case "inbox" -> R.drawable.nav_mail;
+            case "journey", "missions" -> R.drawable.nav_scroll;
+            case "progression", "trades", "shop" -> R.drawable.nav_coin;
+            case "settings" -> R.drawable.nav_settings;
+            default -> R.drawable.nav_spark;
+        };
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(art);
+        icon.setColorFilter(MUTED);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        return icon;
+    }
+
     private void refreshNav() {
         for (Map.Entry<String, TextView> entry : navLabels.entrySet()) {
             TextView label = entry.getValue();
             boolean active = entry.getKey().equals(activeTab);
             label.setTextColor(active ? GOLD_BRIGHT : MUTED);
             View parent = (View) label.getParent();
-            if (parent != null) parent.setBackground(gradient(
-                    active ? Color.rgb(55, 45, 94) : PANEL,
-                    active ? Color.rgb(28, 25, 56) : PANEL,
-                    active ? GOLD : Color.TRANSPARENT, dp(9)));
+            if (parent instanceof LinearLayout) {
+                parent.setSelected(active);
+                parent.setBackground(gradient(active ? Color.rgb(74, 56, 48) : PANEL,
+                        active ? Color.rgb(36, 29, 38) : PANEL, active ? GOLD : Color.TRANSPARENT, dp(9)));
+                View icon = ((LinearLayout) parent).getChildAt(0);
+                if (icon instanceof ImageView) ((ImageView) icon).setColorFilter(active ? GOLD_BRIGHT : MUTED);
+            }
         }
     }
 
@@ -946,15 +985,15 @@ public final class MainActivity extends Activity {
             content.addView(god, godParams);
         }
 
-        RealmSceneView lobby = new RealmSceneView(this, "home", "FIRSTLIGHT REALM",
-                "Your legend begins here. Choose a path and enter the world.",
-                me.optInt("collector_level", 1), Math.max(100, me.optInt("collector_level", 1)));
-        lobby.setMotionEnabled(!reduceMotionEnabled);
-        lobby.setContentDescription("Animated fantasy realm lobby");
-        LinearLayout.LayoutParams lobbyParams = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, dp(252));
-        lobbyParams.bottomMargin = dp(8);
-        content.addView(lobby, lobbyParams);
+        if (scene3dEnabled) {
+            addFirstlightScene(FirstlightSceneView.Scene.GATE, "Firstlight Realm", 244);
+        } else {
+            RealmSceneView lobby = new RealmSceneView(this, "home", "FIRSTLIGHT REALM",
+                    "Choose a path and enter the world.", me.optInt("collector_level", 1),
+                    Math.max(100, me.optInt("collector_level", 1)));
+            lobby.setMotionEnabled(!reduceMotionEnabled);
+            content.addView(lobby, new LinearLayout.LayoutParams(-1, dp(252)));
+        }
 
         LinearLayout primaryActions = new LinearLayout(this);
         primaryActions.setOrientation(LinearLayout.HORIZONTAL);
@@ -1126,7 +1165,7 @@ public final class MainActivity extends Activity {
         switch (tab) {
             case "mastery": renderPhase16Mastery(data); break;
             case "world_events": renderPhase16World(data); break;
-            case "tower": renderPhase15Tower(data); break;
+            case "tower": loadTowerDeck(data); break;
             case "showcase": renderPhase15Showcase(data); break;
             case "wallet_history": renderPhase15Wallet(data); break;
             case "encyclopedia": renderCardEncyclopedia(data); break;
@@ -2591,7 +2630,10 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
     private FrameLayout createArenaBattleStage(JSONObject active){
         FrameLayout stage=new FrameLayout(this);stage.setClipChildren(false);stage.setClipToPadding(false);
         stage.setBackground(gradient(Color.rgb(18,30,47),Color.rgb(5,9,19),GOLD,dp(16)));
-        stage.addView(new ArenaTableView(this,!reduceMotionEnabled),new FrameLayout.LayoutParams(-1,-1));
+        View terrain = scene3dEnabled
+                ? new FirstlightSceneView(this, FirstlightSceneView.Scene.ARENA, !reduceMotionEnabled, false)
+                : new ArenaTableView(this, !reduceMotionEnabled);
+        stage.addView(terrain, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(9),dp(9),dp(9),dp(9));
         table.setBackground(gradient(Color.argb(22,8,15,28),Color.argb(32,5,10,22),Color.rgb(78,100,132),dp(14)));
         table.addView(createArenaLifeStrip("RIVAL SIDE",active.optString("opponentName","Opponent"),active.optLong("opponentHp"),active.optLong("opponentMaxHp"),RED));
@@ -3965,6 +4007,18 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 "Keep wallet, profile and account status updated while the game is open.", 3);
         addAudioSetting(gameplayPrefs, "Reduced motion",
                 "Skip card flip and decorative movement effects for a calmer experience.", 4);
+        android.widget.Switch graphics = new android.widget.Switch(this);
+        graphics.setText("Firstlight 3D scenes");
+        graphics.setTextColor(TEXT);
+        graphics.setTextSize(13);
+        graphics.setChecked(scene3dEnabled);
+        graphics.setMinHeight(dp(44));
+        graphics.setOnCheckedChangeListener((view, checked) -> {
+            scene3dEnabled = checked;
+            gamePrefs.edit().putBoolean("firstlight_scene_3d", checked).apply();
+        });
+        gameplayPrefs.addView(graphics, rowParams());
+        gameplayPrefs.addView(text("3D environments in Home, Arena, and the Tower.", 10, MUTED, false), rowParams());
         addAudioSetting(gameplayPrefs, "Purchase confirmations",
                 "Ask before spending Gold, Gems or other shop currencies.", 5);
         LinearLayout refreshRow = dataRow("Chat refresh interval",
@@ -6015,9 +6069,12 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         return me.optString("user_id") + ":" + mode;
     }
 
+    private String modeDeckId(String mode) {
+        return getSharedPreferences("cu_mode_decks", MODE_PRIVATE).getString(modeDeckKey(mode), "");
+    }
+
     private void postWithModeDeck(String mode, String path, JSONObject body, ApiClient.Callback callback) {
-        String deckId = getSharedPreferences("cu_mode_decks", MODE_PRIVATE).getString(modeDeckKey(mode), "");
-        api.postWithDeck(deckId, path, body, callback);
+        api.postWithDeck(modeDeckId(mode), path, body, callback);
     }
 
     private void addModeDeckSelector(LinearLayout panel, String mode, String label,
@@ -6218,7 +6275,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                     11, MUTED, false));
             addGap(modeDecks, 8);
             addModeDeckSelector(modeDecks, "pvp", "PVP · Arena and Ranked", deckIds, deckNames,deckItems,cardsById);
-            addModeDeckSelector(modeDecks, "pve", "PVE · Adventure, Dungeons and Raids", deckIds, deckNames,deckItems,cardsById);
+            addModeDeckSelector(modeDecks, "pve", "PVE · Adventure, Dungeons, Raids and Tower", deckIds, deckNames,deckItems,cardsById);
             content.addView(modeDecks, rowParams());
         }
 
@@ -8989,22 +9046,90 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         else for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item==null)continue;String subtitle=item.optString("cosmetic_type",item.optString("rarity",""));panel.addView(dataRow(item.optString(key,"Record"),subtitle,item.optInt("equipped")==1?"EQUIPPED":"✦"),rowParams());}content.addView(panel,rowParams());
     }
 
-    private void renderPhase15Tower(JSONObject data){
+    private void addFirstlightScene(FirstlightSceneView.Scene scene, String title, int height) {
+        FrameLayout stage = new FrameLayout(this);
+        stage.setBackground(gradient(Color.rgb(32, 41, 65), BG, GOLD, dp(14)));
+        stage.setClipToOutline(true);
+        FirstlightSceneView world = new FirstlightSceneView(this, scene, !reduceMotionEnabled, true);
+        stage.addView(world, new FrameLayout.LayoutParams(-1, -1));
+        LinearLayout caption = new LinearLayout(this);
+        caption.setOrientation(LinearLayout.VERTICAL);
+        caption.setPadding(dp(14), dp(8), dp(14), dp(10));
+        caption.setBackground(gradient(Color.TRANSPARENT, Color.argb(227, 8, 12, 24),
+                Color.TRANSPARENT, 0));
+        TextView name = text(title, 19, GOLD_BRIGHT, true);
+        name.setTypeface(android.graphics.Typeface.create("serif", android.graphics.Typeface.BOLD));
+        caption.addView(name);
+        caption.addView(text("Drag sideways to orbit", 9, TEXT, false));
+        stage.addView(caption, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        LinearLayout.LayoutParams size = new LinearLayout.LayoutParams(-1, dp(height));
+        size.bottomMargin = dp(9);
+        content.addView(stage, size);
+    }
+
+    private void loadTowerDeck(JSONObject data) {
+        String deckId = modeDeckId("pve");
+        if (deckId.isEmpty()) {
+            renderPhase15Tower(data, "Active Formation", "");
+            return;
+        }
+        int page = activePageRequest;
+        api.get("/api/decks", decks -> ui.post(() -> {
+            if (page != activePageRequest || !"tower".equals(activeTab)) return;
+            JSONArray saved = decks.ok() ? decks.data.optJSONArray("decks") : null;
+            JSONObject deck = null;
+            if (saved != null) for (int i = 0; i < saved.length(); i++) {
+                JSONObject candidate = saved.optJSONObject(i);
+                if (candidate != null && deckId.equals(candidate.optString("deck_id"))) {
+                    deck = candidate;
+                    break;
+                }
+            }
+            if (deck == null || deck.optJSONArray("cards") == null) {
+                renderPhase15Tower(data, "PvE deck", "Your assigned deck could not be read. Check Team Decks.");
+                return;
+            }
+            String name = deck.optString("name", "PvE deck");
+            JSONArray slots = deck.optJSONArray("cards");
+            JSONArray cards = new JSONArray();
+            for (int i = 0; i < slots.length(); i++) {
+                if (!slots.isNull(i) && !slots.optString(i, "").isEmpty()) cards.put(slots.optString(i));
+            }
+            api.post("/api/team/combos", payload("cards", cards), preview -> ui.post(() -> {
+                if (page != activePageRequest || !"tower".equals(activeTab)) return;
+                if (!preview.ok()) {
+                    renderPhase15Tower(data, name, preview.error);
+                    return;
+                }
+                try {
+                    data.put("formation", preview.data.optJSONArray("formation"));
+                    data.put("combos", preview.data.optJSONArray("combos"));
+                } catch (org.json.JSONException ignored) {}
+                renderPhase15Tower(data, name, "");
+            }));
+        }));
+    }
+
+    private void renderPhase15Tower(JSONObject data, String deckName, String deckError){
         JSONObject calendar=data.optJSONObject("calendar"),modifier=data.optJSONObject("modifier");
         String week=calendar==null?"":calendar.optString("week");int best=data.optInt("best");boolean viewOnly=data.optBoolean("view_only");
         addModeSpotlight("WEEKLY ASCENSION","Floor "+best+" / 20",calendar==null?"Weekly challenge":"Week of "+week+"  ·  Resets "+calendar.optString("next_week"),"♜",GOLD_BRIGHT);
+        if (scene3dEnabled) addFirstlightScene(FirstlightSceneView.Scene.TOWER, "Weekly Tower", 180);
         LinearLayout event=sectionPanel();phase15Heading(event,"ACTIVE WEEKLY MODIFIER");if(modifier!=null){event.addView(text(modifier.optString("name"),17,CYAN,true));event.addView(text(modifier.optString("description"),11,MUTED,false));}content.addView(event,rowParams());
         LinearLayout progress=sectionPanel();progress.addView(text("TOWER PROGRESS  ·  "+best+" / 20",11,GOLD_BRIGHT,true));ProgressBar bar=new RealmMeter(this);bar.setMax(20);bar.setProgress(best);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));progress.addView(bar,new LinearLayout.LayoutParams(-1,dp(9)));content.addView(progress,rowParams());
         if(viewOnly)showNotice("This account can view the Tower but cannot challenge floors.");
-        JSONArray formation=data.optJSONArray("formation");int teamSize=formation==null?0:formation.length();boolean trio=modifier!=null&&"TRIO_LIMIT".equals(modifier.optString("key"));boolean ready=teamSize>0&&(!trio||teamSize<=3);
-        TextView team=button("FORMATION  ·  "+teamSize+" CARDS  ›",false);team.setOnClickListener(v->renderTab("formation"));content.addView(team,new LinearLayout.LayoutParams(-1,dp(44)));
-        if(!ready)showNotice(trio?"This week requires a team of at most three cards.":"Save a Formation before challenging.");
-        LinearLayout combos=sectionPanel();renderPhase15Combos(combos,data.optJSONArray("combos"));content.addView(combos,rowParams());
+        JSONArray formation=data.optJSONArray("formation");int teamSize=formation==null?0:formation.length();boolean trio=modifier!=null&&"TRIO_LIMIT".equals(modifier.optString("key"));boolean ready=deckError.isEmpty()&&teamSize>0&&(!trio||teamSize<=3);
+        TextView team=button(deckName+"  ·  "+teamSize+" CARDS  ›",false);team.setOnClickListener(v->renderTab("formation"));content.addView(team,new LinearLayout.LayoutParams(-1,dp(44)));
+        if(!ready)showNotice(!deckError.isEmpty()?deckError:trio
+                ?"This week requires a team of at most three cards.":"Save a Formation before challenging.");
+        if (deckError.isEmpty()) {
+            LinearLayout combos=sectionPanel();renderPhase15Combos(combos,data.optJSONArray("combos"));content.addView(combos,rowParams());
+        }
         phase15Heading(content,"THE TWENTY FLOORS");
         JSONArray floors=data.optJSONArray("floors");if(floors!=null)for(int i=0;i<floors.length();i++){JSONObject f=floors.optJSONObject(i);if(f==null)continue;int floor=f.optInt("floor"),tier=f.optInt("tier");boolean cleared=floor<=best,available=floor==best+1;int accent=tier==3?GOLD_BRIGHT:tier==2?VIOLET:tier==1?CYAN:GREEN;
             LinearLayout row=sectionPanel();row.setBackground(gradient(PANEL_LIGHT,PANEL,available?accent:Color.rgb(62,73,100),dp(12)));row.addView(text("FLOOR "+floor+"  ·  "+f.optString("name").toUpperCase(java.util.Locale.ROOT),13,accent,true));
             row.addView(text("HP "+f.optInt("hp")+"  ·  Attack "+f.optInt("attack"),10,MUTED,false));JSONObject reward=f.optJSONObject("reward");if(reward!=null){row.addView(text("◈ "+reward.optLong("coins")+" Gold   ◆ "+reward.optLong("shards")+" Shards",10,GOLD_BRIGHT,true));JSONObject cosmetic=reward.optJSONObject("cosmetic");if(cosmetic!=null)row.addView(text("✦ "+cosmetic.optString("name"),10,VIOLET,true));}
-            TextView challenge=button(cleared?"✓ CLEARED":available?"CHALLENGE FLOOR":"LOCKED",available);challenge.setEnabled(available&&ready&&!viewOnly&&!week.isEmpty());challenge.setOnClickListener(v->{challenge.setEnabled(false);api.post("/api/tower/battle",payload("floor",floor,"week",week),r->ui.post(()->{challenge.setEnabled(true);if(!r.ok()){showResultDialog("Tower challenge unavailable",r.error);return;}if(!"tower".equals(activeTab))return;showPhase15Battle(r.data);refreshAccount(()->{if("tower".equals(activeTab))renderTab("tower");});}));});row.addView(challenge,new LinearLayout.LayoutParams(-1,dp(42)));content.addView(row,rowParams());}
+            TextView challenge=button(cleared?"✓ CLEARED":available?"CHALLENGE FLOOR":"LOCKED",available);challenge.setEnabled(available&&ready&&!viewOnly&&!week.isEmpty());challenge.setOnClickListener(v->{challenge.setEnabled(false);postWithModeDeck("pve", "/api/tower/battle",payload("floor",floor,"week",week),r->ui.post(()->{challenge.setEnabled(true);if(!r.ok()){showResultDialog("Tower challenge unavailable",r.error);return;}if(!"tower".equals(activeTab))return;showPhase15Battle(r.data);refreshAccount(()->{if("tower".equals(activeTab))renderTab("tower");});}));});row.addView(challenge,new LinearLayout.LayoutParams(-1,dp(42)));content.addView(row,rowParams());}
         LinearLayout standings=sectionPanel();phase15Heading(standings,"WEEKLY LEADERBOARD");JSONArray leaders=data.optJSONArray("leaderboard");if(leaders==null||leaders.length()==0)standings.addView(text("No clears recorded this week.",10,MUTED,false));else for(int i=0;i<leaders.length();i++){JSONObject p=leaders.optJSONObject(i);if(p!=null)standings.addView(dataRow("#"+(i+1)+"  "+p.optString("display_name"),"Weekly Tower","FLOOR "+p.optInt("floor")),rowParams());}content.addView(standings,rowParams());
     }
 
@@ -9285,9 +9410,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(dp(13), dp(11), dp(13), dp(11));
         GradientDrawable surface = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.rgb(25, 34, 53), Color.rgb(15, 22, 37)});
+                new int[]{Color.rgb(31, 41, 61), Color.rgb(15, 22, 37)});
         surface.setCornerRadius(dp(13));
-        surface.setStroke(dp(1), Color.rgb(46, 59, 82));
+        surface.setStroke(dp(1), Color.rgb(68, 74, 101));
         panel.setBackground(surface);
         panel.setClipToPadding(false);
         return panel;
@@ -9324,20 +9449,23 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private TextView button(String label, boolean primary) {
-        int fill = primary ? Color.rgb(213, 169, 91) : Color.rgb(26, 36, 56);
-        int stroke = primary ? Color.rgb(246, 208, 139) : Color.rgb(67, 87, 117);
-        int ink = primary ? Color.rgb(28, 23, 19) : Color.rgb(228, 235, 248);
+        int ink = primary ? Color.rgb(28, 23, 19) : Color.rgb(234, 235, 248);
         TextView control = text(label, 9, ink, true);
         control.setGravity(Gravity.CENTER);
         control.setLetterSpacing(0.055f);
-        control.setPadding(dp(14), 0, dp(14), 0);
-        GradientDrawable shape = new GradientDrawable();
-        shape.setColor(fill);
-        shape.setCornerRadius(dp(8));
-        shape.setStroke(dp(1), stroke);
+        control.setPadding(dp(12), 0, dp(12), 0);
+        android.content.res.ColorStateList inkStates = new android.content.res.ColorStateList(
+                new int[][]{new int[]{-android.R.attr.state_enabled}, new int[0]},
+                new int[]{Color.rgb(155, 162, 183), ink});
+        control.setTextColor(inkStates);
+        android.graphics.drawable.StateListDrawable states = new android.graphics.drawable.StateListDrawable();
+        states.addState(new int[]{-android.R.attr.state_enabled},
+                gradient(Color.rgb(38, 44, 59), Color.rgb(26, 32, 46), Color.rgb(63, 70, 88), dp(9)));
+        states.addState(new int[0], gradient(primary ? Color.rgb(249, 220, 158) : Color.rgb(42, 54, 79),
+                primary ? Color.rgb(187, 138, 74) : Color.rgb(23, 32, 52),
+                primary ? GOLD_BRIGHT : Color.rgb(83, 100, 134), dp(9)));
         control.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(Color.argb(50, 255, 255, 255)),
-                shape, null));
+                android.content.res.ColorStateList.valueOf(Color.argb(55, 255, 248, 220)), states, null));
         control.setMinimumHeight(dp(40));
         control.setClickable(true);
         control.setFocusable(true);
