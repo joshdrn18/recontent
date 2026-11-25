@@ -2860,6 +2860,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             content.addView(loading, rowParams());
             if (missionsDailyLoading) return;
             missionsDailyLoading = true;
+            final int request = activePageRequest;
             api.get("/api/daily-challenges", result -> ui.post(() -> {
                 missionsDailyLoading = false;
                 if (!"missions".equals(activeTab) || request != activePageRequest || content == null) return;
