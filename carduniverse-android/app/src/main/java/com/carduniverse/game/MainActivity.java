@@ -2921,7 +2921,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
 
         LinearLayout limits=sectionPanel();limits.addView(text("04  ·  ROSTER REQUIREMENTS",7,GOLD_BRIGHT,true));addGap(limits,4);
         LinearLayout values=new LinearLayout(this);values.setOrientation(LinearLayout.HORIZONTAL);
-        LinearLayout capBox=new LinearLayout(this);capBox.setOrientation(LinearLayout.VERTICAL);capBox.addView(text("MEMBER CAP  ·  5–100",6,MUTED,true));
+        LinearLayout capBox=new LinearLayout(this);capBox.setOrientation(LinearLayout.VERTICAL);capBox.addView(text(isAdminAccount() ? "MEMBER CAP  ·  5–1000" : "MEMBER CAP  ·  5–100",6,MUTED,true));
         EditText cap=editField("30",false);cap.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);cap.setText(String.valueOf(guild.optInt("member_limit",30)));cap.setEnabled(leader);
         capBox.addView(cap,new LinearLayout.LayoutParams(-1,dp(42)));values.addView(capBox,new LinearLayout.LayoutParams(0,-2,1f));
         LinearLayout levelBox=new LinearLayout(this);levelBox.setOrientation(LinearLayout.VERTICAL);levelBox.setPadding(dp(8),0,0,0);levelBox.addView(text("MINIMUM JOIN LEVEL  ·  1–100",6,MUTED,true));
@@ -2950,7 +2950,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         if(canSave){
             final android.widget.CheckBox fAnnounce=announceAccess,fRecruit=recruitmentAccess,fMembers=memberAccess,fIdentity=identityAccess;
             builder.setPositiveButton("SAVE SETTINGS",(dialog,which)->{
-                int capValue=leader?parseGuildSetting(cap,5,100):guild.optInt("member_limit",30);
+                int capValue=leader?parseGuildSetting(cap,5,isAdminAccount()?1000:100):guild.optInt("member_limit",30);
                 int levelValue=leader?parseGuildSetting(minimum,1,100):Math.max(1,guild.optInt("minimum_level",1));
                 if(leader&&(capValue<0||levelValue<0))return;
                 JSONObject body=payload(
