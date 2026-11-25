@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/favicon.svg">
+<link rel="stylesheet" href="/admin/operations.css">
+<script defer src="/admin/operations.js"></script>
+<title>Game Operations | CardUniverse</title>
+</head>
+<body class="cu-ops">
+<a class="ops-skip" href="#ops-main">Skip to dashboard</a>
+<div class="ops-layout">
+<aside class="ops-sidebar">
+  <a class="ops-brand" href="/"><span aria-hidden="true">✦</span> CardUniverse</a>
+  <nav aria-label="Game Operations">
+    <a href="#summon" aria-current="location">Summon</a>
+    <a href="#binder">Binder Rewards</a>
+    <a href="#guild">Guild Activities</a>
+    <a href="#journey">Player Journey</a>
+  </nav>
+  <div class="ops-side-links">
+    <a href="/admin/phase6">Beta &amp; Title Control</a>
+    <a href="/admin/support">Support Contacts</a>
+    <a href="/">Back to CardUniverse</a>
+  </div>
+</aside>
+<main id="ops-main">
+  <header class="ops-header">
+    <div><p class="ops-label">ADMIN CONSOLE</p><h1>Game Operations</h1>
+    <p>Monitor summon configuration and Phase 14 activity.</p></div>
+    <div><button id="ops-refresh" type="button">Refresh data</button><p id="ops-status" role="status">Loading dashboard…</p></div>
+  </header>
+  <div class="ops-kpis" id="ops-kpis" aria-label="Key metrics"></div>
+  <section id="summon" aria-labelledby="summon-heading">
+    <div class="ops-section-head"><div><h2 id="summon-heading">Summon</h2><p>Configured slot odds, banner availability and recent opens.</p></div>
+    <label>Banner <select id="ops-pack" disabled></select></label></div>
+    <p class="ops-note" id="ops-pity"></p>
+    <div id="ops-odds"></div>
+    <h3>Event pack offers</h3><div id="ops-offers"></div>
+  </section>
+  <section id="binder" aria-labelledby="binder-heading">
+    <h2 id="binder-heading">Binder Rewards</h2><p>Reward claims per active set and milestone.</p><div id="ops-binders"></div>
+  </section>
+  <section id="guild" aria-labelledby="guild-heading">
+    <h2 id="guild-heading">Guild Activities</h2><p id="ops-week"></p><div id="ops-guilds"></div>
+  </section>
+  <section id="journey" aria-labelledby="journey-heading">
+    <h2 id="journey-heading">Player Journey</h2><p id="ops-cohort"></p><div id="ops-journey"></div>
+  </section>
+</main>
+</div>
+</body>
+</html>
