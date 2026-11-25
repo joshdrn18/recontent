@@ -553,7 +553,7 @@ public final class MainActivity extends Activity {
 
         LinearLayout right = new LinearLayout(this);
         right.setGravity(Gravity.CENTER_VERTICAL);
-        right.setPadding(dp(6),dp(4),dp(8),dp(4));
+        right.setPadding(dp(5),dp(4),dp(7),dp(4));
         right.setBackground(gradient(Color.rgb(33,39,65),Color.rgb(12,19,34),Color.rgb(151,120,79),dp(13)));
         right.setMinimumHeight(dp(48));
         right.setContentDescription("Open collector profile");
@@ -561,13 +561,13 @@ public final class MainActivity extends Activity {
         right.setOnClickListener(v -> showPlayerProfile());
         String collectorName=me.optString("display_name","Collector");
         FrameLayout avatarRing=phase11Avatar(collectorName,me.optString("avatarUrl",me.optString("avatar_url","")),GOLD_BRIGHT);
-        right.addView(avatarRing,new LinearLayout.LayoutParams(dp(38),dp(38)));
+        right.addView(avatarRing,new LinearLayout.LayoutParams(dp(40),dp(40)));
         LinearLayout account=new LinearLayout(this);account.setOrientation(LinearLayout.VERTICAL);account.setGravity(Gravity.CENTER_VERTICAL);
         account.setPadding(dp(8),0,dp(5),0);
         accountLabel=text(collectorName,11,TEXT,true);accountLabel.setSingleLine(true);accountLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        accountLabel.setMaxWidth(dp(compact?116:180));account.addView(accountLabel);
-        currencyLabel=text("LV "+formatNumber(me.optLong("collector_level",1))+"  ·  "+walletLine(),8,GOLD_BRIGHT,true);
-        currencyLabel.setSingleLine(true);currencyLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);currencyLabel.setMaxWidth(dp(compact?125:210));account.addView(currencyLabel);
+        accountLabel.setMaxWidth(dp(compact?86:160));account.addView(accountLabel);
+        currencyLabel=text("LV "+formatNumber(me.optLong("collector_level",1))+"  ·  PROFILE",8,GOLD_BRIGHT,true);
+        currencyLabel.setSingleLine(true);currencyLabel.setEllipsize(android.text.TextUtils.TruncateAt.END);currencyLabel.setMaxWidth(dp(compact?96:170));account.addView(currencyLabel);
         right.addView(account,new LinearLayout.LayoutParams(-2,-2));
         TextView open=text("›",20,GOLD_BRIGHT,true);open.setGravity(Gravity.CENTER);
         right.addView(open,new LinearLayout.LayoutParams(dp(15),-1));
@@ -1354,7 +1354,7 @@ public final class MainActivity extends Activity {
 
     private void addPhase14Progress(LinearLayout panel, String label, int count, int total) {
         panel.addView(dataRow(label, "", formatNumber(count) + " / " + formatNumber(total)), rowParams());
-        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        ProgressBar bar = new RealmMeter(this);
         bar.setMax(Math.max(1, total));
         bar.setProgress(Math.max(0, Math.min(count, total)));
         bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
@@ -2544,7 +2544,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER_VERTICAL);line.addView(text(role,7,accent,true),new LinearLayout.LayoutParams(0,-2,1f));line.addView(text(name,9,TEXT,true));box.addView(line);
         LinearLayout hpLine=new LinearLayout(this);hpLine.setGravity(Gravity.CENTER_VERTICAL);hpLine.addView(text("LIFE",6,MUTED,true),new LinearLayout.LayoutParams(0,-2,1f));
         hpLine.addView(text(formatNumber(hp)+(maxHp>0?" / "+formatNumber(maxHp):"")+" HP",8,accent,true));box.addView(hpLine);
-        if(maxHp>0){ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(100);bar.setProgress((int)Math.max(0,Math.min(100,Math.round(hp*100d/maxHp))));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+        if(maxHp>0){ProgressBar bar=new RealmMeter(this);bar.setMax(100);bar.setProgress((int)Math.max(0,Math.min(100,Math.round(hp*100d/maxHp))));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
             LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(5));bp.topMargin=dp(4);box.addView(bar,bp);}return box;
     }
     private HorizontalScrollView createArenaCardRow(JSONObject match,boolean playerSide,int accent){
@@ -2694,8 +2694,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         health.setPadding(0, dp(6), 0, dp(5));
         panel.addView(health);
         if (maxHp > 0) {
-            ProgressBar bar = new ProgressBar(this, null,
-                    android.R.attr.progressBarStyleHorizontal);
+            ProgressBar bar = new RealmMeter(this);
             bar.setMax(100);
             bar.setProgress((int) Math.max(0, Math.min(100, Math.round(hp * 100d / maxHp))));
             bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
@@ -2731,7 +2730,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         objective.addView(text(formatNumber(data.optLong("playerPower")) + " COMBAT POWER",
                 14, GOLD_BRIGHT, true), new LinearLayout.LayoutParams(0, -2, 1f));
         objective.addView(text(clearedStages + " / " + totalStages + " CLEARED", 8, CYAN, true));
-        ProgressBar campaign = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        ProgressBar campaign = new RealmMeter(this);
         campaign.setMax(Math.max(1, totalStages));
         campaign.setProgress(clearedStages);
         campaign.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
@@ -2937,7 +2936,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 LinearLayout card = sectionPanel();
                 card.addView(text(challenge.optString("title", "Daily challenge"), 11, TEXT, true));
                 card.addView(text(challenge.optString("description", "Daily challenge"), 8, MUTED, false));
-                ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                ProgressBar bar = new RealmMeter(this);
                 bar.setMax(Math.max(1, target));
                 bar.setProgress(Math.min(target, progress));
                 bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
@@ -2978,7 +2977,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                 card.addView(top);
                 card.addView(text(mission.optString("description", "Collector objective"),
                         8, MUTED, false));
-                ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+                ProgressBar bar = new RealmMeter(this);
                 bar.setMax(Math.max(1, target));
                 bar.setProgress(Math.min(target, progress));
                 bar.setProgressTintList(android.content.res.ColorStateList.valueOf(completed ? GREEN : GOLD));
@@ -4146,8 +4145,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         heroCopy.addView(heroTitle);
         heroCopy.addView(text(ownedTypes + " OF " + cards.length() + " UNIQUE DESIGNS COLLECTED",
                 8, GOLD_BRIGHT, true));
-        ProgressBar collectionProgress = new ProgressBar(this, null,
-                android.R.attr.progressBarStyleHorizontal);
+        ProgressBar collectionProgress = new RealmMeter(this);
         collectionProgress.setMax(Math.max(1, cards.length()));
         collectionProgress.setProgress(Math.min(cards.length(), ownedTypes));
         collectionProgress.setProgressTintList(
@@ -4620,7 +4618,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         daily.setBackground(gradient(Color.rgb(43, 39, 89), Color.rgb(11, 17, 35), VIOLET, dp(16)));
         daily.addView(text("EXPEDITION ENERGY", 8, CYAN, true));
         daily.addView(text(remaining + " / " + limit + " ENTRIES REMAINING TODAY", 16, TEXT, true));
-        ProgressBar energy = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        ProgressBar energy = new RealmMeter(this);
         energy.setMax(Math.max(1, limit));
         energy.setProgress(used);
         energy.setProgressTintList(android.content.res.ColorStateList.valueOf(VIOLET));
@@ -4641,7 +4639,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             active.addView(text(run.optString("dungeon_name", "Dungeon"), 19, TEXT, true));
             active.addView(text("FLOOR " + floor + " / " + maxFloors + " · "
                     + (done ? run.optString("result") : "CHOOSE YOUR NEXT CHAMBER"), 8, GOLD_BRIGHT, true));
-            ProgressBar floorBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            ProgressBar floorBar = new RealmMeter(this);
             floorBar.setMax(maxFloors);
             floorBar.setProgress(Math.min(maxFloors, floor));
             floorBar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
@@ -4833,14 +4831,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView kicker=text("WORLD RAID  /  STRIKE CONFIRMED",7,GOLD_BRIGHT,true);kicker.setGravity(Gravity.CENTER);shell.addView(kicker);
         TextView title=text(boss==null?"GUARDIAN HIT":boss.optString("name","WORLD GUARDIAN"),19,TEXT,true);title.setGravity(Gravity.CENTER);title.setMaxLines(2);title.setPadding(0,dp(4),0,dp(7));shell.addView(title);
         FrameLayout stage=new FrameLayout(this);stage.setBackground(gradient(Color.rgb(62,35,62),Color.rgb(13,16,34),accent,dp(14)));
-        RaidBossView art=new RaidBossView(this,accent,reduceMotionEnabled);stage.addView(art,new FrameLayout.LayoutParams(-1,-1));
+        stage.addView(new GuardianPortrait(this,boss==null?"":boss.optString("slug")),new FrameLayout.LayoutParams(-1,-1));
         TextView impact=text("✦",46,GOLD_BRIGHT,true);impact.setGravity(Gravity.CENTER);impact.setShadowLayer(dp(16),0,0,GOLD_BRIGHT);stage.addView(impact,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout.LayoutParams stp=new LinearLayout.LayoutParams(-1,dp(194));stp.bottomMargin=dp(10);shell.addView(stage,stp);
         TextView damageText=text("−"+formatNumber(damage)+" DAMAGE",20,GOLD_BRIGHT,true);damageText.setGravity(Gravity.CENTER);shell.addView(damageText);
         TextView detail=text("Your formation struck the guardian. The realm's shared vitality has been updated.",8,MUTED,false);detail.setGravity(Gravity.CENTER);detail.setLineSpacing(dp(3),1f);detail.setPadding(dp(8),dp(4),dp(8),dp(10));shell.addView(detail);
         TextView close=button("RETURN TO WORLD RAID",true);close.setOnClickListener(v->{dialog.dismiss();refreshAccount(()->renderTab("raids"));});shell.addView(close,new LinearLayout.LayoutParams(-1,dp(42)));
         dialog.setContentView(shell);dialog.setCanceledOnTouchOutside(false);dialog.setOnShowListener(v->{impact.setScaleX(.2f);impact.setScaleY(.2f);impact.setAlpha(0f);
-            impact.animate().scaleX(1.15f).scaleY(1.15f).alpha(.92f).setDuration(350).withEndAction(()->impact.animate().scaleX(1f).scaleY(1f).alpha(.55f).setDuration(480).start()).start();art.playStrike(null);});
+            if(reduceMotionEnabled){impact.setScaleX(1f);impact.setScaleY(1f);impact.setAlpha(.8f);}else impact.animate().scaleX(1.15f).scaleY(1.15f).alpha(.92f).setDuration(350).withEndAction(()->impact.animate().scaleX(1f).scaleY(1f).alpha(.55f).setDuration(480).start()).start();});
         dialog.show();Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(.82f);w.setLayout(Math.min(dp(510),getResources().getDisplayMetrics().widthPixels-dp(30)),ViewGroup.LayoutParams.WRAP_CONTENT);}
     }
 
@@ -4860,6 +4858,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             else if (boss.optBoolean("defeated")) defeatedCount++;
             else scheduledCount++;
         }
+        addRealmScene("raid","WORLD RAID","Guardians of the Firstlight Realm",defeatedCount,bosses.length());
         addRaidHeader(featuredBoss, bosses.length(), liveCount, scheduledCount, defeatedCount);
         for (int i = 0; i < bosses.length(); i++) {
             JSONObject boss = bosses.optJSONObject(i);
@@ -4868,21 +4867,20 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (reward == null) reward = new JSONObject();
             boolean live = boss.optBoolean("is_event_open");
             boolean defeated = boss.optBoolean("defeated");
-            int accent = defeated ? CYAN : live ? PINK : GOLD_BRIGHT;
+            int accent = GuardianPortrait.color(boss.optString("slug"));
             LinearLayout panel = sectionPanel();
             panel.setPadding(dp(14), dp(13), dp(14), dp(13));
             panel.setBackground(gradient(Color.rgb(48, 35, 68), Color.rgb(9, 16, 34), accent, dp(18)));
             LinearLayout header = new LinearLayout(this);
-            header.setOrientation(LinearLayout.HORIZONTAL);
-            header.setGravity(Gravity.CENTER_VERTICAL);
+            header.setOrientation(LinearLayout.VERTICAL);
             FrameLayout portrait = new FrameLayout(this);
-            portrait.setBackground(gradient(Color.rgb(105, 52, 89), Color.rgb(24, 21, 49), accent, dp(15)));
-            RaidBossView bossArt = new RaidBossView(this, accent, reduceMotionEnabled);
-            portrait.addView(bossArt, new FrameLayout.LayoutParams(-1, -1));
-            header.addView(portrait, new LinearLayout.LayoutParams(dp(96), dp(108)));
+            portrait.setBackground(gradient(Color.rgb(105, 52, 89), Color.rgb(24, 21, 49), accent, dp(12)));
+            portrait.setClipToOutline(true);
+            portrait.addView(new GuardianPortrait(this,boss.optString("slug")),new FrameLayout.LayoutParams(-1,-1));
+            header.addView(portrait,new LinearLayout.LayoutParams(-1,dp(160)));
             LinearLayout title = new LinearLayout(this);
             title.setOrientation(LinearLayout.VERTICAL);
-            title.setPadding(dp(12), 0, 0, 0);
+            title.setPadding(0, dp(9), 0, 0);
             TextView state = text((defeated ? "✓  DEFEATED" : live ? "●  LIVE ENCOUNTER" : "◷  SCHEDULED"),
                     7, accent, true);
             state.setPadding(dp(8), dp(5), dp(8), dp(5));
@@ -4893,7 +4891,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             TextView description = text(boss.optString("description", ""), 8, MUTED, false);
             description.setMaxLines(3);
             title.addView(description);
-            header.addView(title, new LinearLayout.LayoutParams(0, -2, 1f));
+            header.addView(title, new LinearLayout.LayoutParams(-1, -2));
             panel.addView(header);
             addGap(panel, 6);
             LinearLayout hpInfo = new LinearLayout(this);
@@ -4903,9 +4901,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             hpInfo.addView(text(formatNumber(boss.optLong("remaining_hp")) + " / "
                     + formatNumber(boss.optLong("hp")) + " HP", 9, TEXT, true));
             panel.addView(hpInfo);
-            ProgressBar hp = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            ProgressBar hp = new RealmMeter(this);
             hp.setMax(100);
-            hp.setProgress(Math.max(0, Math.min(100, boss.optInt("progress_percent"))));
+            hp.setProgress((int)Math.max(0,Math.min(100,Math.round(100d*boss.optLong("remaining_hp")/Math.max(1L,boss.optLong("hp"))))));
             hp.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
             LinearLayout.LayoutParams hpParams = new LinearLayout.LayoutParams(-1, dp(10));
             hpParams.topMargin = dp(5);
@@ -5882,7 +5880,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             info.addView(text(rarity+"  ·  "+c.optString("element","AETHER"),9,accent,true));info.addView(text(c.optString("name","Card"),15,TEXT,true));
             info.addView(text(starMarks(c.optInt("star_rank")),15,GOLD_BRIGHT,true));int level=c.optInt("level",1);
             info.addView(text("LEVEL "+level+" / "+max,10,CYAN,true));
-            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(max);bar.setProgress(Math.min(max,level));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));
+            ProgressBar bar=new RealmMeter(this);bar.setMax(max);bar.setProgress(Math.min(max,level));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));
             info.addView(text(formatNumber(c.optLong("card_power"))+" POWER  ·  "+c.optInt("copies_available")+" COPIES",9,MUTED,true));head.addView(info,new LinearLayout.LayoutParams(0,-2,1f));panel.addView(head);
             TextView action=button("OPEN ASCENSION  ›",true);action.setOnClickListener(v->showEvolutionCardDialog(c,walletSnapshot,max));addGap(panel,9);panel.addView(action,new LinearLayout.LayoutParams(-1,dp(43)));content.addView(panel,rowParams());rows.add(panel);
             keys.add((c.optString("name")+" "+rarity+" "+c.optString("element")+" "+c.optString("card_code")).toLowerCase(java.util.Locale.ROOT));
@@ -5985,11 +5983,21 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView choose = button(index < 0 ? "Deck unavailable · choose again" : names.get(index), false);
         choose.setTextSize(12);
         panel.addView(choose, rowParams());
-        choose.setOnClickListener(v -> showChoiceDialog(label, "Choose from your saved decks.",
-                names.toArray(new String[0]), selected -> {
-                    preferences.edit().putString(key, ids.get(selected)).apply();
-                    choose.setText(names.get(selected));
-                }));
+        choose.setOnClickListener(v -> {
+            android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+            LinearLayout shell=phase11Sheet("BATTLE LOADOUT",label,"Select the deck used for this mode.",VIOLET);
+            ScrollView scroll=new ScrollView(this);LinearLayout rows=new LinearLayout(this);rows.setOrientation(LinearLayout.VERTICAL);
+            scroll.addView(rows);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+            String saved=preferences.getString(key,"");
+            for(int i=0;i<ids.size();i++){
+                final int choice=i;boolean selected=ids.get(i).equals(saved);
+                TextView item=button((selected?"✦  ":"◇  ")+names.get(i)+(selected?"  ·  SELECTED":"  ›"),selected);
+                rows.addView(item,new LinearLayout.LayoutParams(-1,dp(54)));addGap(rows,7);
+                item.setOnClickListener(x->{preferences.edit().putString(key,ids.get(choice)).apply();choose.setText(names.get(choice));dialog.dismiss();});
+            }
+            TextView cancel=button("CLOSE",false);cancel.setOnClickListener(x->dialog.dismiss());shell.addView(cancel,new LinearLayout.LayoutParams(-1,dp(44)));
+            phase11ShowSheet(dialog,shell,440);
+        });
     }
 
     private void renderFormation(JSONObject data) {
@@ -6067,18 +6075,47 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             deckNames[0] = "Main Deck";
             deckIds[0] = "";
         }
-        Spinner deckSelector = new Spinner(this);
-        ArrayAdapter<String> deckAdapter = new ArrayAdapter<>(
-                this, android.R.layout.simple_spinner_item, deckNames);
-        deckAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        deckSelector.setAdapter(deckAdapter);
-        deckSelector.setBackground(gradient(Color.rgb(22, 31, 52), Color.rgb(9, 15, 28),
-                Color.rgb(157, 132, 222), dp(9)));
-        deckSelector.setPadding(dp(9), 0, dp(9), 0);
-        deckSelector.setSelection(selectedDeck);
-        LinearLayout.LayoutParams selectorParams = new LinearLayout.LayoutParams(-1, dp(42));
-        selectorParams.topMargin = dp(7);
-        deckPanel.addView(deckSelector, selectorParams);
+        final int activeIndex=selectedDeck;
+        final boolean[] switching={false};
+        TextView selectedLabel=text("ACTIVE FORMATION",9,GOLD_BRIGHT,true);
+        deckPanel.addView(selectedLabel);
+        HorizontalScrollView deckShelf=new HorizontalScrollView(this);deckShelf.setHorizontalScrollBarEnabled(false);deckShelf.setFillViewport(false);
+        LinearLayout shelf=new LinearLayout(this);shelf.setOrientation(LinearLayout.HORIZONTAL);
+        deckShelf.addView(shelf,new HorizontalScrollView.LayoutParams(-2,-2));
+        for(int i=0;i<deckNames.length;i++){
+            final int index=i;boolean active=i==activeIndex;
+            JSONObject deck=i<deckItems.size()?deckItems.get(i):null;
+            JSONArray lineup=deck==null?null:deck.optJSONArray("cards");
+            LinearLayout plaque=new LinearLayout(this);plaque.setOrientation(LinearLayout.VERTICAL);
+            plaque.setPadding(dp(10),dp(9),dp(10),dp(9));
+            int accent=active?GOLD_BRIGHT:VIOLET;
+            plaque.setBackground(gradient(Color.rgb(active?64:32,active?49:37,active?37:59),Color.rgb(9,15,29),accent,dp(12)));
+            plaque.addView(text(active?"✦  ACTIVE DECK":"SAVED DECK  "+(i+1),8,accent,true));
+            TextView deckTitle=text(deckNames[i],14,TEXT,true);deckTitle.setSingleLine(true);deckTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);plaque.addView(deckTitle);
+            LinearLayout preview=new LinearLayout(this);preview.setOrientation(LinearLayout.HORIZONTAL);
+            for(int slot=0;slot<5;slot++){
+                JSONObject c=lineup==null?null:cardsById.get(lineup.optString(slot,""));
+                View art;
+                if(c!=null)art=phase11Art(c,cardRarityColor(c.optString("rarity","COMMON")));
+                else{TextView empty=text("◇",15,MUTED,true);empty.setGravity(Gravity.CENTER);empty.setBackground(gradient(Color.rgb(23,31,47),Color.rgb(9,14,24),Color.rgb(59,72,94),dp(5)));art=empty;}
+                LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(0,dp(55),1f);ap.setMargins(dp(2),0,dp(2),0);preview.addView(art,ap);
+            }
+            addGap(plaque,5);plaque.addView(preview);addGap(plaque,5);
+            TextView action=button(active?"CURRENT FORMATION":"ACTIVATE DECK  ›",active);action.setEnabled(!active&&!deckIds[i].isEmpty());plaque.addView(action,new LinearLayout.LayoutParams(-1,dp(40)));
+            action.setOnClickListener(v->{
+                if(switching[0]||index==activeIndex||deckIds[index].isEmpty())return;
+                switching[0]=true;action.setEnabled(false);action.setText("SWITCHING…");
+                final int request=activePageRequest;
+                api.post("/api/decks/"+Uri.encode(deckIds[index])+"/activate",new JSONObject(),result->ui.post(()->{
+                    switching[0]=false;
+                    if(request!=activePageRequest||!"formation".equals(activeTab))return;
+                    if(!result.ok()){action.setEnabled(true);action.setText("ACTIVATE DECK  ›");showResultDialog("TEAM SWITCH FAILED",result.error);return;}
+                    renderTab("formation");
+                }));
+            });
+            LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(dp(236),-2);pp.setMargins(0,dp(5),dp(8),dp(5));shelf.addView(plaque,pp);
+        }
+        deckPanel.addView(deckShelf,new LinearLayout.LayoutParams(-1,-2));
         EditText deckName = editField("Deck name (e.g. Fire Team, Arena Team)", false);
         deckName.setSingleLine(true);
         deckName.setText(activeDeckName);
@@ -6167,24 +6204,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         content.addView(lineupScroll,rowParams());
         content.addView(comboPreview,rowParams());refreshPhase15Combos(comboPreview,slotCardIds,comboRevision);
 
-        final boolean[] selectorReady = {false};
-        deckSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                if (!selectorReady[0]) { selectorReady[0] = true; return; }
-                if (position < 0 || position >= deckIds.length || deckIds[position].isEmpty()) return;
-                String targetId = deckIds[position];
-                api.post("/api/decks/" + Uri.encode(targetId) + "/activate", new JSONObject(), result -> ui.post(() -> {
-                    if (!result.ok()) {
-                        showResultDialog("TEAM SWITCH FAILED", result.error);
-                        return;
-                    }
-                    renderTab("formation");
-                }));
-            }
-            @Override public void onNothingSelected(AdapterView<?> parent) {}
-        });
-
         Runnable collectAndSave = () -> {
+            if(switching[0])return;
             JSONArray chosen = new JSONArray();
             java.util.HashSet<String> unique = new java.util.HashSet<>();
             for (String cardId : slotCardIds) {
@@ -6202,7 +6223,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 return;
             }
             JSONObject target = deckItems.isEmpty() ? null : deckItems.get(Math.max(0,
-                    Math.min(deckItems.size() - 1, deckSelector.getSelectedItemPosition())));
+                    Math.min(deckItems.size() - 1, activeIndex)));
             if (target == null || target.optString("deck_id", "").isEmpty()) {
                 api.post("/api/decks", payload("name", name, "cards", chosen), result ->
                         ui.post(() -> {
@@ -6228,6 +6249,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         };
         saveDeck.setOnClickListener(v -> collectAndSave.run());
         saveAs.setOnClickListener(v -> {
+            if(switching[0])return;
             JSONArray chosen = new JSONArray();
             java.util.HashSet<String> unique = new java.util.HashSet<>();
             for (String cardId : slotCardIds) {
@@ -6259,7 +6281,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         });
         deleteDeck.setEnabled(deckItems.size() > 1);
         deleteDeck.setOnClickListener(v -> {
-            int position = deckSelector.getSelectedItemPosition();
+            if(switching[0])return;
+            int position = activeIndex;
             if (position < 0 || position >= deckIds.length || deckIds[position].isEmpty()) return;
             String deckId = deckIds[position];
             String name = deckNames[position];
@@ -6613,7 +6636,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             details.addView(description);
             LinearLayout progressLine = new LinearLayout(this);
             progressLine.setGravity(Gravity.CENTER_VERTICAL);
-            ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            ProgressBar bar = new RealmMeter(this);
             bar.setMax(100);
             bar.setProgress(pct);
             bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
@@ -6683,7 +6706,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         heading.addView(levelCopy, new LinearLayout.LayoutParams(0, -2, 1f));
         hero.addView(heading);
         addGap(hero, 10);
-        ProgressBar xpBar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        ProgressBar xpBar = new RealmMeter(this);
         xpBar.setMax(100);
         xpBar.setProgress(maxLevel ? 100 : Math.min(100, Math.round(xp * 100f / need)));
         xpBar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));
@@ -6817,7 +6840,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             TextView description = text(eventDefinition.optString("description", "Claim a reward for every event day."),
                     8, MUTED, false);
             journey.addView(description);
-            ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+            ProgressBar bar = new RealmMeter(this);
             bar.setMax(Math.max(1, rewards.length()));
             bar.setProgress(Math.min(rewards.length(), Math.max(0, day)));
             bar.setProgressTintList(android.content.res.ColorStateList.valueOf(PINK));
@@ -7577,7 +7600,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             if (result.ok()) {
                 acceptMe(result.data);
                 if (accountLabel != null) accountLabel.setText(me.optString("display_name", "Collector"));
-                if (currencyLabel != null) currencyLabel.setText("LV " + formatNumber(me.optLong("collector_level", 1)) + "  ·  " + walletLine());
+                if (currencyLabel != null) currencyLabel.setText("LV " + formatNumber(me.optLong("collector_level", 1)) + "  ·  PROFILE");
             }
             if (after != null) after.run();
         }));
@@ -7610,7 +7633,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             }
             acceptMe(result.data);
             if (accountLabel != null) accountLabel.setText(me.optString("display_name", "Collector"));
-            if (currencyLabel != null) currencyLabel.setText("LV " + formatNumber(me.optLong("collector_level", 1)) + "  ·  " + walletLine());
+            if (currencyLabel != null) currencyLabel.setText("LV " + formatNumber(me.optLong("collector_level", 1)) + "  ·  PROFILE");
             api.get("/api/progression", progressResult -> ui.post(() -> {
                 if (progressResult.ok()) progression = progressResult.data;
                 syncingAccount = false;
@@ -8012,18 +8035,25 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private void showPlayerProfile() {
         if(me==null)return;
         android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
-        LinearLayout shell=phase11Sheet("COLLECTOR PASSPORT","Your collector profile","",GOLD_BRIGHT);
+        LinearLayout shell=phase11Sheet("FIRSTLIGHT REALM","Collector Passport","",GOLD_BRIGHT);
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
         LinearLayout hero=new LinearLayout(this);hero.setOrientation(LinearLayout.VERTICAL);hero.setGravity(Gravity.CENTER_HORIZONTAL);hero.setPadding(dp(13),dp(15),dp(13),dp(15));hero.setBackground(gradient(Color.rgb(47,44,66),Color.rgb(13,23,41),GOLD_BRIGHT,dp(16)));
         FrameLayout crest=phase11Avatar(me.optString("display_name","Collector"),me.optString("avatarUrl",me.optString("avatar_url","")),GOLD_BRIGHT);
-        hero.addView(crest,new LinearLayout.LayoutParams(dp(84),dp(84)));addGap(hero,7);
+        RealmSceneView backdrop=new RealmSceneView(this,"records","COLLECTOR PASSPORT","Your legacy in the realm",0,0);
+        backdrop.setMotionEnabled(!reduceMotionEnabled);
+        hero.addView(backdrop,new LinearLayout.LayoutParams(-1,dp(88)));
+        hero.addView(crest,new LinearLayout.LayoutParams(dp(80),dp(80)));addGap(hero,5);
         TextView rank=text(isGodModeEnabled()?"MASTER COLLECTOR  ·  GOD MODE":"FIRSTLIGHT COLLECTOR",9,GOLD_BRIGHT,true);rank.setGravity(Gravity.CENTER);hero.addView(rank);
         TextView name=text(me.optString("display_name","Collector"),22,TEXT,true);name.setGravity(Gravity.CENTER);name.setMaxLines(2);hero.addView(name);
         TextView handle=text("@"+me.optString("username","collector"),11,CYAN,true);handle.setGravity(Gravity.CENTER);hero.addView(handle);
         TextView title=text("LEVEL "+formatNumber(me.optLong("collector_level",1))+"  ·  "+me.optString("role","collector").toUpperCase(java.util.Locale.ROOT),11,GOLD_BRIGHT,true);title.setGravity(Gravity.CENTER);hero.addView(title);
         if(me.optBoolean("is_beta_tester")){TextView beta=text("BETA TESTER  ·  RANKED BOT ONLY",9,VIOLET,true);hero.addView(beta);}
         TextView equipped=text("",12,VIOLET,true);equipped.setGravity(Gravity.CENTER);equipped.setVisibility(View.GONE);hero.addView(equipped);
-        TextView email=text(me.optString("email","Account email unavailable"),10,MUTED,false);email.setGravity(Gravity.CENTER);hero.addView(email);
+        int level=Math.max(1,me.optInt("collector_level",1));int xp=Math.max(0,me.optInt("collector_xp",0));
+        int need=100+Math.max(0,level-1)*50;
+        TextView xpLabel=text(level>=1000?"MAX LEVEL":formatNumber(xp)+" / "+formatNumber(need)+" XP",10,GOLD_BRIGHT,true);xpLabel.setGravity(Gravity.CENTER);hero.addView(xpLabel);
+        ProgressBar xpMeter=new RealmMeter(this);xpMeter.setMax(Math.max(1,need));xpMeter.setProgress(level>=1000?need:Math.min(xp,need));xpMeter.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));
+        LinearLayout.LayoutParams meterParams=new LinearLayout.LayoutParams(-1,dp(12));meterParams.setMargins(dp(18),dp(3),dp(18),0);hero.addView(xpMeter,meterParams);
         body.addView(hero);addGap(body,12);
         JSONObject wallet=me.optJSONObject("wallet"),collection=me.optJSONObject("collection");if(wallet==null)wallet=new JSONObject();if(collection==null)collection=new JSONObject();
         body.addView(text("COLLECTION",11,GOLD_BRIGHT,true));addGap(body,5);LinearLayout stats=new LinearLayout(this);
@@ -8038,6 +8068,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView edit=button("EDIT PROFILE  ›",true);edit.setOnClickListener(v->{dialog.dismiss();showProfileEditor();});body.addView(edit,new LinearLayout.LayoutParams(-1,dp(47)));addGap(body,7);
         LinearLayout actions=new LinearLayout(this);TextView friends=button("FRIENDS",false),settings=button("SETTINGS",false);actions.addView(friends,new LinearLayout.LayoutParams(0,dp(46),1f));
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(46),1f);sp.leftMargin=dp(7);actions.addView(settings,sp);friends.setOnClickListener(v->{dialog.dismiss();renderTab("friends");});settings.setOnClickListener(v->{dialog.dismiss();renderTab("settings");});body.addView(actions);
+        addGap(body,8);TextView email=text(me.optString("email","Account email unavailable"),10,MUTED,false);email.setGravity(Gravity.CENTER);body.addView(email);
         addGap(body,9);TextView privacy=text(isAdminAccount()?"ADMIN ACCESS  ·  GAMEPLAY MATCHMAKING DISABLED":"ACCOUNT DATA SAVED TO CARDUNIVERSE CLOUD",9,MUTED,true);privacy.setGravity(Gravity.CENTER);body.addView(privacy);
         TextView close=button("CLOSE",false);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(44)));
         phase11ShowSheet(dialog,shell,660);
@@ -8053,10 +8084,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
         panel.setBackground(gradient(Color.rgb(31, 42, 65), Color.rgb(13, 20, 35), accent, dp(10)));
-        panel.addView(text(label, 7, accent, true));
+        panel.setPadding(dp(4),dp(3),dp(4),dp(3));
+        TextView caption=text(label,8,accent,true);caption.setGravity(Gravity.CENTER);caption.setMaxLines(2);panel.addView(caption);
         TextView amount = text(value, 17, TEXT, true);
+        amount.setGravity(Gravity.CENTER);amount.setSingleLine(true);amount.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        if(android.os.Build.VERSION.SDK_INT>=26)amount.setAutoSizeTextTypeUniformWithConfiguration(9,18,1,android.util.TypedValue.COMPLEX_UNIT_SP);
+        else amount.setTextSize(12);
         amount.setPadding(0, dp(3), 0, 0);
-        panel.addView(amount);
+        panel.addView(amount,new LinearLayout.LayoutParams(-1,-2));
         return panel;
     }
 
@@ -8781,7 +8816,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         LinearLayout formation=sectionPanel();phase15Heading(formation,"MAIN FORMATION");JSONArray cards=data.optJSONArray("formation");HorizontalScrollView sc=new HorizontalScrollView(this);sc.setHorizontalScrollBarEnabled(false);LinearLayout strip=new LinearLayout(this);sc.addView(strip);
         if(cards!=null)for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c==null)continue;LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(dp(4),0,dp(4),0);tile.addView(phase11Art(c,cardRarityColor(c.optString("rarity","COMMON"))),new LinearLayout.LayoutParams(dp(85),dp(118)));TextView n=text(c.optString("name"),9,TEXT,true);n.setMaxLines(2);tile.addView(n);strip.addView(tile,new LinearLayout.LayoutParams(dp(94),-2));}formation.addView(sc);
         if(cards==null||cards.length()==0)formation.addView(text("No formation saved.",10,MUTED,false));content.addView(formation,rowParams());
-        LinearLayout completion=sectionPanel();phase15Heading(completion,"BINDER / SET COMPLETION");JSONArray sets=data.optJSONArray("sets");if(sets!=null)for(int i=0;i<sets.length();i++){JSONObject set=sets.optJSONObject(i);if(set==null)continue;int total=Math.max(1,set.optInt("total")),owned=set.optInt("collected");completion.addView(text(set.optString("name")+"  ·  "+owned+" / "+total,11,TEXT,true));ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(total);bar.setProgress(Math.min(owned,total));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));completion.addView(bar,new LinearLayout.LayoutParams(-1,dp(8)));addGap(completion,5);}content.addView(completion,rowParams());
+        LinearLayout completion=sectionPanel();phase15Heading(completion,"BINDER / SET COMPLETION");JSONArray sets=data.optJSONArray("sets");if(sets!=null)for(int i=0;i<sets.length();i++){JSONObject set=sets.optJSONObject(i);if(set==null)continue;int total=Math.max(1,set.optInt("total")),owned=set.optInt("collected");completion.addView(text(set.optString("name")+"  ·  "+owned+" / "+total,11,TEXT,true));ProgressBar bar=new RealmMeter(this);bar.setMax(total);bar.setProgress(Math.min(owned,total));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));completion.addView(bar,new LinearLayout.LayoutParams(-1,dp(8)));addGap(completion,5);}content.addView(completion,rowParams());
         LinearLayout rank=sectionPanel();phase15Heading(rank,"HIGHEST RANK");JSONObject best=data.optJSONObject("best_rank");rank.addView(text(best==null?"Unranked":best.optString("tier")+"  ·  "+best.optInt("rating")+" Rating",17,GOLD_BRIGHT,true));content.addView(rank,rowParams());
         phase15ShowcaseList("EARNED TITLES",data.optJSONArray("titles"),"name");
         renderPhase17AchievementShowcase(own,data.optString("username",""));
@@ -8829,7 +8864,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 if(editable){
                     int goal=Math.max(0,g.optInt("target")),progress=Math.max(0,g.optInt("progress"));
                     if(goal>0){
-                        ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);
+                        ProgressBar bar=new RealmMeter(this);
                         bar.setMax(goal);bar.setProgress(Math.min(goal,progress));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
                         info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));
                     }
@@ -8883,7 +8918,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         String week=calendar==null?"":calendar.optString("week");int best=data.optInt("best");boolean viewOnly=data.optBoolean("view_only");
         addModeSpotlight("WEEKLY ASCENSION","Floor "+best+" / 20",calendar==null?"Weekly challenge":"Week of "+week+"  ·  Resets "+calendar.optString("next_week"),"♜",GOLD_BRIGHT);
         LinearLayout event=sectionPanel();phase15Heading(event,"ACTIVE WEEKLY MODIFIER");if(modifier!=null){event.addView(text(modifier.optString("name"),17,CYAN,true));event.addView(text(modifier.optString("description"),11,MUTED,false));}content.addView(event,rowParams());
-        LinearLayout progress=sectionPanel();progress.addView(text("TOWER PROGRESS  ·  "+best+" / 20",11,GOLD_BRIGHT,true));ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(20);bar.setProgress(best);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));progress.addView(bar,new LinearLayout.LayoutParams(-1,dp(9)));content.addView(progress,rowParams());
+        LinearLayout progress=sectionPanel();progress.addView(text("TOWER PROGRESS  ·  "+best+" / 20",11,GOLD_BRIGHT,true));ProgressBar bar=new RealmMeter(this);bar.setMax(20);bar.setProgress(best);bar.setProgressTintList(android.content.res.ColorStateList.valueOf(GOLD_BRIGHT));progress.addView(bar,new LinearLayout.LayoutParams(-1,dp(9)));content.addView(progress,rowParams());
         if(viewOnly)showNotice("This account can view the Tower but cannot challenge floors.");
         JSONArray formation=data.optJSONArray("formation");int teamSize=formation==null?0:formation.length();boolean trio=modifier!=null&&"TRIO_LIMIT".equals(modifier.optString("key"));boolean ready=teamSize>0&&(!trio||teamSize<=3);
         TextView team=button("FORMATION  ·  "+teamSize+" CARDS  ›",false);team.setOnClickListener(v->renderTab("formation"));content.addView(team,new LinearLayout.LayoutParams(-1,dp(44)));
@@ -8936,7 +8971,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             row.addView(phase11Art(card,accent),new LinearLayout.LayoutParams(dp(75),dp(105)));
             LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,0,0);info.addView(text(card.optString("rarity"),9,accent,true));info.addView(text(card.optString("name"),14,TEXT,true));
             info.addView(text("✦ MASTERY "+level+" / 5",11,VIOLET,true));int uses=card.optInt("uses"),next=level>=5?120:masteryThresholds[level];
-            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(next);bar.setProgress(Math.min(uses,next));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(VIOLET));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));info.addView(text(uses+" uses · "+card.optString("skin","STANDARD"),10,MUTED,false));row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));row.setOnClickListener(v->showPhase16Card(card,limited));content.addView(row,rowParams());rows.add(row);keys.add((card.optString("name")+" "+card.optString("card_code")+" "+card.optString("rarity")).toLowerCase(java.util.Locale.ROOT));if(card.optString("card_id").equals(phase16OpenCardId))openCard=card;}
+            ProgressBar bar=new RealmMeter(this);bar.setMax(next);bar.setProgress(Math.min(uses,next));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(VIOLET));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));info.addView(text(uses+" uses · "+card.optString("skin","STANDARD"),10,MUTED,false));row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));row.setOnClickListener(v->showPhase16Card(card,limited));content.addView(row,rowParams());rows.add(row);keys.add((card.optString("name")+" "+card.optString("card_code")+" "+card.optString("rarity")).toLowerCase(java.util.Locale.ROOT));if(card.optString("card_id").equals(phase16OpenCardId))openCard=card;}
         TextView empty=text("No matching owned cards.",11,MUTED,false);empty.setVisibility(rows.isEmpty()?View.VISIBLE:View.GONE);content.addView(empty);
         search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){String q=s.toString().trim().toLowerCase(java.util.Locale.ROOT);int n=0;for(int i=0;i<rows.size();i++){boolean show=keys.get(i).contains(q);rows.get(i).setVisibility(show?View.VISIBLE:View.GONE);if(show)n++;}empty.setVisibility(n==0?View.VISIBLE:View.GONE);}public void afterTextChanged(Editable e){}});
         phase16OpenCardId="";if(openCard!=null)showPhase16Card(openCard,limited);
@@ -8971,7 +9006,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         boolean boss="GLOBAL_BOSS".equals(event.optString("key")),done=event.optBoolean("completed"),claimed=event.optBoolean("claimed");int target=Math.max(1,event.optInt("target")),progress=Math.max(0,event.optInt("progress"));
         addModeSpotlight("LIVE WORLD EVENT",event.optString("name"),event.optString("description"),"✺",PINK);
         LinearLayout goal=sectionPanel();phase15Heading(goal,boss?"SHARED BOSS HP":"COMMUNITY PROGRESS");goal.addView(text(boss?formatNumber(event.optLong("remaining"))+" / "+formatNumber(target)+" HP":formatNumber(progress)+" / "+formatNumber(target)+" POINTS",19,GOLD_BRIGHT,true));
-        ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(target);bar.setProgress(boss?Math.max(0,target-progress):Math.min(target,progress));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(boss?RED:GREEN));goal.addView(bar,new LinearLayout.LayoutParams(-1,dp(10)));goal.addView(text("Weekly reset · "+event.optString("next_week")+" (Malaysia time)",10,MUTED,false));goal.addView(text("YOUR CONTRIBUTION  ·  "+formatNumber(event.optLong("personal")),12,CYAN,true));content.addView(goal,rowParams());
+        ProgressBar bar=new RealmMeter(this);bar.setMax(target);bar.setProgress(boss?Math.max(0,target-progress):Math.min(target,progress));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(boss?RED:GREEN));goal.addView(bar,new LinearLayout.LayoutParams(-1,dp(10)));goal.addView(text("Weekly reset · "+event.optString("next_week")+" (Malaysia time)",10,MUTED,false));goal.addView(text("YOUR CONTRIBUTION  ·  "+formatNumber(event.optLong("personal")),12,CYAN,true));content.addView(goal,rowParams());
         LinearLayout reward=sectionPanel();phase15Heading(reward,"LIMITED COSMETIC REWARD");reward.addView(text("✦  "+event.optString("reward_name"),15,VIOLET,true));reward.addView(text("Earned by participating and completing the shared goal before reset.",10,MUTED,false));
         TextView claim=button(claimed?"✓ CLAIMED":done?"CLAIM LIMITED FRAME":"GOAL IN PROGRESS",done&&!claimed);claim.setEnabled(done&&!claimed&&event.optLong("personal")>0&&!isAdminAccount());reward.addView(claim,new LinearLayout.LayoutParams(-1,dp(44)));claim.setOnClickListener(v->{claim.setEnabled(false);api.post("/api/world-events/claim",payload("week",event.optString("week")),r->ui.post(()->{if(!r.ok()){claim.setEnabled(true);showResultDialog("Reward unavailable",r.error);return;}renderTab("world_events");}));});content.addView(reward,rowParams());
         phase15Heading(content,"CONTRIBUTE THROUGH THE REALM");
