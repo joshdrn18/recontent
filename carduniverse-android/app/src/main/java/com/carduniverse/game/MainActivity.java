@@ -8068,6 +8068,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView edit=button("EDIT PROFILE  ›",true);edit.setOnClickListener(v->{dialog.dismiss();showProfileEditor();});body.addView(edit,new LinearLayout.LayoutParams(-1,dp(47)));addGap(body,7);
         LinearLayout actions=new LinearLayout(this);TextView friends=button("FRIENDS",false),settings=button("SETTINGS",false);actions.addView(friends,new LinearLayout.LayoutParams(0,dp(46),1f));
         LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(46),1f);sp.leftMargin=dp(7);actions.addView(settings,sp);friends.setOnClickListener(v->{dialog.dismiss();renderTab("friends");});settings.setOnClickListener(v->{dialog.dismiss();renderTab("settings");});body.addView(actions);
+        addGap(body,8);TextView email=text(me.optString("email","Account email unavailable"),10,MUTED,false);email.setGravity(Gravity.CENTER);body.addView(email);
         addGap(body,9);TextView privacy=text(isAdminAccount()?"ADMIN ACCESS  ·  GAMEPLAY MATCHMAKING DISABLED":"ACCOUNT DATA SAVED TO CARDUNIVERSE CLOUD",9,MUTED,true);privacy.setGravity(Gravity.CENTER);body.addView(privacy);
         TextView close=button("CLOSE",false);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(44)));
         phase11ShowSheet(dialog,shell,660);
@@ -8087,7 +8088,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView caption=text(label,8,accent,true);caption.setGravity(Gravity.CENTER);caption.setMaxLines(2);panel.addView(caption);
         TextView amount = text(value, 17, TEXT, true);
         amount.setGravity(Gravity.CENTER);amount.setSingleLine(true);amount.setEllipsize(android.text.TextUtils.TruncateAt.END);
-        amount.setAutoSizeTextTypeUniformWithConfiguration(9,18,1,android.util.TypedValue.COMPLEX_UNIT_SP);
+        if(android.os.Build.VERSION.SDK_INT>=26)amount.setAutoSizeTextTypeUniformWithConfiguration(9,18,1,android.util.TypedValue.COMPLEX_UNIT_SP);
+        else amount.setTextSize(12);
         amount.setPadding(0, dp(3), 0, 0);
         panel.addView(amount,new LinearLayout.LayoutParams(-1,-2));
         return panel;
