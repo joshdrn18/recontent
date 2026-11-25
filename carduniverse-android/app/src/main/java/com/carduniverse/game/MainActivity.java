@@ -1037,6 +1037,7 @@ public final class MainActivity extends Activity {
         addHomePortal(portals, "tower", "♜", "WEEKLY TOWER", "Twenty floors and rotating challenges", "CLIMB", GOLD_BRIGHT);
         content.addView(portalsScroll, rowParams());
         content.addView(featureCard("♜", "Weekly Challenge Tower", "20 floors · weekly modifiers · exclusive rewards", () -> renderTab("tower")), rowParams());
+        content.addView(featureCard("✺", "World Events", "Join the realm-wide weekly challenge", () -> renderTab("world_events")), rowParams());
 
         LinearLayout extras = new LinearLayout(this);
         extras.setOrientation(LinearLayout.HORIZONTAL);
@@ -1094,6 +1095,8 @@ public final class MainActivity extends Activity {
 
     private void renderModule(String tab, JSONObject data) {
         switch (tab) {
+            case "mastery": renderPhase16Mastery(data); break;
+            case "world_events": renderPhase16World(data); break;
             case "tower": renderPhase15Tower(data); break;
             case "showcase": renderPhase15Showcase(data); break;
             case "wallet_history": renderPhase15Wallet(data); break;
@@ -2335,13 +2338,14 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
             matchHeader.addView(text("⚔  VS  ⚔", 13, GOLD_BRIGHT, true));
             content.addView(matchHeader, rowParams());
+            addPhase16ReconnectTimer(active);
 
             FrameLayout battleStage = createArenaBattleStage(active);
             content.addView(battleStage, rowParams());
 
 
 
-            String myMove = active.optString("myMove", "");
+            String myMove = active.isNull("myMove")?"":active.optString("myMove", "");
             if (myMove.isEmpty()) {
                 content.addView(createArenaMoveHand(active), rowParams());
             } else {
@@ -2585,7 +2589,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             TextView label=text(c[0],11,TEXT,true);label.setGravity(Gravity.CENTER);face.addView(label);TextView desc=text(c[2],7,MUTED,false);desc.setGravity(Gravity.CENTER);desc.setMaxLines(2);desc.setPadding(0,dp(3),0,dp(4));face.addView(desc);
             TextView play=text("PLAY ACTION  ›",6,tint,true);play.setGravity(Gravity.CENTER);play.setPadding(0,dp(5),0,0);face.addView(play);card.addView(face,new FrameLayout.LayoutParams(-1,-1));
             card.setClickable(true);card.setFocusable(true);card.setOnClickListener(v->{card.animate().scaleX(.96f).scaleY(.96f).setDuration(75).withEndAction(()->card.animate().scaleX(1f).scaleY(1f).setDuration(140).start()).start();
-                confirmAction("Play "+c[0]+"?","Your selected action is locked for this turn once submitted.",()->submitArenaMove(active.optString("match_id"),c[0]));});
+                confirmAction("Play "+c[0]+"?","Your selected action is locked for this turn once submitted.",()->submitArenaMove(active.optString("match_id"),c[0],active.optInt("current_turn")));});
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(112),dp(145));p.setMargins(dp(4),0,dp(4),0);row.addView(card,p);}
         holder.addView(scroll);return holder;
     }
@@ -4069,6 +4073,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         addRealmScene("archive", "THE CARD ARCHIVE",
                 "Every discovery is catalogued in the Firstlight collection.", ownedTypes,
                 Math.max(1, cards.length()));
+        addPhase13Link("Card Mastery & Skins", "Earn cosmetic milestones and equip visual effects.", () -> renderTab("mastery"));
         addPhase13Link("Card Encyclopedia", "Look up any card, including cards you haven't collected.",
                 () -> renderTab("encyclopedia"));
 
@@ -4349,6 +4354,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
     private String cardArtworkPath(JSONObject card) {
         if (card == null) return "";
+        if("ALTERNATE".equals(card.optString("skin"))){String alternate=card.optString("alternate_art","");if(alternate.startsWith("/media/cards/")||alternate.startsWith("/art/"))return alternate;}
         String code = card.optString("card_code", "").trim().toUpperCase(java.util.Locale.ROOT);
         String name = card.optString("name", "").toLowerCase(java.util.Locale.ROOT);
         if ("FL-001".equals(code) && name.contains("fox")) return "/art/cinder-fox.webp";
@@ -4394,6 +4400,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[]{Color.argb(24, 2, 6, 15), Color.TRANSPARENT, Color.argb(220, 2, 6, 15)}));
         artFrame.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+        phase16SkinOverlay(artFrame,card,false);
 
         TextView rarityTag = text(rarity, 7, Color.WHITE, true);
         rarityTag.setGravity(Gravity.CENTER);
@@ -4516,6 +4523,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         FrameLayout.LayoutParams ap = new FrameLayout.LayoutParams(-1, -1);
         ap.setMargins(dp(3), dp(3), dp(3), dp(3));
         artFrame.addView(art, ap);
+        phase16SkinOverlay(artFrame,card,true);
         body.addView(artFrame, new LinearLayout.LayoutParams(dp(218), dp(294)));
 
         LinearLayout info = new LinearLayout(this);
@@ -4542,6 +4550,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         info.addView(text(String.valueOf(card.optInt("owned_count")), 19, GREEN, true));
         body.addView(info, new LinearLayout.LayoutParams(0, -2, 1f));
         shell.addView(body);
+        if(card.optInt("owned_count")>0){TextView mastery=button("MASTERY & SKINS  ›",true);shell.addView(mastery,new LinearLayout.LayoutParams(-1,dp(44)));mastery.setOnClickListener(v->{dialog.dismiss();phase16OpenCardId=card.optString("card_id");renderTab("mastery");});}
 
         dialog.setContentView(shell);
         dialog.setCanceledOnTouchOutside(true);
@@ -5796,7 +5805,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         frame.setBackground(gradient(Color.rgb(35,43,62),Color.rgb(8,14,25),accent,dp(10)));frame.setClipToOutline(true);
         TextView sigil=text(elementSigil(card.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT)),30,accent,true);sigil.setGravity(Gravity.CENTER);
         frame.addView(sigil,new FrameLayout.LayoutParams(-1,-1));
-        CardArtView art=new CardArtView(this);art.setScaleType(ImageView.ScaleType.FIT_CENTER);art.loadArtwork(cardArtworkPath(card));frame.addView(art,new FrameLayout.LayoutParams(-1,-1));return frame;
+        CardArtView art=new CardArtView(this);art.setScaleType(ImageView.ScaleType.FIT_CENTER);art.loadArtwork(cardArtworkPath(card));frame.addView(art,new FrameLayout.LayoutParams(-1,-1));phase16SkinOverlay(frame,card,false);return frame;
     }
 
     private FrameLayout phase11Avatar(String name,String path,int accent){
@@ -6795,6 +6804,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private void renderEvents(JSONObject data) {
+        addPhase13Link("Dynamic World Events", "Shared weekly objectives across game modes.", () -> renderTab("world_events"));
         addModeSpotlight("LIVE EVENT CIRCUIT", "Limited-time rewards are waiting",
                 "Follow the login journey, collect each day's gift and spend event currency in the festival exchange.",
                 "✺", PINK);
@@ -7727,13 +7737,13 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }));
     }
 
-    private void submitArenaMove(String matchId, String move) {
+    private void submitArenaMove(String matchId, String move, int turn) {
         if (matchId == null || matchId.isEmpty()) return;
         JSONObject payload = new JSONObject();
-        try { payload.put("move", move); payload.put("requestId", newActionId()); } catch (Exception ignored) {}
+        try { payload.put("move", move); payload.put("turn",turn); payload.put("requestId", "arena:"+matchId+":"+turn+":"+UUID.randomUUID()); } catch (Exception ignored) {}
         api.post("/api/arena/matches/" + matchId + "/move", payload, result -> ui.post(() -> {
             if (!result.ok()) {
-                showResultDialog("Move not accepted", result.error);
+                showResultDialog("Battle state refresh", "Your match stays on the server during the reconnect window. Refreshing the match avoids submitting a second action.\n\n"+result.error);
                 renderTab("arena");
                 return;
             }
@@ -8810,9 +8820,87 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         TextView close=button("CONTINUE",true);close.setOnClickListener(v->dialog.dismiss());addGap(shell,8);shell.addView(close,new LinearLayout.LayoutParams(-1,dp(45)));phase11ShowSheet(dialog,shell,630);
     }
 
+
+    private String phase16OpenCardId="";
+    private final int[] masteryThresholds={5,15,35,70,120};
+    private int masteryLevel(int uses){int level=0;for(int threshold:masteryThresholds)if(uses>=threshold)level++;return level;}
+
+    private void phase16SkinOverlay(FrameLayout frame,JSONObject card,boolean animate){
+        String skin=card.optString("skin","STANDARD");
+        if("STANDARD".equals(skin)||"ALTERNATE".equals(skin))return;
+        int color="GOLDEN".equals(skin)?GOLD_BRIGHT:"LIMITED".equals(skin)?PINK:"ANIMATED".equals(skin)?VIOLET:CYAN;
+        GradientDrawable foil=new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.argb(45,Color.red(color),Color.green(color),Color.blue(color)),Color.TRANSPARENT,Color.argb(35,255,255,255),Color.TRANSPARENT,Color.argb(70,Color.red(color),Color.green(color),Color.blue(color))});
+        foil.setCornerRadius(dp(9));foil.setStroke(dp("GOLDEN".equals(skin)||"LIMITED".equals(skin)?3:2),color);
+        View effect=new View(this);effect.setBackground(foil);frame.addView(effect,new FrameLayout.LayoutParams(-1,-1));
+        if("ANIMATED".equals(skin)&&animate&&!reduceMotionEnabled){
+            android.animation.ObjectAnimator glow=android.animation.ObjectAnimator.ofFloat(effect,"alpha",.35f,1f);glow.setDuration(1000);glow.setRepeatMode(android.animation.ValueAnimator.REVERSE);glow.setRepeatCount(android.animation.ValueAnimator.INFINITE);
+            effect.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){public void onViewAttachedToWindow(View v){glow.start();}public void onViewDetachedFromWindow(View v){glow.cancel();}});
+        }
+    }
+
+    private void renderPhase16Mastery(JSONObject data){
+        JSONArray cards=data.optJSONArray("cards");boolean limited=data.optBoolean("limited_unlocked");
+        addModeSpotlight("MASTERY  /  COSMETICS","A champion's legacy","Earn mastery by using owned cards in battle. Cosmetics never increase power.","✦",VIOLET);
+        LinearLayout milestone=sectionPanel();phase15Heading(milestone,"MASTERY MILESTONES");
+        String[] benefits={"Profile badge · Holographic","Golden Frame","Alternate artwork access","Exclusive card title","Animated visual effect"};
+        for(int i=0;i<5;i++)milestone.addView(dataRow("MASTERY "+(i+1),benefits[i],masteryThresholds[i]+" USES"),rowParams());content.addView(milestone,rowParams());
+        EditText search=editField("Search owned cards",false);search.setSingleLine(true);content.addView(search,new LinearLayout.LayoutParams(-1,dp(44)));
+        ArrayList<LinearLayout> rows=new ArrayList<>();ArrayList<String> keys=new ArrayList<>();JSONObject openCard=null;
+        if(cards!=null)for(int i=0;i<cards.length();i++){JSONObject card=cards.optJSONObject(i);if(card==null)continue;int level=card.optInt("mastery",masteryLevel(card.optInt("uses")));int accent=cardRarityColor(card.optString("rarity","COMMON"));LinearLayout row=sectionPanel();row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);
+            row.addView(phase11Art(card,accent),new LinearLayout.LayoutParams(dp(75),dp(105)));
+            LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,0,0);info.addView(text(card.optString("rarity"),9,accent,true));info.addView(text(card.optString("name"),14,TEXT,true));
+            info.addView(text("✦ MASTERY "+level+" / 5",11,VIOLET,true));int uses=card.optInt("uses"),next=level>=5?120:masteryThresholds[level];
+            ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(next);bar.setProgress(Math.min(uses,next));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(VIOLET));info.addView(bar,new LinearLayout.LayoutParams(-1,dp(7)));info.addView(text(uses+" uses · "+card.optString("skin","STANDARD"),10,MUTED,false));row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));row.setOnClickListener(v->showPhase16Card(card,limited));content.addView(row,rowParams());rows.add(row);keys.add((card.optString("name")+" "+card.optString("card_code")+" "+card.optString("rarity")).toLowerCase(java.util.Locale.ROOT));if(card.optString("card_id").equals(phase16OpenCardId))openCard=card;}
+        TextView empty=text("No matching owned cards.",11,MUTED,false);empty.setVisibility(rows.isEmpty()?View.VISIBLE:View.GONE);content.addView(empty);
+        search.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int a,int c,int f){}public void onTextChanged(CharSequence s,int a,int b,int c){String q=s.toString().trim().toLowerCase(java.util.Locale.ROOT);int n=0;for(int i=0;i<rows.size();i++){boolean show=keys.get(i).contains(q);rows.get(i).setVisibility(show?View.VISIBLE:View.GONE);if(show)n++;}empty.setVisibility(n==0?View.VISIBLE:View.GONE);}public void afterTextChanged(Editable e){}});
+        phase16OpenCardId="";if(openCard!=null)showPhase16Card(openCard,limited);
+    }
+
+    private void showPhase16Card(JSONObject card,boolean limited){
+        int uses=card.optInt("uses"),level=masteryLevel(uses);String equipped=card.optString("skin","STANDARD");
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=phase11Sheet("CARD CUSTOMIZATION",card.optString("name"),"Mastery "+level+" / 5 · "+uses+" battle uses",VIOLET);
+        ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        FrameLayout preview=new FrameLayout(this);LinearLayout.LayoutParams pp=new LinearLayout.LayoutParams(dp(132),dp(184));pp.gravity=Gravity.CENTER_HORIZONTAL;body.addView(preview,pp);
+        String[] skins={"STANDARD","HOLOGRAPHIC","GOLDEN","ALTERNATE","ANIMATED","LIMITED"},labels={"Standard","Holographic","Golden Frame","Alternate Artwork","Animated Artwork Effect","Limited Edition Frame"};int[] required={0,1,2,3,5,0};
+        String[] selected={equipped};TextView selectedLabel=text("",12,GOLD_BRIGHT,true);selectedLabel.setGravity(Gravity.CENTER);body.addView(selectedLabel);
+        Runnable redraw=()->{try{JSONObject copy=new JSONObject(card.toString());copy.put("skin",selected[0]);preview.removeAllViews();FrameLayout art=phase11Art(copy,cardRarityColor(copy.optString("rarity","COMMON")));preview.addView(art,new FrameLayout.LayoutParams(-1,-1));if("ANIMATED".equals(selected[0]))phase16SkinOverlay(art,copy,true);selectedLabel.setText("PREVIEW · "+selected[0]);}catch(Exception ignored){}};
+        redraw.run();phase15Heading(body,"AVAILABLE SKINS");
+        TextView equip=button("EQUIP SKIN",true);
+        for(int i=0;i<skins.length;i++){final String skin=skins[i];boolean alternateReady=!card.isNull("alternate_art")&&!card.optString("alternate_art","").isEmpty();boolean unlocked=level>=required[i]&&(!"LIMITED".equals(skin)||limited)&&(!"ALTERNATE".equals(skin)||alternateReady);String reason="LIMITED".equals(skin)?"Earn a World Event frame":"ALTERNATE".equals(skin)&&!alternateReady?"Artwork not available yet":"Mastery "+required[i];TextView row=button(labels[i]+(skin.equals(equipped)?" · EQUIPPED":unlocked?" · PREVIEW":" · LOCKED"),false);row.setEnabled(unlocked);body.addView(row,new LinearLayout.LayoutParams(-1,dp(43)));if(!unlocked)body.addView(text(reason,9,MUTED,false));row.setOnClickListener(v->{selected[0]=skin;redraw.run();});addGap(body,5);}
+        if(level>=4){TextView title=button(card.optInt("title_claimed")==1?"✓ EXCLUSIVE TITLE UNLOCKED":"CLAIM EXCLUSIVE TITLE",false);title.setEnabled(card.optInt("title_claimed")!=1);body.addView(title,new LinearLayout.LayoutParams(-1,dp(44)));title.setOnClickListener(v->{title.setEnabled(false);api.post("/api/mastery/title",payload("card_id",card.optString("card_id")),r->ui.post(()->{if(!r.ok()){title.setEnabled(true);showResultDialog("Title unavailable",r.error);return;}title.setText("✓ TITLE UNLOCKED");}));});}
+        addGap(shell,8);shell.addView(equip,new LinearLayout.LayoutParams(-1,dp(44)));equip.setOnClickListener(v->{equip.setEnabled(false);api.post("/api/mastery/skin",payload("card_id",card.optString("card_id"),"skin",selected[0]),r->ui.post(()->{if(!r.ok()){equip.setEnabled(true);showResultDialog("Skin unavailable",r.error);return;}dialog.dismiss();phase16OpenCardId=card.optString("card_id");renderTab("mastery");}));});
+        TextView close=button("CLOSE",false);close.setOnClickListener(v->dialog.dismiss());shell.addView(close,new LinearLayout.LayoutParams(-1,dp(42)));phase11ShowSheet(dialog,shell,690);
+    }
+
+    private void addPhase16ReconnectTimer(JSONObject active){
+        int seconds=active.optInt("reconnect_seconds",180);long deadline=android.os.SystemClock.elapsedRealtime()+Math.max(0,seconds)*1000L;
+        LinearLayout panel=sectionPanel();panel.setBackground(gradient(Color.rgb(30,52,65),PANEL,CYAN,dp(11)));TextView label=text("",12,CYAN,true);panel.addView(label);panel.addView(text("Your HP and turn are saved on the server. Return before the turn deadline. No move is replayed automatically.",10,MUTED,false));
+        TextView resume=button("SYNC / RECONNECT",false);resume.setOnClickListener(v->renderTab("arena"));panel.addView(resume,new LinearLayout.LayoutParams(-1,dp(40)));content.addView(panel,rowParams());
+        Runnable tick=new Runnable(){public void run(){if(!"arena".equals(activeTab)||!label.isAttachedToWindow())return;long remain=Math.max(0,(deadline-android.os.SystemClock.elapsedRealtime()+999)/1000);label.setText(String.format(java.util.Locale.ROOT,"RECONNECT WINDOW  %02d:%02d",remain/60,remain%60));if(remain>0)ui.postDelayed(this,1000);else label.setText("TURN WINDOW EXPIRED  ·  SYNC MATCH");}};label.setText("RECONNECT WINDOW · "+seconds+"s");ui.post(tick);
+    }
+
+    private void renderPhase16World(JSONObject data){
+        JSONObject event=data.optJSONObject("event");if(event==null){showNotice("No active world event.");return;}
+        boolean boss="GLOBAL_BOSS".equals(event.optString("key")),done=event.optBoolean("completed"),claimed=event.optBoolean("claimed");int target=Math.max(1,event.optInt("target")),progress=Math.max(0,event.optInt("progress"));
+        addModeSpotlight("LIVE WORLD EVENT",event.optString("name"),event.optString("description"),"✺",PINK);
+        LinearLayout goal=sectionPanel();phase15Heading(goal,boss?"SHARED BOSS HP":"COMMUNITY PROGRESS");goal.addView(text(boss?formatNumber(event.optLong("remaining"))+" / "+formatNumber(target)+" HP":formatNumber(progress)+" / "+formatNumber(target)+" POINTS",19,GOLD_BRIGHT,true));
+        ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(target);bar.setProgress(boss?Math.max(0,target-progress):Math.min(target,progress));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(boss?RED:GREEN));goal.addView(bar,new LinearLayout.LayoutParams(-1,dp(10)));goal.addView(text("Weekly reset · "+event.optString("next_week")+" (Malaysia time)",10,MUTED,false));goal.addView(text("YOUR CONTRIBUTION  ·  "+formatNumber(event.optLong("personal")),12,CYAN,true));content.addView(goal,rowParams());
+        LinearLayout reward=sectionPanel();phase15Heading(reward,"LIMITED COSMETIC REWARD");reward.addView(text("✦  "+event.optString("reward_name"),15,VIOLET,true));reward.addView(text("Earned by participating and completing the shared goal before reset.",10,MUTED,false));
+        TextView claim=button(claimed?"✓ CLAIMED":done?"CLAIM LIMITED FRAME":"GOAL IN PROGRESS",done&&!claimed);claim.setEnabled(done&&!claimed&&event.optLong("personal")>0&&!isAdminAccount());reward.addView(claim,new LinearLayout.LayoutParams(-1,dp(44)));claim.setOnClickListener(v->{claim.setEnabled(false);api.post("/api/world-events/claim",payload("week",event.optString("week")),r->ui.post(()->{if(!r.ok()){claim.setEnabled(true);showResultDialog("Reward unavailable",r.error);return;}renderTab("world_events");}));});content.addView(reward,rowParams());
+        phase15Heading(content,"CONTRIBUTE THROUGH THE REALM");
+        String key=event.optString("key");
+        if(!boss){addPhase13Link("Adventure","Complete encounters",()->renderTab("adventure"));addPhase13Link("Dungeon","Battle or hunt treasure",()->renderTab("dungeons"));addPhase13Link("Weekly Tower","Clear floors",()->renderTab("tower"));}
+        if(!"INVASION".equals(key))addPhase13Link("World Raid","Strike the global guardian",()->renderTab("raids"));
+        if("ELEMENTAL".equals(key))addPhase13Link("Team","Equip the featured element for double event points",()->renderTab("formation"));
+        TextView refresh=button("REFRESH WORLD PROGRESS",false);refresh.setOnClickListener(v->renderTab("world_events"));content.addView(refresh,new LinearLayout.LayoutParams(-1,dp(44)));
+    }
+
     private String endpointFor(String tab) {
         switch (tab) {
             case "collection": return "/api/cards";
+            case "mastery": return "/api/mastery";
+            case "world_events": return "/api/world-events";
             case "tower": return "/api/tower";
             case "showcase": return "/api/showcase";
             case "wallet_history": return "/api/wallet/history?currency="+walletHistoryCurrency+"&offset="+walletHistoryOffset;
@@ -8850,6 +8938,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String screenHeading(String tab) {
         switch (tab) {
             case "collection": return "The Card Archive";
+            case "mastery": return "Card Mastery & Skins";
+            case "world_events": return "Dynamic World Events";
             case "tower": return "Weekly Challenge Tower";
             case "showcase": return "Player Showcase";
             case "wallet_history": return "Treasury Ledger";
@@ -8886,6 +8976,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     private String screenDescription(String tab) {
         switch (tab) {
             case "collection": return "Your owned cards, full catalogue and duplicate copies.";
+            case "mastery": return "Earn cosmetics through actual card usage, without increasing battle power.";
+            case "world_events": return "Join the realm-wide weekly objective and earn exclusive frames.";
             case "tower": return "Ascend twenty floors, conquer weekly modifiers and unlock rare rewards.";
             case "showcase": return "Your favorite legendary, formation, collection and achievements.";
             case "wallet_history": return "Review your Gold, Gems and Shards transactions.";
