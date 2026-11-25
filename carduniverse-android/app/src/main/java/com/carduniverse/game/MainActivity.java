@@ -96,6 +96,7 @@ public final class MainActivity extends Activity {
     private JSONObject progression;
     private String activeTab = "home";
     private int activePageRequest;
+    private int summonHistoryOffset;
     private String historyMode = "ARENA";
     private int historyOffset;
     private boolean registering = false;
@@ -484,6 +485,7 @@ public final class MainActivity extends Activity {
                 {"evolution", "✧", "EVOLVE"},
                 {"achievements", "✦", "RECORDS"},
                 {"progression", "⌁", "REWARDS"},
+                {"journey", "✦", "JOURNEY"},
                 {"events", "✺", "EVENTS"},
                 {"leaderboards", "▥", "RANKINGS"},
                 {"ranked", "♛", "RANKED"},
@@ -1012,6 +1014,8 @@ public final class MainActivity extends Activity {
         dailyParams.bottomMargin = dp(14);
         content.addView(dailyReward, dailyParams);
 
+        addPhase13Link("New Player Journey", "Track your first milestones across the realm.",
+                () -> renderTab("journey"));
         TextView portalsTitle = text("CHOOSE YOUR NEXT MODE", 8, GOLD, true);
         portalsTitle.setLetterSpacing(0.13f);
         content.addView(portalsTitle);
@@ -1089,6 +1093,10 @@ public final class MainActivity extends Activity {
     private void renderModule(String tab, JSONObject data) {
         switch (tab) {
             case "encyclopedia": renderCardEncyclopedia(data); break;
+            case "summon_history": renderSummonHistory(data); break;
+            case "binder_completion": renderBinderCompletion(data); break;
+            case "guild_coop": renderGuildCooperative(data); break;
+            case "journey": renderNewPlayerJourney(data); break;
             case "collection": renderCollection(data); break;
             case "binders": renderBinders(data); break;
             case "formation": renderFormation(data); break;
@@ -1155,6 +1163,351 @@ public final class MainActivity extends Activity {
         return outer;
     }
 
+    private void showSummonTransparency(String slug) {
+        int page = activePageRequest;
+        api.get("/api/summon/transparency?pack=" + Uri.encode(slug), result -> ui.post(() -> {
+            if (page != activePageRequest) return;
+            if (!result.ok()) {
+                showResultDialog("Banner details unavailable", result.error);
+                return;
+            }
+            JSONObject banner = result.data.optJSONObject("banner");
+            if (banner == null) return;
+            android.app.Dialog dialog = new android.app.Dialog(this);
+            dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+            LinearLayout shell = phase11Sheet("SUMMON TRANSPARENCY", banner.optString("name"),
+                    "Rates for each slot in your next opening", VIOLET);
+            ScrollView scroll = new ScrollView(this);
+            LinearLayout body = sectionPanel();
+            scroll.addView(body);
+            shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+            body.addView(text(banner.optString("description"), 12, TEXT, false), rowParams());
+            String bannerExpiry = banner.isNull("ends_at") ? "Permanent banner"
+                    : "Ends " + phase14Timestamp(banner.optString("ends_at"));
+            body.addView(dataRow(bannerExpiry, banner.optInt("cards_per_pack") + " cards · "
+                    + humanize(banner.optString("ownership_type")), banner.optLong("price") > 0
+                    ? formatNumber(banner.optLong("price")) + " " + banner.optString("currency") : ""), rowParams());
+            JSONObject pity = result.data.optJSONObject("pity");
+            if (pity != null) {
+                int threshold = pity.optInt("threshold");
+                int count = pity.optInt("count");
+                String next = pity.optBoolean("guaranteed_next") ? "Next pack guarantees a Mythic in slot 1"
+                        : "Guaranteed within " + Math.max(0, threshold - count) + " packs · resets on Mythic";
+                body.addView(dataRow("Mythic pity", next, count + " / " + threshold), rowParams());
+            } else {
+                body.addView(text("This banner has no pity counter.", 11, MUTED, false), rowParams());
+            }
+            JSONArray guarantees = result.data.optJSONArray("guarantees");
+            if (guarantees != null && guarantees.length() != 0) {
+                for (int i = 0; i < guarantees.length(); i++) {
+                    JSONObject guarantee = guarantees.optJSONObject(i);
+                    if (guarantee != null) body.addView(dataRow("Next summon guarantee",
+                            "Slot " + guarantee.optInt("slot"), guarantee.optString("rarity")), rowParams());
+                }
+            } else {
+                body.addView(text("No guaranteed rarity on your next summon.", 11, MUTED, false), rowParams());
+            }
+
+            JSONArray slots = result.data.optJSONArray("slots");
+            java.text.DecimalFormat rateFormat = new java.text.DecimalFormat("0.######",
+                    java.text.DecimalFormatSymbols.getInstance(java.util.Locale.ROOT));
+            if (slots != null) for (int i = 0; i < slots.length(); i++) {
+                JSONObject slot = slots.optJSONObject(i);
+                if (slot == null) continue;
+                LinearLayout rates = sectionPanel();
+                rates.addView(text("SLOT " + slot.optInt("slot"), 11, GOLD_BRIGHT, true));
+                JSONArray odds = slot.optJSONArray("rates");
+                if (odds == null) rates.addView(text("Odds unavailable for this slot.", 12, MUTED, false));
+                if (odds != null) for (int j = 0; j < odds.length(); j++) {
+                    JSONObject row = odds.optJSONObject(j);
+                    if (row == null) continue;
+                    double percent = row.optDouble("percent", 0);
+                    String formatted = percent > 0 && percent < 0.000001 ? "<0.000001" : rateFormat.format(percent);
+                    rates.addView(dataRow(humanize(row.optString("rarity")), "", formatted + "%"), rowParams());
+                }
+                body.addView(rates, rowParams());
+            }
+            JSONArray offers = result.data.optJSONArray("offers");
+            if (offers != null && offers.length() > 0) {
+                body.addView(text("LIMITED EVENT OFFERS", 11, VIOLET, true), rowParams());
+                for (int i = 0; i < offers.length(); i++) {
+                    JSONObject offer = offers.optJSONObject(i);
+                    if (offer == null) continue;
+                    body.addView(dataRow(offer.optString("title"), "Ends " + phase14Timestamp(offer.optString("ends_at")),
+                            "EVENT SHOP"), rowParams());
+                    String detail = offer.optString("description").trim();
+                    if (!detail.isEmpty()) body.addView(text(detail, 11, MUTED, false), rowParams());
+                }
+            }
+            addPhase13Close(shell, dialog);
+            phase11ShowSheet(dialog, shell, 670);
+        }));
+    }
+
+    private String phase14Timestamp(String value) {
+        if (value.isEmpty()) return "";
+        java.text.SimpleDateFormat utc = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.ROOT);
+        utc.setTimeZone(java.util.TimeZone.getTimeZone("UTC"));
+        java.text.SimpleDateFormat local = new java.text.SimpleDateFormat("dd MMM yyyy, HH:mm 'WIB'", java.util.Locale.ROOT);
+        local.setTimeZone(java.util.TimeZone.getTimeZone("Asia/Jakarta"));
+        try { return local.format(utc.parse(value)); }
+        catch (java.text.ParseException ignored) { return value; }
+    }
+
+    private void openSummonHistory(int offset) {
+        summonHistoryOffset = offset;
+        renderTab("summon_history");
+    }
+
+    private void renderSummonHistory(JSONObject data) {
+        addPhase13Link("Summon Hall", "Return to available banners.", () -> renderTab("summon"));
+        JSONArray entries = data.optJSONArray("entries");
+        if (entries == null || entries.length() == 0) showNotice("No summon openings recorded yet.");
+        if (entries != null) for (int i = 0; i < entries.length(); i++) {
+            JSONObject opening = entries.optJSONObject(i);
+            if (opening == null) continue;
+            LinearLayout record = sectionPanel();
+            record.addView(text(opening.optString("pack_name", "Summon"), 15, TEXT, true));
+            record.addView(text(phase14Timestamp(opening.optString("created_at")), 11, MUTED, false));
+            JSONArray cards = opening.optJSONArray("cards");
+            if (cards != null) for (int j = 0; j < cards.length(); j++) {
+                JSONObject card = cards.optJSONObject(j);
+                if (card == null) continue;
+                record.addView(dataRow(card.optString("name", "Card"), card.optString("card_code"),
+                        card.optString("rarity")), rowParams());
+            }
+            content.addView(record, rowParams());
+        }
+        final int offset = summonHistoryOffset;
+        if (offset > 0) addPhase13Link("Newer summons", "Previous page", () -> openSummonHistory(offset - 20));
+        if (data.optBoolean("has_more")) addPhase13Link("Older summons", "Next page", () -> openSummonHistory(offset + 20));
+    }
+
+    private void renderBinderCompletion(JSONObject data) {
+        addPhase13Link("Binder Vault", "Return to your binders.", () -> renderTab("binders"));
+        showNotice("Set completion counts each distinct card you own once, across all binders.");
+        JSONArray sets = data.optJSONArray("sets");
+        if (sets == null || sets.length() == 0) {
+            showNotice("No active card sets yet.");
+            return;
+        }
+        for (int i = 0; i < sets.length(); i++) {
+            JSONObject set = sets.optJSONObject(i);
+            if (set == null) continue;
+            JSONArray rewards = set.optJSONArray("milestones");
+            boolean crest = false;
+            if (rewards != null) for (int j = 0; j < rewards.length(); j++) {
+                JSONObject reward = rewards.optJSONObject(j);
+                if (reward != null && reward.optInt("threshold") == 75 && reward.optBoolean("claimed")) crest = true;
+            }
+            LinearLayout panel = sectionPanel();
+            if (crest) {
+                panel.setBackground(gradient(Color.rgb(45, 38, 67), PANEL, GOLD_BRIGHT, dp(14)));
+                panel.addView(text("✦ ARCHIVE CREST", 10, GOLD_BRIGHT, true));
+            }
+            panel.addView(text(set.optString("name", "Card set"), 17, TEXT, true));
+            addPhase14Progress(panel, "Cards collected", set.optInt("collected"), set.optInt("total"));
+            if (rewards != null) for (int j = 0; j < rewards.length(); j++) {
+                JSONObject reward = rewards.optJSONObject(j);
+                if (reward == null) continue;
+                int threshold = reward.optInt("threshold");
+                String label = reward.optString("label");
+                LinearLayout entry = dataRow(threshold + "% complete", label,
+                        reward.optBoolean("claimed") ? "CLAIMED" : reward.optBoolean("ready") ? "CLAIM ›" : "LOCKED");
+                if (reward.optBoolean("ready") && !reward.optBoolean("claimed")) {
+                    entry.setFocusable(true);
+                    entry.setOnClickListener(v -> postPhase14("/api/binders/completion/claim",
+                            payload("set", set.optString("slug"), "threshold", threshold), entry));
+                }
+                panel.addView(entry, rowParams());
+            }
+            content.addView(panel, rowParams());
+        }
+    }
+
+    private void addPhase14Progress(LinearLayout panel, String label, int count, int total) {
+        panel.addView(dataRow(label, "", formatNumber(count) + " / " + formatNumber(total)), rowParams());
+        ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+        bar.setMax(Math.max(1, total));
+        bar.setProgress(Math.max(0, Math.min(count, total)));
+        bar.setProgressTintList(android.content.res.ColorStateList.valueOf(CYAN));
+        panel.addView(bar, new LinearLayout.LayoutParams(-1, dp(8)));
+        addGap(panel, 5);
+    }
+
+    private void renderGuildCooperative(JSONObject data) {
+        addPhase13Link("Guild Headquarters", "Return to your guild.", () -> renderTab("guild"));
+        JSONObject calendar = data.optJSONObject("calendar");
+        JSONObject boss = data.optJSONObject("boss");
+        if (boss == null || calendar == null) {
+            showNotice("Guild activities are not available.");
+            return;
+        }
+        boolean admin = isAdminAccount();
+        LinearLayout lair = sectionPanel();
+        lair.setBackground(gradient(Color.rgb(51, 35, 63), PANEL, PINK, dp(15)));
+        lair.addView(text("GUILD BOSS", 10, PINK, true));
+        lair.addView(text(boss.optString("name"), 17, TEXT, true));
+        addPhase14Progress(lair, "Shared vitality", boss.optInt("remaining"), boss.optInt("hp"));
+        lair.addView(text("One strike per day · Next boss on " + calendar.optString("nextWeek")
+                + " at 00:00 UTC+8", 11, MUTED, false), rowParams());
+        TextView strike = button(boss.optInt("remaining") == 0 ? "BOSS DEFEATED"
+                : boss.optBoolean("struck") ? "DAILY STRIKE USED" : "STRIKE GUILD BOSS", true);
+        strike.setEnabled(!admin && boss.optInt("remaining") > 0 && !boss.optBoolean("struck"));
+        strike.setOnClickListener(v -> confirmAction("Strike the Guild Boss?",
+                "The server uses your active Formation. This uses today's Guild strike.", () ->
+                        postPhase14("/api/guilds/cooperative/strike", new JSONObject(), strike)));
+        lair.addView(strike, rowParams());
+        content.addView(lair, rowParams());
+
+        LinearLayout missions = sectionPanel();
+        missions.addView(text("WEEKLY GUILD MISSIONS", 14, GOLD_BRIGHT, true));
+        missions.addView(text("Strike at least once this week to earn shared mission rewards.", 11, MUTED, false), rowParams());
+        JSONArray missionRows = data.optJSONArray("missions");
+        if (missionRows != null) for (int i = 0; i < missionRows.length(); i++) {
+            JSONObject mission = missionRows.optJSONObject(i);
+            if (mission == null) continue;
+            addPhase14Progress(missions, mission.optString("label"), mission.optInt("progress"), mission.optInt("target"));
+            addGuildRewardButton(missions, mission, mission.optString("key"), guildRewardLabel(mission), admin);
+        }
+        content.addView(missions, rowParams());
+
+        LinearLayout ranking = sectionPanel();
+        ranking.addView(text("GUILD CONTRIBUTION RANKING", 14, GOLD_BRIGHT, true));
+        ranking.addView(text("Weekly boss damage · Gold contributed breaks ties", 11, MUTED, false), rowParams());
+        JSONArray members = data.optJSONArray("ranking");
+        if (members != null) for (int i = 0; i < members.length(); i++) {
+            JSONObject member = members.optJSONObject(i);
+            if (member == null) continue;
+            ranking.addView(dataRow("#" + (i + 1) + " · " + member.optString("display_name"),
+                    formatNumber(member.optLong("contribution")) + " Gold contributed",
+                    formatNumber(member.optLong("damage")) + " DMG"), rowParams());
+        }
+        content.addView(ranking, rowParams());
+
+        JSONObject season = data.optJSONObject("season");
+        JSONObject reward = data.optJSONObject("season_reward");
+        if (season != null && reward != null) {
+            LinearLayout seasonPanel = sectionPanel();
+            seasonPanel.addView(text("GUILD SEASONAL REWARDS", 14, GOLD_BRIGHT, true));
+            seasonPanel.addView(text("Season ends " + season.optString("end")
+                    + " at 00:00 UTC+8. Claim during the next season.", 11, MUTED, false), rowParams());
+            addPhase14Progress(seasonPanel, "Guild Bosses defeated", season.optInt("bosses"), reward.optInt("bosses"));
+            addPhase14Progress(seasonPanel, "Your season strikes", season.optInt("personal"), reward.optInt("strikes"));
+            JSONObject previous = data.optJSONObject("previous");
+            if (previous != null) {
+                seasonPanel.addView(dataRow("Previous season", previous.optString("start") + " to " + previous.optString("end"),
+                        previous.optInt("bosses") + " clears · " + previous.optInt("personal") + " strikes"), rowParams());
+                addGuildRewardButton(seasonPanel, previous, "season", guildRewardLabel(reward), admin);
+            } else {
+                seasonPanel.addView(text(guildRewardLabel(reward) + " when the first season closes.", 11, MUTED, false), rowParams());
+            }
+            content.addView(seasonPanel, rowParams());
+        }
+
+        LinearLayout achievements = sectionPanel();
+        achievements.addView(text("GUILD ACHIEVEMENTS", 14, GOLD_BRIGHT, true));
+        JSONArray badges = data.optJSONArray("achievements");
+        if (badges != null) for (int i = 0; i < badges.length(); i++) {
+            JSONObject badge = badges.optJSONObject(i);
+            if (badge != null) achievements.addView(dataRow(badge.optString("name"), badge.optString("description"),
+                    badge.optBoolean("complete") ? "EARNED" : "IN PROGRESS"), rowParams());
+        }
+        content.addView(achievements, rowParams());
+    }
+
+    private String guildRewardLabel(JSONObject reward) {
+        int coins = reward.optInt("coins");
+        int shards = reward.optInt("shards");
+        return (coins > 0 ? formatNumber(coins) + " Gold" : "")
+                + (coins > 0 && shards > 0 ? " + " : "")
+                + (shards > 0 ? formatNumber(shards) + " Shards" : "");
+    }
+
+    private void addGuildRewardButton(LinearLayout panel, JSONObject status, String key,
+                                      String label, boolean admin) {
+        boolean claimed = status.optBoolean("claimed");
+        boolean available = status.optBoolean("ready");
+        TextView reward = button((claimed ? "CLAIMED · " : available ? "CLAIM · " : "REWARD · ") + label, available);
+        reward.setEnabled(available && !claimed && !admin);
+        reward.setOnClickListener(v -> postPhase14("/api/guilds/cooperative/claim", payload("reward", key), reward));
+        panel.addView(reward, rowParams());
+    }
+
+    private void postPhase14(String path, JSONObject body, View control) {
+        control.setEnabled(false);
+        String tab = activeTab;
+        int page = activePageRequest;
+        api.post(path, body, result -> ui.post(() -> {
+            if (page != activePageRequest || !tab.equals(activeTab)) return;
+            control.setEnabled(true);
+            if (!result.ok()) {
+                showResultDialog("Action unavailable", result.error);
+                return;
+            }
+            Toast.makeText(this, result.data.optString("message", "Journey updated."), Toast.LENGTH_SHORT).show();
+            renderTab(tab);
+        }));
+    }
+
+    private void renderNewPlayerJourney(JSONObject data) {
+        JSONObject steps = data.optJSONObject("steps");
+        if (steps == null) return;
+        String[][] journey = {
+                {"tutorial", "Complete the tutorial", "See how to get cards and start battling.", ""},
+                {"card", "Get your first card", "Open a pack or obtain a card.", "summon"},
+                {"formation", "Build a Formation", "Assign at least one card and save your team.", "formation"},
+                {"upgrade", "Upgrade a card", "Level up or ascend a card.", "evolution"},
+                {"adventure", "Win your first Adventure", "Clear any Adventure encounter.", "adventure"},
+                {"guild", "Join a Guild", "Join a guild or create one.", "guild"},
+                {"arena", "Try Arena", "Submit a turn against an opponent in Arena.", "arena"}
+        };
+        int done = 0;
+        for (String[] step : journey) if (steps.optInt(step[0]) == 1) done++;
+        LinearLayout progress = sectionPanel();
+        addPhase14Progress(progress, done == journey.length ? "Journey complete" : "Your journey", done, journey.length);
+        content.addView(progress, rowParams());
+        for (String[] step : journey) {
+            boolean complete = steps.optInt(step[0]) == 1;
+            LinearLayout row = dataRow(step[1], step[2], complete ? "COMPLETE" : "START ›");
+            row.setFocusable(true);
+            row.setOnClickListener(v -> {
+                if ("tutorial".equals(step[0])) showJourneyTutorial(0, complete);
+                else renderTab(step[3]);
+            });
+            content.addView(row, rowParams());
+        }
+    }
+
+    private void showJourneyTutorial(int page, boolean complete) {
+        String[][] tutorial = {
+                {"Collect a card", "Visit Summon Hall. Open a Starter Pack to reveal your first cards. Inspect a card in the Encyclopedia to learn its rarity and ability."},
+                {"Build and upgrade your team", "In Team, choose cards for your Formation and save the deck. In Evolution, check the power preview before upgrading a card."},
+                {"Play your first battle", "Win an Adventure encounter. Try moves in Training Grounds, then submit your first move in Arena. Join a Guild when you're ready for cooperative battles."}
+        };
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell = phase11Sheet("TUTORIAL " + (page + 1) + " / " + tutorial.length,
+                tutorial[page][0], tutorial[page][1], CYAN);
+        boolean last = page == tutorial.length - 1;
+        TextView next = button(last ? "FINISH TUTORIAL" : "NEXT", true);
+        next.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (!last) showJourneyTutorial(page + 1, complete);
+            else if (!complete) postPhase14("/api/journey/tutorial", new JSONObject(), next);
+        });
+        shell.addView(next, rowParams());
+        addPhase13Close(shell, dialog);
+        dialog.setContentView(shell);
+        dialog.show();
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setBackgroundDrawableResource(android.R.color.transparent);
+            window.setLayout(Math.min(dp(500), getResources().getDisplayMetrics().widthPixels - dp(24)), -2);
+        }
+    }
+
     private void renderPacks(JSONObject data) {
         JSONArray packs = data.optJSONArray("packs");
         if (packs == null) { showNotice("No summon packs are available."); return; }
@@ -1165,6 +1518,7 @@ public final class MainActivity extends Activity {
             if (p != null) totalQuantity += Math.max(0, p.optInt("quantity"));
         }
         addRealmScene("summon", "THE ASTRAL GATE", "Choose a seal below to open a portal and reveal your next cards.", totalQuantity, Math.max(1, totalQuantity));
+        addPhase13Link("Summon History", "Review cards from your previous openings.", () -> openSummonHistory(0));
         TextView sealsHeading = text("AVAILABLE SUMMON SEALS", 9, GOLD_BRIGHT, true);
         sealsHeading.setLetterSpacing(0.12f);
         sealsHeading.setPadding(dp(2), dp(3), 0, dp(7));
@@ -1206,8 +1560,11 @@ public final class MainActivity extends Activity {
             info.addView(description);
             info.addView(text(canOpen ? (unlimited ? "INFINITE SUMMON ACCESS" : "IN STOCK · " + quantity)
                     : "OUT OF STOCK", 8, GOLD_BRIGHT, true));
-            if (pack.has("pity_count"))
-                info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count"), 7, PINK, true));
+            if ("mythic".equals(slug) && pack.has("pity_count"))
+                info.addView(text("MYTHIC PITY · " + pack.optInt("pity_count") + " / 40", 8, PINK, true));
+            TextView odds = button("RATES & GUARANTEES", false);
+            odds.setOnClickListener(v -> showSummonTransparency(slug));
+            info.addView(odds, rowParams());
             info.addView(text("COST · " + formatNumber(price) + " " + currency, 7, MUTED, true));
 
             LinearLayout actions = new LinearLayout(this);
@@ -1233,6 +1590,7 @@ public final class MainActivity extends Activity {
                                 return;
                             }
                             if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
+                            if ("summon".equals(activeTab)) renderTab("summon");
                             showPackRevealDialog(result.data.optJSONArray("cards"));
                         }));
                     }));
@@ -3089,6 +3447,8 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         boolean canManageGuildSettings = leader || (inGuild && (guild.optBoolean("canAnnounce")
                 || guild.optBoolean("canManageRecruitment") || canEditIdentity));
 
+        if (inGuild) addPhase13Link("Guild Cooperative Activities",
+                "Shared Boss, weekly missions, contribution ranking and season rewards.", () -> renderTab("guild_coop"));
         if (!inGuild) {
             LinearLayout intro = sectionPanel();
             intro.setGravity(Gravity.CENTER);
@@ -5950,6 +6310,8 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         addRealmScene("binder", "THE BINDER VAULT",
                 "A private gallery for the cards that define your journey.", cards.length(),
                 Math.max(1, cards.length()));
+        addPhase13Link("Set Completion Rewards", "Track and claim milestones for each card set.",
+                () -> renderTab("binder_completion"));
 
         LinearLayout feature = sectionPanel();
         feature.setOrientation(LinearLayout.HORIZONTAL);
@@ -8346,6 +8708,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "collection": return "/api/cards";
             case "encyclopedia": return "/api/encyclopedia";
             case "training": return "/api/evolution";
+            case "summon_history": return "/api/summon/history?offset=" + summonHistoryOffset;
+            case "binder_completion": return "/api/binders/completion";
+            case "guild_coop": return "/api/guilds/cooperative";
+            case "journey": return "/api/journey";
             case "battle_history": return "/api/battle-history?mode=" + historyMode + "&offset=" + historyOffset;
             case "binders": return "/api/binders";
             case "formation": return "/api/formation";
@@ -8376,6 +8742,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "collection": return "The Card Archive";
             case "encyclopedia": return "Card Encyclopedia";
             case "training": return "Training Grounds";
+            case "summon_history": return "Summon History";
+            case "binder_completion": return "Binder Completion Rewards";
+            case "guild_coop": return "Guild Cooperative Activities";
+            case "journey": return "New Player Journey";
             case "battle_history": return "Battle History";
             case "binders": return "Collector Binders";
             case "formation": return "Team Decks";
@@ -8405,6 +8775,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "collection": return "Your owned cards, full catalogue and duplicate copies.";
             case "encyclopedia": return "Explore card artwork, base power and signature abilities.";
             case "training": return "Practise moves and formations without affecting progression.";
+            case "summon_history": return "Review previous summons and the cards each pack revealed.";
+            case "binder_completion": return "Collect cards from each set and claim milestone rewards.";
+            case "guild_coop": return "Strike the shared boss and complete Guild missions.";
+            case "journey": return "Follow your first milestones from the tutorial to the Arena.";
             case "battle_history": return "Review results, rewards and Arena turns.";
             case "binders": return "Organize the cards in your personal archive binders.";
             case "formation": return "Assign up to five cards to strengthen every battle.";
