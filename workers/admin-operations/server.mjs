@@ -46,7 +46,7 @@ async function cuOperationsRoute(request, env, url) {
 }
 
 async function cuOperationsSummary(db, calendar) {
-    const [odds,offers,binders,guilds,claims,journey]=await Promise.all([
+    const [odds,offers,binders,guilds,claims,journey,weekly,activity]=await Promise.all([
         db.prepare(`
             WITH openings AS (
                 SELECT pack_id,COUNT(*) AS opened FROM pack_openings
@@ -102,7 +102,21 @@ async function cuOperationsSummary(db, calendar) {
                     EXISTS(SELECT 1 FROM guild_activity g WHERE g.user_id=u.user_id AND g.event_type IN ('MEMBER_JOINED','GUILD_FOUNDED'))) AS guild,
                 SUM(EXISTS(SELECT 1 FROM pvp_match_moves p WHERE p.user_id=u.user_id)) AS arena
             FROM cohort u
-        `).first()
+        `).first(),
+        db.prepare(`
+            WITH weekly_guilds AS (
+                SELECT week_start,guild_id,COUNT(*) strikes,SUM(damage) damage
+                FROM phase14_guild_strikes GROUP BY week_start,guild_id
+            )
+            SELECT week_start,COUNT(*) AS guilds,SUM(strikes) AS strikes,
+                SUM(CASE WHEN damage>=? THEN 1 ELSE 0 END) AS cleared
+            FROM weekly_guilds GROUP BY week_start ORDER BY week_start DESC LIMIT 8
+        `).bind(PHASE14_BOSS_HP).all(),
+        db.prepare(`
+            SELECT date(created_at) AS day,reward_kind,COUNT(*) AS claims
+            FROM phase14_reward_claims WHERE created_at>=datetime('now','-13 days','start of day')
+            GROUP BY 1,2 ORDER BY day DESC,reward_kind
+        `).all()
     ]);
 
     const packs=new Map();
@@ -129,5 +143,6 @@ async function cuOperationsSummary(db, calendar) {
     }
     return {ok:true,updated_at:new Date().toISOString(),calendar,mythic_pity:PHASE14_MYTHIC_PITY,
         boss_hp:PHASE14_BOSS_HP,packs:[...packs.values()],offers:offers.results,
-        sets:[...sets.values()],guilds:guilds.results,claims:claims.results,journey};
+        sets:[...sets.values()],guilds:guilds.results,claims:claims.results,journey,
+        weekly:weekly.results,activity:activity.results};
 }

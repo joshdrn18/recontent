@@ -75,3 +75,16 @@
   .ops-section-head {align-items:start;flex-direction:column}
   .ops-step {grid-template-columns:minmax(102px,1fr) 1fr 48px;gap:6px;font-size:13px}
 }
+
+.cu-ops { --bg:#0d111a; --panel:#1a2230; --deep:#121721; --line:#3b4659; --gold:#f5cc8e;
+  background:radial-gradient(70rem 36rem at 78% -15%,#3e3342 0,transparent 68%),var(--bg); }
+.ops-sidebar { background:linear-gradient(160deg,#222b3b,#10151f 68%); }
+.ops-header { padding:clamp(20px,3vw,36px); border:1px solid #66543b; border-radius:18px;
+  background:linear-gradient(125deg,#253042 0%,#201e2e 61%,#382f28 100%);
+  box-shadow:0 18px 44px #04060b66; }
+.cu-ops h1,.cu-ops h2 {font-family:Georgia,serif;font-weight:600}
+.cu-ops h1 {color:#fff1d5}
+.ops-kpi {background:linear-gradient(135deg,#252c3f,#191f2d);border-top-color:#a17c4b;box-shadow:0 9px 22px #04060b4a}
+.cu-ops section {background:linear-gradient(135deg,#202938,#171e29 72%);box-shadow:0 12px 30px #04060b50}
+.cu-ops th {background:#273343;color:#f3e2c4}
+.cu-ops .ops-note {color:#9be0ca}
