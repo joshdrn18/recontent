@@ -1450,66 +1450,11 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             FrameLayout battleStage = createArenaBattleStage(active);
             content.addView(battleStage, rowParams());
 
-            LinearLayout fighters = new LinearLayout(this);
-            fighters.setOrientation(LinearLayout.HORIZONTAL);
-            fighters.addView(createArenaFighterPanel("YOU",
-                    me == null ? "COLLECTOR" : me.optString("display_name", "COLLECTOR"),
-                    active.optLong("myHp"), active.optLong("myMaxHp"),
-                    Color.rgb(115, 184, 139)), new LinearLayout.LayoutParams(0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            fighters.addView(createArenaFighterPanel(opponentIsBot ? "TRAINING BOT" : "OPPONENT",
-                    active.optString("opponentName", "Opponent"),
-                    active.optLong("opponentHp"), active.optLong("opponentMaxHp"),
-                    Color.rgb(210, 122, 105)), new LinearLayout.LayoutParams(0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-            content.addView(fighters, rowParams());
+
 
             String myMove = active.optString("myMove", "");
             if (myMove.isEmpty()) {
-                content.addView(text("CHOOSE YOUR ACTION", 8, GOLD, true));
-                addGap(content, 5);
-                LinearLayout moves = new LinearLayout(this);
-                moves.setOrientation(LinearLayout.HORIZONTAL);
-                String[][] choices = {
-                        {"STRIKE", "⚔", "Deal damage to the opponent"},
-                        {"GUARD", "◈", "Reduce incoming damage"},
-                        {"FOCUS", "✦", "Charge your next action"}
-                };
-                for (String[] choice : choices) {
-                    LinearLayout moveCard = new LinearLayout(this);
-                    moveCard.setOrientation(LinearLayout.VERTICAL);
-                    moveCard.setGravity(Gravity.CENTER);
-                    moveCard.setPadding(dp(8), dp(8), dp(8), dp(8));
-                    int tint = "STRIKE".equals(choice[0]) ? GOLD_BRIGHT
-                            : "GUARD".equals(choice[0]) ? GREEN : Color.rgb(115, 165, 218);
-                    moveCard.setBackground(gradient(PANEL_LIGHT, PANEL, tint, dp(12)));
-                    moveCard.setElevation(dp(3));
-                    moveCard.setClickable(true);
-                    moveCard.setFocusable(true);
-                    TextView icon = text(choice[1], 25, tint, true);
-                    icon.setGravity(Gravity.CENTER);
-                    moveCard.addView(icon);
-                    TextView label = text(choice[0], 10, TEXT, true);
-                    label.setGravity(Gravity.CENTER);
-                    moveCard.addView(label);
-                    TextView explanation = text(choice[2], 7, MUTED, false);
-                    explanation.setGravity(Gravity.CENTER);
-                    explanation.setMaxLines(2);
-                    moveCard.addView(explanation);
-                    moveCard.setOnClickListener(v -> {
-                        moveCard.animate().scaleX(0.96f).scaleY(0.96f).setDuration(80)
-                                .withEndAction(() -> moveCard.animate().scaleX(1f).scaleY(1f)
-                                        .setDuration(150).start()).start();
-                        confirmAction("Use " + choice[0] + "?",
-                                "Your move is locked for this turn once submitted.",
-                                () -> submitArenaMove(active.optString("match_id"), choice[0]));
-                    });
-                    LinearLayout.LayoutParams moveParams = new LinearLayout.LayoutParams(0,
-                            dp(108), 1f);
-                    moveParams.setMargins(dp(3), 0, dp(3), 0);
-                    moves.addView(moveCard, moveParams);
-                }
-                content.addView(moves);
+                content.addView(createArenaMoveHand(active), rowParams());
             } else {
                 LinearLayout status = sectionPanel();
                 status.setOrientation(LinearLayout.HORIZONTAL);
@@ -1688,83 +1633,80 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
         }
     }
 
-        private FrameLayout createArenaBattleStage(JSONObject active) {
-        FrameLayout stage = new FrameLayout(this);
-        stage.setClipChildren(false);
-        stage.setClipToPadding(false);
-        stage.setBackground(gradient(Color.rgb(19, 26, 45), Color.rgb(5, 8, 17), GOLD, dp(15)));
 
-        RealmSceneView arena = new RealmSceneView(this, "arena",
-                active.optString("mode", "LIVE DUEL") + " · TURN " + active.optInt("current_turn"),
-                "The clash is underway. Choose your next move carefully.",
-                active.optInt("current_turn"), 10);
-        stage.addView(arena, new FrameLayout.LayoutParams(-1, -1));
-
-        LinearLayout duel = new LinearLayout(this);
-        duel.setOrientation(LinearLayout.HORIZONTAL);
-        duel.setGravity(Gravity.CENTER_VERTICAL);
-        duel.setPadding(dp(5), dp(5), dp(5), dp(5));
-        duel.setBackground(gradient(Color.argb(220, 8, 13, 25),
-                Color.argb(232, 8, 13, 25), Color.rgb(91, 101, 135), dp(12)));
-
-        ArenaCardFace playerFace = new ArenaCardFace("YOUR ACTIVE CARD", GREEN);
-        ArenaCardFace opponentFace = new ArenaCardFace("RIVAL CARD", RED);
-        JSONObject playerCard = firstArenaMatchCard(active, true);
-        JSONObject opponentCard = firstArenaMatchCard(active, false);
-        arenaLeaderCard = playerCard;
-        arenaOpponentCard = opponentCard;
-        playerFace.bind(playerCard, "NO ACTIVE CARD", "Assign a card in Formation");
-        opponentFace.bind(opponentCard, "RIVAL LOADOUT", "Opponent artwork not shared");
-
-        LinearLayout.LayoutParams sideParams = new LinearLayout.LayoutParams(0, -1, 1f);
-        sideParams.setMargins(dp(3), 0, dp(3), 0);
-        duel.addView(playerFace.root, sideParams);
-        LinearLayout.LayoutParams rivalParams = new LinearLayout.LayoutParams(0, -1, 1f);
-        rivalParams.setMargins(dp(3), 0, dp(3), 0);
-        duel.addView(opponentFace.root, rivalParams);
-
-        TextView arenaBanner = text("✦  FIRSTLIGHT DUEL ARENA  ✦", 8, GOLD_BRIGHT, true);
-        arenaBanner.setGravity(Gravity.CENTER);
-        arenaBanner.setPadding(dp(12), dp(6), dp(12), dp(6));
-        arenaBanner.setBackground(gradient(Color.argb(224, 12, 19, 36),
-                Color.argb(230, 8, 13, 26), Color.rgb(142, 117, 83), dp(18)));
-        FrameLayout.LayoutParams bannerParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, dp(30),
-                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        bannerParams.topMargin = dp(10);
-        stage.addView(arenaBanner, bannerParams);
-
-        duel.setElevation(dp(5));
-        FrameLayout.LayoutParams duelParams = new FrameLayout.LayoutParams(-1, dp(174), Gravity.BOTTOM);
-        duelParams.setMargins(dp(12), 0, dp(12), dp(10));
-        stage.addView(duel, duelParams);
-
-        TextView versus = text("VS", 10, GOLD_BRIGHT, true);
-        versus.setGravity(Gravity.CENTER);
-        versus.setPadding(dp(5), dp(5), dp(5), dp(5));
-        versus.setElevation(dp(10));
-        versus.setBackground(gradient(Color.rgb(65, 45, 30), Color.rgb(20, 19, 27),
-                GOLD_BRIGHT, dp(22)));
-        FrameLayout.LayoutParams versusParams = new FrameLayout.LayoutParams(dp(42), dp(38),
-                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        versusParams.bottomMargin = dp(78);
-        stage.addView(versus, versusParams);
-        stage.setMinimumHeight(dp(350));
-
-        if (playerCard == null) {
-            api.get("/api/formation", result -> ui.post(() -> {
-                if (!result.ok() || stage.getParent() == null) return;
-                JSONObject leader = firstFormationCard(result.data);
-                if (leader == null) return;
-                arenaLeaderCard = leader;
-                playerFace.bind(leader, "NO ACTIVE CARD", "Assign a card in Formation");
-            }));
-        }
+    private LinearLayout createArenaLifeStrip(String role,String name,long hp,long maxHp,int accent){
+        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setPadding(dp(10),dp(7),dp(10),dp(7));
+        box.setBackground(gradient(Color.argb(226,10,20,34),Color.argb(236,6,12,24),accent,dp(10)));
+        LinearLayout line=new LinearLayout(this);line.setGravity(Gravity.CENTER_VERTICAL);line.addView(text(role,7,accent,true),new LinearLayout.LayoutParams(0,-2,1f));line.addView(text(name,9,TEXT,true));box.addView(line);
+        LinearLayout hpLine=new LinearLayout(this);hpLine.setGravity(Gravity.CENTER_VERTICAL);hpLine.addView(text("LIFE",6,MUTED,true),new LinearLayout.LayoutParams(0,-2,1f));
+        hpLine.addView(text(formatNumber(hp)+(maxHp>0?" / "+formatNumber(maxHp):"")+" HP",8,accent,true));box.addView(hpLine);
+        if(maxHp>0){ProgressBar bar=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);bar.setMax(100);bar.setProgress((int)Math.max(0,Math.min(100,Math.round(hp*100d/maxHp))));bar.setProgressTintList(android.content.res.ColorStateList.valueOf(accent));
+            LinearLayout.LayoutParams bp=new LinearLayout.LayoutParams(-1,dp(5));bp.topMargin=dp(4);box.addView(bar,bp);}return box;
+    }
+    private HorizontalScrollView createArenaCardRow(JSONObject match,boolean playerSide,int accent){
+        ArrayList<JSONObject> deck=new ArrayList<>();String[] keys=playerSide?new String[]{"myCards","my_cards","myFormation","my_formation","playerCards"}:new String[]{"opponentCards","opponent_cards","opponentFormation","opponent_formation","enemyCards"};
+        for(String key:keys){JSONArray arr=match.optJSONArray(key);if(arr==null||arr.length()==0)continue;for(int i=0;i<arr.length();i++){JSONObject x=arr.optJSONObject(i);if(x!=null){JSONObject nested=x.optJSONObject("card");deck.add(nested==null?x:nested);}}break;}
+        if(deck.isEmpty()){JSONObject single=firstArenaMatchCard(match,playerSide);if(single!=null)deck.add(single);}
+        if(playerSide)arenaLeaderCard=deck.isEmpty()?null:deck.get(0);else arenaOpponentCard=deck.isEmpty()?null:deck.get(0);
+        HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);scroll.setFillViewport(true);scroll.setClipToPadding(false);scroll.setPadding(dp(3),dp(3),dp(3),dp(3));
+        LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER);row.setPadding(dp(2),0,dp(2),0);scroll.addView(row,new HorizontalScrollView.LayoutParams(-2,-2));scroll.setTag(row);
+        if(deck.isEmpty()){ArenaCardFace face=new ArenaCardFace(playerSide?"YOUR FIELD":"RIVAL FIELD",accent);face.bind(null,playerSide?"NO ACTIVE CARD":"HIDDEN LOADOUT",playerSide?"Set a deck in Formation":"No card shared");row.addView(face.root,new LinearLayout.LayoutParams(dp(126),dp(163)));}
+        else for(int i=0;i<deck.size();i++){ArenaCardFace face=new ArenaCardFace((playerSide?"YOUR CARD ":"RIVAL CARD ")+(i+1),accent);face.bind(deck.get(i),"CARD NOT FOUND","Card data unavailable");LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(126),dp(163));p.setMargins(dp(4),0,dp(4),0);row.addView(face.root,p);}
+        return scroll;
+    }
+    private FrameLayout createArenaZoneMarker(String label,String glyph,int accent){
+        FrameLayout zone=new FrameLayout(this);zone.setBackground(gradient(Color.rgb(20,31,50),Color.rgb(8,14,27),accent,dp(8)));
+        TextView rune=text(glyph,22,accent,true);rune.setGravity(Gravity.CENTER);zone.addView(rune,new FrameLayout.LayoutParams(-1,-1));
+        TextView caption=text(label,6,TEXT,true);caption.setGravity(Gravity.CENTER);caption.setPadding(dp(2),dp(4),dp(2),dp(4));caption.setBackgroundColor(Color.argb(190,5,10,20));
+        zone.addView(caption,new FrameLayout.LayoutParams(-1,dp(22),Gravity.BOTTOM));return zone;
+    }
+    private FrameLayout createArenaBattleStage(JSONObject active){
+        FrameLayout stage=new FrameLayout(this);stage.setClipChildren(false);stage.setClipToPadding(false);
+        stage.setBackground(gradient(Color.rgb(18,30,47),Color.rgb(5,9,19),GOLD,dp(16)));
+        RealmSceneView backdrop=new RealmSceneView(this,"arena",active.optString("mode","LIVE DUEL")+" · TURN "+active.optInt("current_turn"),"A collector-to-collector card battle.",active.optInt("current_turn"),10);
+        stage.addView(backdrop,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout table=new LinearLayout(this);table.setOrientation(LinearLayout.VERTICAL);table.setPadding(dp(9),dp(9),dp(9),dp(9));
+        table.setBackground(gradient(Color.argb(222,8,15,28),Color.argb(234,5,10,22),Color.rgb(78,100,132),dp(14)));
+        table.addView(createArenaLifeStrip("RIVAL SIDE",active.optString("opponentName","Opponent"),active.optLong("opponentHp"),active.optLong("opponentMaxHp"),RED));
+        LinearLayout rival=new LinearLayout(this);rival.setGravity(Gravity.CENTER_VERTICAL);rival.setPadding(dp(3),dp(3),dp(3),dp(3));
+        rival.setBackground(gradient(Color.argb(190,31,27,42),Color.argb(205,9,16,30),Color.rgb(125,74,91),dp(11)));
+        rival.addView(createArenaZoneMarker("DISCARD","▤",RED),new LinearLayout.LayoutParams(dp(38),dp(58)));
+        HorizontalScrollView rivalCards=createArenaCardRow(active,false,RED);LinearLayout.LayoutParams rcp=new LinearLayout.LayoutParams(0,dp(168),1f);rcp.setMargins(dp(4),0,dp(4),0);rival.addView(rivalCards,rcp);
+        rival.addView(createArenaZoneMarker("DECK","▥",RED),new LinearLayout.LayoutParams(dp(38),dp(58)));
+        LinearLayout.LayoutParams rfp=new LinearLayout.LayoutParams(-1,dp(176));rfp.topMargin=dp(5);table.addView(rival,rfp);
+        LinearLayout versus=new LinearLayout(this);versus.setGravity(Gravity.CENTER);versus.setPadding(dp(5),dp(5),dp(5),dp(5));
+        View left=new View(this);left.setBackgroundColor(Color.argb(170,178,147,101));versus.addView(left,new LinearLayout.LayoutParams(0,dp(1),1f));
+        versus.addView(text("  ⚔  VS  ⚔  ",9,GOLD_BRIGHT,true));View right=new View(this);right.setBackgroundColor(Color.argb(170,178,147,101));versus.addView(right,new LinearLayout.LayoutParams(0,dp(1),1f));
+        table.addView(versus,new LinearLayout.LayoutParams(-1,dp(32)));
+        table.addView(createArenaLifeStrip("YOUR SIDE",me==null?"YOU":me.optString("display_name","YOU"),active.optLong("myHp"),active.optLong("myMaxHp"),GREEN));
+        LinearLayout ours=new LinearLayout(this);ours.setGravity(Gravity.CENTER_VERTICAL);ours.setPadding(dp(3),dp(3),dp(3),dp(3));
+        ours.setBackground(gradient(Color.argb(190,22,42,43),Color.argb(205,8,18,27),Color.rgb(71,132,118),dp(11)));
+        ours.addView(createArenaZoneMarker("DECK","▥",GREEN),new LinearLayout.LayoutParams(dp(38),dp(58)));
+        HorizontalScrollView ourCards=createArenaCardRow(active,true,GREEN);LinearLayout.LayoutParams ocp=new LinearLayout.LayoutParams(0,dp(168),1f);ocp.setMargins(dp(4),0,dp(4),0);ours.addView(ourCards,ocp);
+        ours.addView(createArenaZoneMarker("DISCARD","▤",GREEN),new LinearLayout.LayoutParams(dp(38),dp(58)));
+        LinearLayout.LayoutParams ofp=new LinearLayout.LayoutParams(-1,dp(176));ofp.topMargin=dp(5);table.addView(ours,ofp);
+        TextView footer=text("FIRSTLIGHT BATTLEFIELD  ·  TURN "+active.optInt("current_turn"),7,GOLD_BRIGHT,true);footer.setGravity(Gravity.CENTER);footer.setPadding(0,dp(7),0,0);table.addView(footer);
+        stage.addView(table,new FrameLayout.LayoutParams(-1,-1));stage.setMinimumHeight(dp(480));
+        if(arenaLeaderCard==null){api.get("/api/formation",result->ui.post(()->{if(!result.ok()||stage.getParent()==null)return;JSONObject card=firstFormationCard(result.data);if(card==null)return;arenaLeaderCard=card;
+            Object tag=ourCards.getTag();if(tag instanceof LinearLayout){LinearLayout row=(LinearLayout)tag;row.removeAllViews();ArenaCardFace face=new ArenaCardFace("YOUR CARD 1",GREEN);face.bind(card,"NO ACTIVE CARD","Set a deck in Formation");row.addView(face.root,new LinearLayout.LayoutParams(dp(126),dp(163)));}}));}
         return stage;
     }
-
-
-
+    private LinearLayout createArenaMoveHand(JSONObject active){
+        LinearLayout holder=new LinearLayout(this);holder.setOrientation(LinearLayout.VERTICAL);holder.setPadding(dp(2),dp(2),dp(2),dp(2));
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.addView(text("TACTIC HAND",8,GOLD_BRIGHT,true),new LinearLayout.LayoutParams(0,-2,1f));heading.addView(text("CHOOSE ONE ACTION",7,MUTED,true));holder.addView(heading);
+        HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setPadding(dp(2),dp(7),dp(2),dp(4));scroll.addView(row,new HorizontalScrollView.LayoutParams(-2,-2));
+        String[][] choices={{"STRIKE","⚔","Deal damage to the rival","BATTLE"},{"GUARD","◈","Reduce incoming damage","DEFENCE"},{"FOCUS","✦","Charge your next action","ENERGY"}};
+        int[] accents={GOLD_BRIGHT,GREEN,Color.rgb(133,174,255)};
+        for(int i=0;i<choices.length;i++){String[] c=choices[i];int tint=accents[i];FrameLayout card=new FrameLayout(this);card.setPadding(dp(9),dp(8),dp(9),dp(8));card.setBackground(gradient(Color.rgb(35,43,67),Color.rgb(10,17,34),tint,dp(12)));card.setElevation(dp(4));
+            LinearLayout face=new LinearLayout(this);face.setOrientation(LinearLayout.VERTICAL);face.setGravity(Gravity.CENTER_HORIZONTAL);
+            TextView category=text(c[3],6,tint,true);category.setGravity(Gravity.CENTER);face.addView(category);TextView glyph=text(c[1],31,tint,true);glyph.setGravity(Gravity.CENTER);glyph.setShadowLayer(dp(12),0,0,tint);LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-1,dp(54));gp.topMargin=dp(4);face.addView(glyph,gp);
+            TextView label=text(c[0],11,TEXT,true);label.setGravity(Gravity.CENTER);face.addView(label);TextView desc=text(c[2],7,MUTED,false);desc.setGravity(Gravity.CENTER);desc.setMaxLines(2);desc.setPadding(0,dp(3),0,dp(4));face.addView(desc);
+            TextView play=text("PLAY ACTION  ›",6,tint,true);play.setGravity(Gravity.CENTER);play.setPadding(0,dp(5),0,0);face.addView(play);card.addView(face,new FrameLayout.LayoutParams(-1,-1));
+            card.setClickable(true);card.setFocusable(true);card.setOnClickListener(v->{card.animate().scaleX(.96f).scaleY(.96f).setDuration(75).withEndAction(()->card.animate().scaleX(1f).scaleY(1f).setDuration(140).start()).start();
+                confirmAction("Play "+c[0]+"?","Your selected action is locked for this turn once submitted.",()->submitArenaMove(active.optString("match_id"),c[0]));});
+            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(112),dp(145));p.setMargins(dp(4),0,dp(4),0);row.addView(card,p);}
+        holder.addView(scroll);return holder;
+    }
     private JSONObject firstArenaMatchCard(JSONObject match, boolean playerSide) {
         if (match == null) return null;
         String[] objectKeys = playerSide
@@ -4150,6 +4092,25 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         content.addView(hero, rowParams());
     }
 
+
+    private void showRaidStrikeDialog(JSONObject boss,long damage){
+        int accent=Color.rgb(244,119,147);android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.VERTICAL);shell.setGravity(Gravity.CENTER_HORIZONTAL);shell.setPadding(dp(18),dp(16),dp(18),dp(15));
+        shell.setBackground(gradient(Color.rgb(42,29,53),Color.rgb(7,12,25),accent,dp(19)));
+        TextView kicker=text("WORLD RAID  /  STRIKE CONFIRMED",7,GOLD_BRIGHT,true);kicker.setGravity(Gravity.CENTER);shell.addView(kicker);
+        TextView title=text(boss==null?"GUARDIAN HIT":boss.optString("name","WORLD GUARDIAN"),19,TEXT,true);title.setGravity(Gravity.CENTER);title.setMaxLines(2);title.setPadding(0,dp(4),0,dp(7));shell.addView(title);
+        FrameLayout stage=new FrameLayout(this);stage.setBackground(gradient(Color.rgb(62,35,62),Color.rgb(13,16,34),accent,dp(14)));
+        RaidBossView art=new RaidBossView(this,accent,reduceMotionEnabled);stage.addView(art,new FrameLayout.LayoutParams(-1,-1));
+        TextView impact=text("✦",46,GOLD_BRIGHT,true);impact.setGravity(Gravity.CENTER);impact.setShadowLayer(dp(16),0,0,GOLD_BRIGHT);stage.addView(impact,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout.LayoutParams stp=new LinearLayout.LayoutParams(-1,dp(194));stp.bottomMargin=dp(10);shell.addView(stage,stp);
+        TextView damageText=text("−"+formatNumber(damage)+" DAMAGE",20,GOLD_BRIGHT,true);damageText.setGravity(Gravity.CENTER);shell.addView(damageText);
+        TextView detail=text("Your formation struck the guardian. The realm's shared vitality has been updated.",8,MUTED,false);detail.setGravity(Gravity.CENTER);detail.setLineSpacing(dp(3),1f);detail.setPadding(dp(8),dp(4),dp(8),dp(10));shell.addView(detail);
+        TextView close=button("RETURN TO WORLD RAID",true);close.setOnClickListener(v->{dialog.dismiss();refreshAccount(()->renderTab("raids"));});shell.addView(close,new LinearLayout.LayoutParams(-1,dp(42)));
+        dialog.setContentView(shell);dialog.setCanceledOnTouchOutside(false);dialog.setOnShowListener(v->{impact.setScaleX(.2f);impact.setScaleY(.2f);impact.setAlpha(0f);
+            impact.animate().scaleX(1.15f).scaleY(1.15f).alpha(.92f).setDuration(350).withEndAction(()->impact.animate().scaleX(1f).scaleY(1f).alpha(.55f).setDuration(480).start()).start();art.playStrike(null);});
+        dialog.show();Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(.82f);w.setLayout(Math.min(dp(510),getResources().getDisplayMetrics().widthPixels-dp(30)),ViewGroup.LayoutParams.WRAP_CONTENT);}
+    }
+
     private void renderRaids(JSONObject data) {
         JSONArray bosses = data.optJSONArray("bosses");
         if (bosses == null || bosses.length() == 0) {
@@ -4183,10 +4144,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             header.setGravity(Gravity.CENTER_VERTICAL);
             FrameLayout portrait = new FrameLayout(this);
             portrait.setBackground(gradient(Color.rgb(105, 52, 89), Color.rgb(24, 21, 49), accent, dp(15)));
-            TextView crest = text("♜", 43, accent, true);
-            crest.setGravity(Gravity.CENTER);
-            portrait.addView(crest, new FrameLayout.LayoutParams(-1, -1));
-            header.addView(portrait, new LinearLayout.LayoutParams(dp(86), dp(92)));
+            RaidBossView bossArt = new RaidBossView(this, accent, reduceMotionEnabled);
+            portrait.addView(bossArt, new FrameLayout.LayoutParams(-1, -1));
+            header.addView(portrait, new LinearLayout.LayoutParams(dp(96), dp(108)));
             LinearLayout title = new LinearLayout(this);
             title.setOrientation(LinearLayout.VERTICAL);
             title.setPadding(dp(12), 0, 0, 0);
@@ -4264,9 +4224,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                                     else {
                                         JSONObject attempt = result.data.optJSONObject("attempt");
                                         if (sfxEnabled && gameAudio != null) gameAudio.playSuccess();
-                                        showResultDialog("WORLD RAID STRIKE", "Damage dealt: "
-                                                + (attempt == null ? "—" : formatNumber(attempt.optLong("damage"))));
-                                        refreshAccount(() -> renderTab("raids"));
+                                        showRaidStrikeDialog(boss, attempt == null ? 0L : attempt.optLong("damage"));
                                     }
                                 }))));
                 panel.addView(attack, rowParams());
@@ -4884,138 +4842,146 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }
     }
 
-    private void showTradeListingDialog(JSONArray inventory) {
-        if (inventory == null || inventory.length() == 0) {
-            showResultDialog("No available cards", "You need an available tradable card to create a public listing.");
-            return;
-        }
-        String[] labels = new String[inventory.length()];
-        for (int i = 0; i < inventory.length(); i++) {
-            JSONObject card = inventory.optJSONObject(i);
-            labels[i] = card == null ? "Unknown card" : card.optString("name", "Card")
-                    + "  ·  " + card.optString("rarity", "CARD")
-                    + "  ·  " + card.optString("element", "AETHER");
-        }
-        new AlertDialog.Builder(this)
-                .setTitle("SELECT A CARD TO PUBLISH")
-                .setMessage("Only the card you choose will appear on the public trade board.")
-                .setItems(labels, (dialog, which) -> {
-                    JSONObject card = inventory.optJSONObject(which);
-                    if (card != null) showTradeListingForm(card);
-                })
-                .setNegativeButton("CANCEL", null)
-                .show();
+
+    private void showCardPickerDialog(JSONArray cards,String title,String subtitle,boolean allowEmpty,
+                                      java.util.function.Consumer<JSONObject> onChoose){
+        if(cards==null||cards.length()==0){if(allowEmpty&&onChoose!=null)onChoose.accept(null);else showResultDialog("No cards available","There are no eligible cards to choose from.");return;}
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.VERTICAL);shell.setPadding(dp(15),dp(14),dp(15),dp(13));
+        shell.setBackground(gradient(Color.rgb(24,36,58),Color.rgb(7,13,25),Color.rgb(92,124,150),dp(18)));
+        shell.addView(text("CARDUNIVERSE  /  CARD ARCHIVE",7,CYAN,true));
+        TextView heading=text(title,17,TEXT,true);heading.setPadding(0,dp(3),0,dp(2));shell.addView(heading);
+        TextView copy=text(subtitle==null?"":subtitle,8,MUTED,false);copy.setLineSpacing(dp(2),1f);shell.addView(copy);
+        LinearLayout top=new LinearLayout(this);top.setGravity(Gravity.CENTER_VERTICAL);
+        top.addView(text(cards.length()+" CARD(S) AVAILABLE",7,GOLD_BRIGHT,true),new LinearLayout.LayoutParams(0,-2,1f));
+        if(allowEmpty){TextView clear=button("CLEAR SLOT",false);clear.setTextSize(7);clear.setOnClickListener(v->{dialog.dismiss();if(onChoose!=null)onChoose.accept(null);});top.addView(clear,new LinearLayout.LayoutParams(dp(104),dp(32)));}
+        LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-1,-2);tp.topMargin=dp(9);shell.addView(top,tp);
+        EditText search=editField("Search name, rarity, element or card code",false);
+        LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(42));sp.topMargin=dp(8);sp.bottomMargin=dp(8);shell.addView(search,sp);
+        ScrollView scroll=new ScrollView(this);LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);
+        shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        TextView cancel=button("CANCEL",false);cancel.setOnClickListener(v->dialog.dismiss());
+        LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(-1,dp(38));cp.topMargin=dp(8);shell.addView(cancel,cp);
+        LinearLayout[] rows=new LinearLayout[cards.length()];
+        for(int i=0;i<cards.length();i++){JSONObject card=cards.optJSONObject(i);if(card==null)continue;
+            LinearLayout row=createCardPickerRow(card,false,false);rows[i]=row;LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.bottomMargin=dp(6);list.addView(row,rp);
+            row.setOnClickListener(v->{dialog.dismiss();if(onChoose!=null)onChoose.accept(card);});}
+        search.addTextChangedListener(new TextWatcher(){
+            @Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}
+            @Override public void onTextChanged(CharSequence s,int st,int before,int count){String q=s.toString().trim().toLowerCase(java.util.Locale.ROOT);
+                for(int i=0;i<rows.length;i++){JSONObject c=cards.optJSONObject(i);if(rows[i]==null||c==null)continue;
+                    String h=(c.optString("name","")+" "+c.optString("rarity","")+" "+c.optString("element","")+" "+c.optString("card_code","")).toLowerCase(java.util.Locale.ROOT);
+                    rows[i].setVisibility(q.isEmpty()||h.contains(q)?View.VISIBLE:View.GONE);}}
+            @Override public void afterTextChanged(Editable s){}
+        });
+        dialog.setContentView(shell);dialog.setCanceledOnTouchOutside(true);dialog.show();Window w=dialog.getWindow();
+        if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(.76f);
+            w.setLayout(Math.min(dp(540),getResources().getDisplayMetrics().widthPixels-dp(30)),Math.min(dp(660),getResources().getDisplayMetrics().heightPixels-dp(88)));
+            w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);}
     }
 
-    private void showTradeListingForm(JSONObject selected) {
-        if (selected == null) return;
-        EditText wanted = editField("What card or rarity are you looking for?", false);
-        EditText note = editField("Optional note for other collectors", false);
-        LinearLayout form = sectionPanel();
-        form.addView(text("CARD SELECTED FOR PUBLIC LISTING", 7, CYAN, true));
-        LinearLayout selectedCard = dataRow(selected.optString("name", "Card"),
-                selected.optString("rarity", "CARD") + "  ·  "
-                        + selected.optString("element", "AETHER") + "  ·  "
-                        + selected.optString("card_code", ""),
-                "READY");
-        form.addView(selectedCard, rowParams());
-        form.addView(text("WHAT YOU WANT IN RETURN", 7, GOLD_BRIGHT, true));
-        form.addView(wanted, fieldParams());
-        form.addView(text("MESSAGE TO THE COMMUNITY", 7, GOLD_BRIGHT, true));
-        form.addView(note, fieldParams());
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
-        scroll.addView(form);
-        new AlertDialog.Builder(this).setTitle("Create public listing")
-                .setView(scroll)
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("PUBLISH CARD", (dialog, which) -> {
-                    JSONObject body = new JSONObject();
-                    try {
-                        body.put("instanceId", selected.optString("instance_id"));
-                        body.put("wantedText", wanted.getText().toString().trim());
-                        body.put("message", note.getText().toString().trim());
-                    } catch (Exception ignored) {}
-                    api.post("/api/trade-board", body, result -> ui.post(() -> {
-                        if (!result.ok()) showResultDialog("Listing failed", result.error);
-                        else {
-                            showResultDialog("CARD LISTED",
-                                    result.data.optString("message", "Your selected card is now visible to collectors."));
-                            renderTab("trades");
-                        }
-                    }));
-                }).show();
+    private LinearLayout createCardPickerRow(JSONObject card,boolean selected,boolean multi){
+        String rarity=card.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT),element=card.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT);
+        int accent=cardRarityColor(rarity);LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(8),dp(7),dp(8),dp(7));
+        row.setBackground(gradient(Color.rgb(20,34,51),Color.rgb(11,19,34),Color.rgb(67,87,111),dp(11)));
+        FrameLayout art=new FrameLayout(this);art.setBackground(gradient(Color.rgb(30,45,65),Color.rgb(7,13,25),accent,dp(7)));art.setClipToOutline(true);
+        TextView fallback=text(elementSigil(element),20,accent,true);fallback.setGravity(Gravity.CENTER);art.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
+        CardArtView image=new CardArtView(this);image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);image.loadArtwork(cardArtworkPath(card));art.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        row.addView(art,new LinearLayout.LayoutParams(dp(62),dp(82)));
+        LinearLayout details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);details.setPadding(dp(10),0,dp(7),0);
+        TextView name=text(card.optString("name","Unknown Card"),10,TEXT,true);name.setMaxLines(2);details.addView(name);details.addView(text(rarity+"  ·  "+element,7,accent,true));
+        String extra=card.optString("card_code","");long power=card.optLong("card_power",card.optLong("formation_power"));if(power>0)extra+=(extra.isEmpty()?"":"  ·  ")+formatNumber(power)+" POWER";
+        if(card.has("owned_count"))extra+=(extra.isEmpty()?"":"  ·  ")+"×"+card.optInt("owned_count");
+        TextView sub=text(extra,7,MUTED,false);sub.setMaxLines(1);details.addView(sub);row.addView(details,new LinearLayout.LayoutParams(0,-2,1f));
+        TextView badge=text(multi?(selected?"✓ SELECTED":"＋ ADD"):"CHOOSE",6,selected?CYAN:GOLD_BRIGHT,true);badge.setGravity(Gravity.CENTER);badge.setPadding(dp(7),dp(7),dp(7),dp(7));
+        badge.setBackground(gradient(Color.rgb(30,38,55),Color.rgb(14,21,37),selected?CYAN:accent,dp(8)));row.addView(badge);return row;
     }
 
-    private void showPublicTradeRequestDialog(JSONObject listing, JSONArray inventory) {
-        if (inventory == null || inventory.length() == 0) {
-            showResultDialog("No cards to offer", "You need available tradable cards to make an offer.");
-            return;
-        }
-        String[] labels = new String[inventory.length()];
-        boolean[] selected = new boolean[inventory.length()];
-        for (int i = 0; i < inventory.length(); i++) {
-            JSONObject card = inventory.optJSONObject(i);
-            labels[i] = card == null ? "Unknown card" : card.optString("name", "Card")
-                    + " · " + card.optString("rarity", "CARD");
-        }
-        EditText note = editField("Optional message to the listing owner", false);
-        LinearLayout form = new LinearLayout(this);
-        form.setOrientation(LinearLayout.VERTICAL);
-        form.setPadding(dp(7), dp(8), dp(7), dp(2));
-        form.addView(text("YOU WANT", 7, CYAN, true));
-        form.addView(text(listing.optString("name", "Listed card"), 15, TEXT, true));
-        form.addView(text("Choose 1–5 cards you are willing to exchange.", 8, MUTED, false));
-        for (int i = 0; i < inventory.length(); i++) {
-            android.widget.CheckBox choice = new android.widget.CheckBox(this);
-            choice.setText(labels[i]);
-            choice.setTextColor(TEXT);
-            choice.setTextSize(10);
-            final int index = i;
-            choice.setOnCheckedChangeListener((buttonView, checked) -> {
-                selected[index] = checked;
-                int count = 0;
-                for (boolean value : selected) if (value) count++;
-                if (count > 5) {
-                    selected[index] = false;
-                    buttonView.setChecked(false);
-                    Toast.makeText(this, "You can offer up to five cards.", Toast.LENGTH_SHORT).show();
-                }
-            });
-            form.addView(choice);
-        }
-        form.addView(text("MESSAGE TO OWNER", 7, GOLD_BRIGHT, true));
-        form.addView(note, fieldParams());
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
-        scroll.addView(form);
-        new AlertDialog.Builder(this).setTitle("Make public trade offer").setView(scroll)
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("SEND OFFER", (dialog, which) -> {
-                    JSONArray ids = new JSONArray();
-                    for (int i = 0; i < selected.length; i++) {
-                        if (selected[i] && inventory.optJSONObject(i) != null)
-                            ids.put(inventory.optJSONObject(i).optString("instance_id"));
-                    }
-                    if (ids.length() < 1 || ids.length() > 5) {
-                        showResultDialog("Choose cards", "Select between one and five cards to offer.");
-                        return;
-                    }
-                    JSONObject body = new JSONObject();
-                    try {
-                        body.put("instanceIds", ids);
-                        body.put("message", note.getText().toString().trim());
-                    } catch (Exception ignored) {}
-                    api.post("/api/trade-board/" + listing.optString("listing_id") + "/request",
-                            body, result -> ui.post(() -> {
-                                if (!result.ok()) showResultDialog("Offer not sent", result.error);
-                                else {
-                                    showResultDialog("TRADE OFFER SENT", result.data.optString("message",
-                                            "The listing owner can review your cards in the Trade Desk."));
-                                    renderTab("trades");
-                                }
-                            }));
-                }).show();
+    private void refreshCardPickerRow(LinearLayout row,boolean selected,int accent){
+        row.setBackground(gradient(selected?Color.rgb(28,57,61):Color.rgb(20,34,51),selected?Color.rgb(12,31,38):Color.rgb(11,19,34),selected?CYAN:Color.rgb(67,87,111),dp(11)));
+        if(row.getChildCount()>2&&row.getChildAt(2) instanceof TextView){TextView badge=(TextView)row.getChildAt(2);badge.setText(selected?"✓ SELECTED":"＋ ADD");badge.setTextColor(selected?CYAN:accent);}
+    }
+
+    private void showMultiCardPickerDialog(JSONArray cards,String title,String subtitle,String idKey,
+            java.util.Set<String> preselected,int minimum,int maximum,String actionLabel,View footer,
+            java.util.function.Consumer<java.util.Set<String>> onConfirm){
+        if(cards==null||cards.length()==0){showResultDialog("No cards available","There are no eligible cards to choose from.");return;}
+        java.util.LinkedHashSet<String> selected=new java.util.LinkedHashSet<>();if(preselected!=null)selected.addAll(preselected);
+        android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.VERTICAL);shell.setPadding(dp(15),dp(14),dp(15),dp(13));
+        shell.setBackground(gradient(Color.rgb(24,36,58),Color.rgb(7,13,25),Color.rgb(92,124,150),dp(18)));
+        shell.addView(text("CARDUNIVERSE  /  CARD ARCHIVE",7,CYAN,true));TextView head=text(title,17,TEXT,true);head.setPadding(0,dp(3),0,dp(2));shell.addView(head);
+        TextView copy=text(subtitle==null?"":subtitle,8,MUTED,false);copy.setLineSpacing(dp(2),1f);shell.addView(copy);
+        LinearLayout summary=new LinearLayout(this);summary.setOrientation(LinearLayout.VERTICAL);summary.setPadding(dp(10),dp(8),dp(10),dp(8));
+        summary.setBackground(gradient(Color.rgb(26,48,59),Color.rgb(12,27,38),CYAN,dp(10)));TextView counter=text("",8,CYAN,true);summary.addView(counter);
+        TextView hint=text("Tap a card to add or remove it from your selection.",7,MUTED,false);summary.addView(hint);
+        LinearLayout.LayoutParams smp=new LinearLayout.LayoutParams(-1,-2);smp.topMargin=dp(8);shell.addView(summary,smp);
+        EditText search=editField("Search name, rarity, element or card code",false);LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-1,dp(42));sp.topMargin=dp(8);sp.bottomMargin=dp(7);shell.addView(search,sp);
+        ScrollView scroll=new ScrollView(this);LinearLayout list=new LinearLayout(this);list.setOrientation(LinearLayout.VERTICAL);scroll.addView(list);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
+        if(footer!=null){LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-1,-2);fp.topMargin=dp(7);shell.addView(footer,fp);}
+        LinearLayout[] rows=new LinearLayout[cards.length()];
+        for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c==null)continue;String id=c.optString(idKey,"");LinearLayout row=createCardPickerRow(c,selected.contains(id),true);rows[i]=row;
+            LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.bottomMargin=dp(6);list.addView(row,rp);
+            row.setOnClickListener(v->{if(id.isEmpty())return;if(selected.contains(id))selected.remove(id);else{if(maximum>0&&selected.size()>=maximum){Toast.makeText(this,"You can select up to "+maximum+" cards.",Toast.LENGTH_SHORT).show();return;}selected.add(id);}
+                refreshCardPickerRow(row,selected.contains(id),cardRarityColor(c.optString("rarity","COMMON")));updatePickerCount(counter,selected.size(),minimum,maximum);
+                hint.setText(selected.isEmpty()?"Tap a card to add it to your selection.":selected.size()+" selected · tap another card to update the list.");});}
+        search.addTextChangedListener(new TextWatcher(){@Override public void beforeTextChanged(CharSequence s,int st,int c,int a){}
+            @Override public void onTextChanged(CharSequence s,int st,int b,int count){String q=s.toString().trim().toLowerCase(java.util.Locale.ROOT);
+                for(int i=0;i<rows.length;i++){JSONObject c=cards.optJSONObject(i);if(rows[i]==null||c==null)continue;String h=(c.optString("name","")+" "+c.optString("rarity","")+" "+c.optString("element","")+" "+c.optString("card_code","")).toLowerCase(java.util.Locale.ROOT);rows[i].setVisibility(q.isEmpty()||h.contains(q)?View.VISIBLE:View.GONE);}}
+            @Override public void afterTextChanged(Editable s){}});
+        LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.CENTER_VERTICAL);TextView cancel=button("CANCEL",false);cancel.setOnClickListener(v->dialog.dismiss());
+        actions.addView(cancel,new LinearLayout.LayoutParams(0,dp(40),1f));actions.addView(new View(this),new LinearLayout.LayoutParams(dp(8),1));
+        TextView confirm=button(actionLabel,true);confirm.setOnClickListener(v->{if(selected.size()<minimum){showResultDialog("Choose more cards","Select at least "+minimum+" card(s) to continue.");return;}
+            if(maximum>0&&selected.size()>maximum){showResultDialog("Too many cards","Select no more than "+maximum+" card(s).");return;}dialog.dismiss();if(onConfirm!=null)onConfirm.accept(new java.util.LinkedHashSet<>(selected));});
+        actions.addView(confirm,new LinearLayout.LayoutParams(0,dp(40),1f));LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(40));ap.topMargin=dp(9);shell.addView(actions,ap);
+        updatePickerCount(counter,selected.size(),minimum,maximum);dialog.setContentView(shell);dialog.setCanceledOnTouchOutside(true);dialog.show();Window w=dialog.getWindow();
+        if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(.76f);w.setLayout(Math.min(dp(540),getResources().getDisplayMetrics().widthPixels-dp(30)),Math.min(dp(690),getResources().getDisplayMetrics().heightPixels-dp(88)));w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);}
+    }
+
+    private void updatePickerCount(TextView counter,int selected,int minimum,int maximum){
+        counter.setText(selected+(maximum>0?" / "+maximum:"")+" CARD(S) SELECTED"+(minimum>0?"  ·  MIN "+minimum:""));
+    }
+
+    private void showTradeListingDialog(JSONArray inventory){
+        if(inventory==null||inventory.length()==0){showResultDialog("No available cards","You need an available tradable card to create a public listing.");return;}
+        showCardPickerDialog(inventory,"CHOOSE A CARD TO PUBLISH","Only the card you select will appear on the public trade board. Your other cards stay private.",false,card->showTradeListingForm(card));
+    }
+
+    private void showTradeListingForm(JSONObject selected){
+        if(selected==null)return;android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+        LinearLayout shell=new LinearLayout(this);shell.setOrientation(LinearLayout.VERTICAL);shell.setPadding(dp(17),dp(16),dp(17),dp(15));
+        shell.setBackground(gradient(Color.rgb(24,36,58),Color.rgb(7,13,25),CYAN,dp(18)));
+        shell.addView(text("CARDUNIVERSE  /  TRADE DESK",7,CYAN,true));shell.addView(text("Create public listing",18,TEXT,true));
+        shell.addView(text("Publish only this card. The rest of your collection remains private.",8,MUTED,false));
+        LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(9),dp(9),dp(9),dp(9));
+        row.setBackground(gradient(Color.rgb(26,48,59),Color.rgb(12,27,38),CYAN,dp(11)));
+        FrameLayout art=new FrameLayout(this);art.setBackground(gradient(Color.rgb(30,45,65),Color.rgb(7,13,25),cardRarityColor(selected.optString("rarity","COMMON")),dp(8)));
+        CardArtView image=new CardArtView(this);image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);image.loadArtwork(cardArtworkPath(selected));art.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        row.addView(art,new LinearLayout.LayoutParams(dp(72),dp(96)));LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,0,0);
+        TextView name=text(selected.optString("name","Card"),13,TEXT,true);name.setMaxLines(2);info.addView(name);
+        info.addView(text(selected.optString("rarity","CARD").toUpperCase(java.util.Locale.ROOT)+" · "+selected.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT),8,GOLD_BRIGHT,true));
+        info.addView(text(selected.optString("card_code",""),7,MUTED,false));row.addView(info,new LinearLayout.LayoutParams(0,-2,1f));
+        LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,-2);rp.topMargin=dp(10);shell.addView(row,rp);
+        TextView wl=text("WHAT YOU WANT IN RETURN",7,GOLD_BRIGHT,true);wl.setPadding(0,dp(12),0,dp(5));shell.addView(wl);
+        EditText wanted=editField("Card name, rarity or open to offers",false);shell.addView(wanted,fieldParams());
+        TextView nl=text("MESSAGE TO THE COMMUNITY",7,GOLD_BRIGHT,true);nl.setPadding(0,dp(10),0,dp(5));shell.addView(nl);
+        EditText note=editField("Optional note for other collectors",false);shell.addView(note,fieldParams());
+        LinearLayout actions=new LinearLayout(this);actions.setGravity(Gravity.CENTER_VERTICAL);TextView cancel=button("CANCEL",false);cancel.setOnClickListener(v->dialog.dismiss());
+        TextView publish=button("PUBLISH CARD",true);publish.setOnClickListener(v->{JSONObject body=new JSONObject();try{body.put("instanceId",selected.optString("instance_id"));body.put("wantedText",wanted.getText().toString().trim());body.put("message",note.getText().toString().trim());}catch(Exception ignored){}
+            publish.setEnabled(false);api.post("/api/trade-board",body,r->ui.post(()->{publish.setEnabled(true);if(!r.ok())showResultDialog("Listing failed",r.error);else{dialog.dismiss();showResultDialog("CARD LISTED",r.data.optString("message","Your selected card is now visible to collectors."));renderTab("trades");}}));});
+        actions.addView(cancel,new LinearLayout.LayoutParams(0,dp(40),1f));actions.addView(new View(this),new LinearLayout.LayoutParams(dp(8),1));actions.addView(publish,new LinearLayout.LayoutParams(0,dp(40),1f));
+        LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(-1,dp(40));ap.topMargin=dp(14);shell.addView(actions,ap);dialog.setContentView(shell);dialog.setCanceledOnTouchOutside(true);dialog.show();
+        Window w=dialog.getWindow();if(w!=null){w.setBackgroundDrawableResource(android.R.color.transparent);w.setDimAmount(.76f);w.setLayout(Math.min(dp(520),getResources().getDisplayMetrics().widthPixels-dp(30)),ViewGroup.LayoutParams.WRAP_CONTENT);w.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);}
+    }
+
+    private void showPublicTradeRequestDialog(JSONObject listing,JSONArray inventory){
+        if(inventory==null||inventory.length()==0){showResultDialog("No cards to offer","You need available tradable cards to make an offer.");return;}
+        EditText note=editField("Optional message to the listing owner",false);LinearLayout footer=new LinearLayout(this);footer.setOrientation(LinearLayout.VERTICAL);
+        footer.addView(text("MESSAGE TO OWNER",7,GOLD_BRIGHT,true));footer.addView(note,fieldParams());
+        showMultiCardPickerDialog(inventory,"BUILD YOUR OFFER","You want "+listing.optString("name","the listed card")+". Choose one to five cards to exchange.",
+                "instance_id",java.util.Collections.emptySet(),1,5,"SEND OFFER",footer,chosen->{JSONArray ids=new JSONArray();for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);if(c!=null&&chosen.contains(c.optString("instance_id","")))ids.put(c.optString("instance_id"));}
+                    JSONObject body=new JSONObject();try{body.put("instanceIds",ids);body.put("message",note.getText().toString().trim());}catch(Exception ignored){}
+                    api.post("/api/trade-board/"+listing.optString("listing_id")+"/request",body,r->ui.post(()->{if(!r.ok())showResultDialog("Offer not sent",r.error);else{showResultDialog("TRADE OFFER SENT",r.data.optString("message","The listing owner can review your cards in the Trade Desk."));renderTab("trades");}}));});
     }
 
     private int tradeCardAccent(String rarity) {
@@ -5052,158 +5018,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }
     }
 
-    private void showTradeCreateDialog(JSONArray inventory) {
-        if (inventory == null || inventory.length() == 0) {
-            showResultDialog("No tradable cards",
-                    "No available tradable cards were returned for this account.");
-            return;
-        }
-
-        boolean[] selected = new boolean[inventory.length()];
-        LinearLayout[] rows = new LinearLayout[inventory.length()];
-        TextView[] markers = new TextView[inventory.length()];
-        final AlertDialog[] dialogHolder = new AlertDialog[1];
-
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(16), dp(12), dp(16), dp(8));
-        root.addView(text("BUILD YOUR OFFER", 15, TEXT, true));
-        TextView subtitle = text("Choose up to five cards from your tradable collection.",
-                8, MUTED, false);
-        subtitle.setPadding(0, dp(3), 0, dp(9));
-        root.addView(subtitle);
-
-        LinearLayout selectedPanel = new LinearLayout(this);
-        selectedPanel.setOrientation(LinearLayout.VERTICAL);
-        selectedPanel.setPadding(dp(11), dp(9), dp(11), dp(9));
-        selectedPanel.setBackground(gradient(Color.rgb(34, 49, 66), Color.rgb(13, 24, 39),
-                CYAN, dp(11)));
-        TextView counter = text("0 / 5 CARDS SELECTED", 8, CYAN, true);
-        selectedPanel.addView(counter);
-        selectedPanel.addView(text(inventory.length() + " AVAILABLE TO TRADE",
-                7, MUTED, true));
-        root.addView(selectedPanel);
-
-        EditText search = editField("Search card name, rarity or element", false);
-        LinearLayout.LayoutParams searchParams = new LinearLayout.LayoutParams(-1, dp(42));
-        searchParams.topMargin = dp(9);
-        searchParams.bottomMargin = dp(8);
-        root.addView(search, searchParams);
-
-        ScrollView listScroll = new ScrollView(this);
-        listScroll.setFillViewport(false);
-        listScroll.setVerticalScrollBarEnabled(true);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        listScroll.addView(list);
-        root.addView(listScroll, new LinearLayout.LayoutParams(-1, dp(300)));
-
-        for (int i = 0; i < inventory.length(); i++) {
-            JSONObject card = inventory.optJSONObject(i);
-            String name = card == null ? "Unknown card" : card.optString("name", "Card");
-            String rarity = card == null ? "CARD" : card.optString("rarity", "CARD");
-            String element = card == null ? "AETHER" : card.optString("element", "AETHER");
-            String code = card == null ? "" : card.optString("card_code", "");
-            int accent = tradeCardAccent(rarity);
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(dp(10), dp(8), dp(10), dp(8));
-            row.setBackground(gradient(Color.rgb(23, 32, 51), Color.rgb(13, 21, 38),
-                    Color.rgb(68, 82, 108), dp(11)));
-
-            TextView marker = text("+", 15, GOLD_BRIGHT, true);
-            marker.setGravity(Gravity.CENTER);
-            row.addView(marker, new LinearLayout.LayoutParams(dp(31), dp(31)));
-            LinearLayout detail = new LinearLayout(this);
-            detail.setOrientation(LinearLayout.VERTICAL);
-            detail.setPadding(dp(9), 0, dp(5), 0);
-            TextView nameView = text(name, 10, TEXT, true);
-            nameView.setMaxLines(2);
-            detail.addView(nameView);
-            String meta = rarity.toUpperCase(java.util.Locale.ROOT) + "  ·  "
-                    + element.toUpperCase(java.util.Locale.ROOT)
-                    + (code.isEmpty() ? "" : "  ·  " + code);
-            TextView metaView = text(meta, 7, accent, true);
-            metaView.setMaxLines(1);
-            detail.addView(metaView);
-            row.addView(detail, new LinearLayout.LayoutParams(0,
-                    ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-
-            TextView badge = text(rarity.toUpperCase(java.util.Locale.ROOT), 6, accent, true);
-            badge.setGravity(Gravity.CENTER);
-            badge.setPadding(dp(6), dp(5), dp(6), dp(5));
-            badge.setBackground(gradient(Color.rgb(31, 33, 53), Color.rgb(17, 23, 40),
-                    accent, dp(7)));
-            row.addView(badge);
-            LinearLayout.LayoutParams rowParams = new LinearLayout.LayoutParams(-1, -2);
-            rowParams.bottomMargin = dp(5);
-            list.addView(row, rowParams);
-            rows[i] = row;
-            markers[i] = marker;
-
-            final int index = i;
-            row.setOnClickListener(v -> {
-                if (!selected[index]) {
-                    int count = 0;
-                    for (boolean value : selected) if (value) count++;
-                    if (count >= 5) {
-                        Toast.makeText(this, "You can offer up to five cards.",
-                                Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-                }
-                selected[index] = !selected[index];
-                updateTradePickerSelection(selected, counter, dialogHolder[0], markers, rows);
-            });
-        }
-
-        AlertDialog dialog = new AlertDialog.Builder(this)
-                .setView(root)
-                .setNegativeButton("CANCEL", null)
-                .setPositiveButton("NEXT", (d, which) -> {
-                    JSONArray ids = new JSONArray();
-                    for (int i = 0; i < selected.length; i++) {
-                        JSONObject card = inventory.optJSONObject(i);
-                        if (selected[i] && card != null) ids.put(card.optString("instance_id"));
-                    }
-                    if (ids.length() < 1 || ids.length() > 5) {
-                        showResultDialog("Select cards",
-                                "Choose between one and five tradable cards.");
-                        return;
-                    }
-                    showTradeRecipientDialog(ids);
-                }).create();
-        dialogHolder[0] = dialog;
-
-        search.addTextChangedListener(new TextWatcher() {
-            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
-                String query = s.toString().trim().toLowerCase(java.util.Locale.ROOT);
-                for (int i = 0; i < rows.length; i++) {
-                    JSONObject card = inventory.optJSONObject(i);
-                    String haystack = card == null ? "" : (
-                            card.optString("name", "") + " " + card.optString("rarity", "")
-                                    + " " + card.optString("element", "")
-                                    + " " + card.optString("card_code", ""))
-                            .toLowerCase(java.util.Locale.ROOT);
-                    rows[i].setVisibility(query.isEmpty() || haystack.contains(query)
-                            ? View.VISIBLE : View.GONE);
-                }
-            }
-            @Override public void afterTextChanged(Editable s) {}
-        });
-
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawable(gradient(Color.rgb(10, 17, 31),
-                    Color.rgb(8, 13, 26), Color.rgb(71, 96, 122), dp(16)));
-            dialog.getWindow().setLayout(
-                    Math.min(getResources().getDisplayMetrics().widthPixels - dp(28), dp(440)),
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-        }
-        updateTradePickerSelection(selected, counter, dialog, markers, rows);
+    private void showTradeCreateDialog(JSONArray inventory){
+        if(inventory==null||inventory.length()==0){showResultDialog("No tradable cards","No available tradable cards were returned for this account.");return;}
+        showMultiCardPickerDialog(inventory,"BUILD YOUR OFFER","Choose one to five cards from your tradable collection. Search by name, rarity or element.",
+                "instance_id",java.util.Collections.emptySet(),1,5,"NEXT",null,chosen->{JSONArray ids=new JSONArray();for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);if(c!=null&&chosen.contains(c.optString("instance_id","")))ids.put(c.optString("instance_id"));}showTradeRecipientDialog(ids);});
     }
 
     private void showTradeRecipientDialog(JSONArray ids) {
@@ -5218,18 +5036,11 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }).show();
     }
 
-    private void showTradeAcceptDialog(String tradeId,JSONArray inventory) {
-        if(inventory.length()==0){showResultDialog("No exchange cards","You need available tradable cards to accept this offer.");return;}
-        String[] labels=new String[inventory.length()];boolean[] selected=new boolean[inventory.length()];
-        for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);labels[i]=c==null?"Unknown card":c.optString("name")+" · "+c.optString("rarity");}
-        new AlertDialog.Builder(this).setTitle("Choose cards to exchange").setMultiChoiceItems(labels,selected,(d,n,checked)->selected[n]=checked)
-            .setNegativeButton("CANCEL",null).setPositiveButton("ACCEPT",(d,w)->{
-                JSONArray ids=new JSONArray();for(int i=0;i<selected.length;i++)if(selected[i]&&inventory.optJSONObject(i)!=null)ids.put(inventory.optJSONObject(i).optString("instance_id"));
-                if(ids.length()==0){showResultDialog("Choose an exchange","Select at least one tradable card in return.");return;}
-                confirmAction("Complete this exchange?","Both sides exchange selected cards. This action cannot be reversed.",()->api.post("/api/trades/"+tradeId+"/accept",payload("instanceIds",ids),r->ui.post(()->{
-                    if(!r.ok())showResultDialog("Trade failed",r.error);else{showResultDialog("TRADE COMPLETE",r.data.optString("message","Cards exchanged."));refreshAccount(()->renderTab("trades"));}
-                })));
-            }).show();
+    private void showTradeAcceptDialog(String tradeId,JSONArray inventory){
+        if(inventory==null||inventory.length()==0){showResultDialog("No exchange cards","You need available tradable cards to accept this offer.");return;}
+        showMultiCardPickerDialog(inventory,"CHOOSE YOUR EXCHANGE","Select the cards you will send in return. At least one tradable card is required.",
+                "instance_id",java.util.Collections.emptySet(),1,0,"REVIEW EXCHANGE",null,chosen->{JSONArray ids=new JSONArray();for(int i=0;i<inventory.length();i++){JSONObject c=inventory.optJSONObject(i);if(c!=null&&chosen.contains(c.optString("instance_id","")))ids.put(c.optString("instance_id"));}
+                    confirmAction("Complete this exchange?","Both sides exchange the selected cards. This action cannot be reversed.",()->api.post("/api/trades/"+tradeId+"/accept",payload("instanceIds",ids),r->ui.post(()->{if(!r.ok())showResultDialog("Trade failed",r.error);else{showResultDialog("TRADE COMPLETE",r.data.optString("message","Cards exchanged."));refreshAccount(()->renderTab("trades"));}})));});
     }
 
 
@@ -5455,96 +5266,24 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         lineupScroll.setClipToPadding(false);
         lineupScroll.setPadding(0, 0, dp(3), dp(5));
         lineupScroll.addView(grid, new HorizontalScrollView.LayoutParams(-2, -2));
-        Spinner[] slots = new Spinner[5];
-        for (int i = 0; i < 5; i++) {
-            LinearLayout panel = new LinearLayout(this);
-            panel.setOrientation(LinearLayout.VERTICAL);
-            panel.setPadding(dp(6), dp(7), dp(6), dp(7));
-            panel.setBackground(gradient(PANEL_LIGHT, PANEL, Color.rgb(72, 88, 67), dp(10)));
-            panel.addView(text("POSITION 0" + (i + 1), 7, GOLD, true));
-
-            FrameLayout art = new FrameLayout(this);
-            art.setBackground(gradient(Color.rgb(26, 45, 37), Color.rgb(10, 19, 16),
-                    Color.rgb(82, 104, 77), dp(8)));
-            TextView sigil = text("＋", 29, MUTED, true);
-            sigil.setGravity(Gravity.CENTER);
-            art.addView(sigil, new FrameLayout.LayoutParams(-1, -1));
-            CardArtView illustration = new CardArtView(this);
-            illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
-            LinearLayout.LayoutParams artParams = new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, dp(164));
-            artParams.topMargin = dp(6);
-            panel.addView(art, artParams);
-
-            TextView cardName = text("EMPTY SLOT", 9, TEXT, true);
-            cardName.setMaxLines(2);
-            cardName.setGravity(Gravity.CENTER);
-            cardName.setPadding(0, dp(5), 0, dp(2));
-            panel.addView(cardName);
-            TextView cardMeta = text("Choose a card", 7, MUTED, false);
-            cardMeta.setGravity(Gravity.CENTER);
-            cardMeta.setMaxLines(2);
-            panel.addView(cardMeta);
-
-            Spinner spinner = new Spinner(this);
-            ArrayAdapter<String> adapter = new ArrayAdapter<String>(
-                    this, android.R.layout.simple_spinner_item, labels) {
-                @Override public View getView(int position, View convertView, ViewGroup parent) {
-                    TextView item = new TextView(MainActivity.this);
-                    item.setText(position >= 0 && position < labels.length ? labels[position] : "Choose card");
-                    item.setTextColor(TEXT);
-                    item.setTextSize(8);
-                    item.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-                    item.setGravity(Gravity.CENTER);
-                    item.setSingleLine(true);
-                    item.setEllipsize(android.text.TextUtils.TruncateAt.END);
-                    item.setPadding(dp(5), dp(3), dp(5), dp(3));
-                    return item;
-                }
-                @Override public View getDropDownView(int position, View convertView, ViewGroup parent) {
-                    TextView item = new TextView(MainActivity.this);
-                    item.setText(position >= 0 && position < labels.length ? labels[position] : "Choose card");
-                    item.setTextColor(TEXT);
-                    item.setTextSize(12);
-                    item.setPadding(dp(14), dp(12), dp(14), dp(12));
-                    item.setBackgroundColor(Color.rgb(15, 23, 40));
-                    return item;
-                }
-            };
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            spinner.setAdapter(adapter);
-            spinner.setBackground(gradient(Color.rgb(25, 35, 55), Color.rgb(10, 16, 29),
-                    Color.rgb(105, 126, 158), dp(7)));
-            spinner.setPadding(dp(3), 0, dp(3), 0);
-            String savedId = savedSlots.get(i + 1);
-            for (int j = 0; j < ids.length; j++) {
-                if (savedId != null && savedId.equals(ids[j])) {
-                    spinner.setSelection(j);
-                    break;
-                }
-            }
-            spinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                @Override
-                public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                    String selectedId = position >= 0 && position < ids.length ? ids[position] : "";
-                    updateFormationCardPreview(cardsById.get(selectedId), art, illustration, sigil, cardName, cardMeta);
-                }
-                @Override public void onNothingSelected(AdapterView<?> parent) {}
-            });
-            slots[i] = spinner;
-            panel.addView(spinner, new LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, dp(40)));
-            LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(
-                    dp(154), ViewGroup.LayoutParams.WRAP_CONTENT);
-            colParams.setMargins(dp(4), dp(5), dp(4), dp(5));
-            grid.addView(panel, colParams);
-            String initialId = spinner.getSelectedItemPosition() >= 0
-                    && spinner.getSelectedItemPosition() < ids.length
-                    ? ids[spinner.getSelectedItemPosition()] : "";
-            updateFormationCardPreview(cardsById.get(initialId), art, illustration, sigil, cardName, cardMeta);
-        }
-        content.addView(lineupScroll, rowParams());
+        final String[] slotCardIds=new String[5];
+        for(int i=0;i<5;i++){final int slotIndex=i;LinearLayout panel=new LinearLayout(this);panel.setOrientation(LinearLayout.VERTICAL);panel.setPadding(dp(6),dp(7),dp(6),dp(7));
+            panel.setBackground(gradient(PANEL_LIGHT,PANEL,Color.rgb(72,88,67),dp(10)));panel.addView(text("POSITION 0"+(i+1),7,GOLD,true));
+            FrameLayout art=new FrameLayout(this);art.setBackground(gradient(Color.rgb(26,45,37),Color.rgb(10,19,16),Color.rgb(82,104,77),dp(8)));
+            TextView sigil=text("＋",29,MUTED,true);sigil.setGravity(Gravity.CENTER);art.addView(sigil,new FrameLayout.LayoutParams(-1,-1));
+            CardArtView illustration=new CardArtView(this);illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);art.addView(illustration,new FrameLayout.LayoutParams(-1,-1));
+            LinearLayout.LayoutParams ar=new LinearLayout.LayoutParams(-1,dp(164));ar.topMargin=dp(6);panel.addView(art,ar);
+            TextView cardName=text("EMPTY SLOT",9,TEXT,true);cardName.setGravity(Gravity.CENTER);cardName.setMaxLines(2);cardName.setPadding(0,dp(5),0,dp(2));panel.addView(cardName);
+            TextView cardMeta=text("Choose a card",7,MUTED,false);cardMeta.setGravity(Gravity.CENTER);cardMeta.setMaxLines(2);panel.addView(cardMeta);
+            String savedId=savedSlots.get(i+1);JSONObject initial=savedId==null?null:cardsById.get(savedId);slotCardIds[i]=initial==null?"":initial.optString("card_id","");
+            updateFormationCardPreview(initial,art,illustration,sigil,cardName,cardMeta);
+            TextView selector=button(initial==null?"＋ CHOOSE CARD":"CHANGE · "+initial.optString("name","CARD"),false);selector.setTextSize(7);
+            selector.setOnClickListener(v->showCardPickerDialog(cards,"CHOOSE POSITION 0"+(slotIndex+1),"Select one card. A card already assigned to another position cannot be reused.",true,chosen->{
+                String id=chosen==null?"":chosen.optString("card_id","");for(int j=0;j<slotCardIds.length;j++)if(j!=slotIndex&&!id.isEmpty()&&id.equals(slotCardIds[j])){showResultDialog("CARD ALREADY IN LINEUP","Each card can only occupy one team position.");return;}
+                slotCardIds[slotIndex]=id;updateFormationCardPreview(chosen,art,illustration,sigil,cardName,cardMeta);selector.setText(chosen==null?"＋ CHOOSE CARD":"CHANGE · "+chosen.optString("name","CARD"));}));
+            LinearLayout.LayoutParams pr=new LinearLayout.LayoutParams(-1,dp(40));pr.topMargin=dp(5);panel.addView(selector,pr);
+            LinearLayout.LayoutParams col=new LinearLayout.LayoutParams(dp(154),-2);col.setMargins(dp(4),dp(5),dp(4),dp(5));grid.addView(panel,col);}
+        content.addView(lineupScroll,rowParams());
 
         final boolean[] selectorReady = {false};
         deckSelector.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
@@ -5566,9 +5305,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         Runnable collectAndSave = () -> {
             JSONArray chosen = new JSONArray();
             java.util.HashSet<String> unique = new java.util.HashSet<>();
-            for (Spinner spinner : slots) {
-                int index = spinner.getSelectedItemPosition();
-                String cardId = index >= 0 && index < ids.length ? ids[index] : "";
+            for (String cardId : slotCardIds) {
                 if (cardId.isEmpty()) continue;
                 if (!unique.add(cardId)) {
                     showResultDialog("DUPLICATE CARD",
@@ -5611,9 +5348,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         saveAs.setOnClickListener(v -> {
             JSONArray chosen = new JSONArray();
             java.util.HashSet<String> unique = new java.util.HashSet<>();
-            for (Spinner spinner : slots) {
-                int index = spinner.getSelectedItemPosition();
-                String cardId = index >= 0 && index < ids.length ? ids[index] : "";
+            for (String cardId : slotCardIds) {
                 if (cardId.isEmpty()) continue;
                 if (!unique.add(cardId)) {
                     showResultDialog("DUPLICATE CARD",
@@ -6550,34 +6285,18 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         }).show();
     }
 
-    private void showBinderCardsDialog(String binderId) {
-        api.post("/api/binders/"+binderId,payload("set_active",true),activeResult->ui.post(()->{
-            if(!activeResult.ok()){showResultDialog("Binder unavailable",activeResult.error);return;}
-            api.get("/api/binders",binderResult->ui.post(()->{
-                if(!binderResult.ok()){showResultDialog("Unable to load binder",binderResult.error);return;}
-                api.get("/api/cards",cardsResult->ui.post(()->{
-                    if(!cardsResult.ok()){showResultDialog("Unable to load card archive",cardsResult.error);return;}
-                    JSONArray binderCards=binderResult.data.optJSONArray("cards"),allCards=cardsResult.data.optJSONArray("cards");
-                    if(binderCards==null)binderCards=new JSONArray();if(allCards==null)allCards=new JSONArray();
-                    java.util.HashSet<String> selectedIds=new java.util.HashSet<>();
-                    for(int i=0;i<binderCards.length();i++){JSONObject c=binderCards.optJSONObject(i);if(c!=null)selectedIds.add(c.optString("card_id"));}
-                    java.util.ArrayList<JSONObject> owned=new java.util.ArrayList<>();
-                    for(int i=0;i<allCards.length();i++){JSONObject c=allCards.optJSONObject(i);if(c!=null&&c.optInt("owned_count")>0)owned.add(c);}
-                    if(owned.isEmpty()){showResultDialog("No owned cards","Collect cards before adding them to a custom binder.");return;}
-                    String[] labels=new String[owned.size()];boolean[] checked=new boolean[owned.size()];
-                    for(int i=0;i<owned.size();i++){JSONObject c=owned.get(i);labels[i]=c.optString("name")+" · "+c.optString("rarity")+" ×"+c.optInt("owned_count");checked[i]=selectedIds.contains(c.optString("card_id"));}
-                    new AlertDialog.Builder(this).setTitle("Cards in this binder · up to 200")
-                            .setMultiChoiceItems(labels,checked,(dialog,which,isChecked)->checked[which]=isChecked)
-                            .setNegativeButton("CANCEL",null).setPositiveButton("SAVE",(dialog,which)->{
-                                JSONArray cardIds=new JSONArray();for(int i=0;i<owned.size();i++)if(checked[i])cardIds.put(owned.get(i).optString("card_id"));
-                                if(cardIds.length()>200){showResultDialog("Binder limit","A binder can contain up to 200 unique cards.");return;}
-                                api.post("/api/binders/"+binderId+"/cards",payload("cardIds",cardIds),r->ui.post(()->{
-                                    if(!r.ok())showResultDialog("Binder contents not saved",r.error);else{showResultDialog("BINDER UPDATED",r.data.optString("message","Binder cards saved."));renderTab("binders");}
-                                }));
-                            }).show();
-                }));
-            }));
-        }));
+    private void showBinderCardsDialog(String binderId){
+        api.post("/api/binders/"+binderId,payload("set_active",true),a->ui.post(()->{if(!a.ok()){showResultDialog("Binder unavailable",a.error);return;}
+            api.get("/api/binders",b->ui.post(()->{if(!b.ok()){showResultDialog("Unable to load binder",b.error);return;}
+                api.get("/api/cards",c->ui.post(()->{if(!c.ok()){showResultDialog("Unable to load card archive",c.error);return;}
+                    JSONArray bound=b.data.optJSONArray("cards"),all=c.data.optJSONArray("cards");if(bound==null)bound=new JSONArray();if(all==null)all=new JSONArray();
+                    java.util.HashSet<String> preselected=new java.util.HashSet<>();for(int i=0;i<bound.length();i++){JSONObject x=bound.optJSONObject(i);if(x!=null)preselected.add(x.optString("card_id"));}
+                    JSONArray owned=new JSONArray();for(int i=0;i<all.length();i++){JSONObject x=all.optJSONObject(i);if(x!=null&&x.optInt("owned_count")>0)owned.put(x);}
+                    if(owned.length()==0){showResultDialog("No owned cards","Collect cards before adding them to a custom binder.");return;}
+                    showMultiCardPickerDialog(owned,"CARDS IN THIS BINDER","Choose up to 200 unique cards. Existing selections are already marked.","card_id",preselected,0,200,"SAVE BINDER",null,chosen->{
+                        JSONArray ids=new JSONArray();for(int i=0;i<owned.length();i++){JSONObject x=owned.optJSONObject(i);if(x!=null&&chosen.contains(x.optString("card_id","")))ids.put(x.optString("card_id"));}
+                        api.post("/api/binders/"+binderId+"/cards",payload("cardIds",ids),r->ui.post(()->{if(!r.ok())showResultDialog("Binder contents not saved",r.error);else{showResultDialog("BINDER UPDATED",r.data.optString("message","Binder cards saved."));renderTab("binders");}}));});
+                }));}));}));
     }
 
     private void renderObjectSummary(JSONObject data, String label) {
