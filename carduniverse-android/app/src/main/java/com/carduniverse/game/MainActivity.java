@@ -495,7 +495,6 @@ public final class MainActivity extends Activity {
                 {"raids", "♜", "RAIDS"},
                 {"arena", "◈", "ARENA"},
                 {"training", "⚔", "TRAINING"},
-                {"battle_history", "☷", "BATTLE HISTORY"},
                 {"trades", "⇄", "TRADES"},
                 {"friends", "♧", "FRIENDS"},
                 {"chat", "◉", "CHAT"},
@@ -846,10 +845,7 @@ public final class MainActivity extends Activity {
         if (!usesRealmScene(tab)) addScreenHero(tab);
         String requestedMode = historyMode;
         int requestedOffset = historyOffset;
-        if ("battle_history".equals(tab) && "PRACTICE".equals(requestedMode)) {
-            renderBattleHistory(null, requestedMode, 0);
-            return;
-        }
+
         renderLoading();
         String path = endpointFor(tab);
         if (path == null) {
@@ -1783,8 +1779,7 @@ public final class MainActivity extends Activity {
                 () -> showPracticeLineup(cards, lineup));
         addPhase13Link("Boss Simulation", "Set the boss power and learn its attack pattern.",
                 () -> showBossPracticeSetup(cards, lineup));
-        addPhase13Link("Battle History", "Review attacks and results from this device.",
-                () -> openBattleHistory("PRACTICE", 0));
+
     }
 
     private void addPhase13Link(String label, String description, Runnable action) {
@@ -2036,6 +2031,9 @@ public final class MainActivity extends Activity {
             showNotice("The card catalogue is empty.");
             return;
         }
+        addRealmScene("records","CARD ENCYCLOPEDIA","The living archive of the Firstlight Realm",0,0);
+        int discovered=0;for(int i=0;i<cards.length();i++){JSONObject c=cards.optJSONObject(i);if(c!=null&&c.optInt("owned_count")>0)discovered++;}
+        content.addView(realmResourceStrip("DISCOVERY RECORD",new String[]{"DISCOVERED","CATALOGUE"},new String[]{formatNumber(discovered),formatNumber(cards.length())},new String[]{"✦","▤"},new int[]{CYAN,GOLD_BRIGHT}),rowParams());
         EditText search = editField("Search name, code, skill or set", false);
         search.setSingleLine(true);
         content.addView(search, fieldParams());
@@ -2053,7 +2051,7 @@ public final class MainActivity extends Activity {
         TextView elementFilter = button("ALL ELEMENTS", false);
         TextView rarityFilter = button("ALL RARITIES", false);
         filterRow.addView(elementFilter, new LinearLayout.LayoutParams(0, dp(44), 1f));
-        filterRow.addView(rarityFilter, new LinearLayout.LayoutParams(0, dp(44), 1f));
+        LinearLayout.LayoutParams rarityParams=new LinearLayout.LayoutParams(0,dp(44),1f);rarityParams.leftMargin=dp(6);filterRow.addView(rarityFilter,rarityParams);
         content.addView(filterRow, rowParams());
         TextView count = text("", 11, GOLD_BRIGHT, true);
         content.addView(count, rowParams());
@@ -2066,7 +2064,8 @@ public final class MainActivity extends Activity {
         Runnable update = () -> {
             String query = search.getText().toString().trim().toLowerCase(java.util.Locale.ROOT);
             list.removeAllViews();
-            int matches = 0;
+            int matches = 0,shown=0;LinearLayout gridRow=null;
+            final int columns=3;
             for (int i = 0; i < cards.length(); i++) {
                 JSONObject card = cards.optJSONObject(i);
                 if (card == null) continue;
@@ -2081,12 +2080,11 @@ public final class MainActivity extends Activity {
                 if (!searchable.toLowerCase(java.util.Locale.ROOT).contains(query)) continue;
                 matches++;
                 if (matches > limit[0]) continue;
-                String owned = card.optInt("owned_count") > 0 ? "OWNED" : "UNDISCOVERED";
-                LinearLayout row = dataRow(name, code + " · " + rarity + " · " + element, owned + " ›");
-                row.setFocusable(true);
-                row.setOnClickListener(v -> showEncyclopediaCard(card));
-                list.addView(row, rowParams());
+                if(shown%columns==0){gridRow=new LinearLayout(this);list.addView(gridRow,new LinearLayout.LayoutParams(-1,-2));}
+                LinearLayout tile=encyclopediaTile(card);
+                LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(0,-2,1f);tp.setMargins(dp(3),dp(4),dp(3),dp(5));gridRow.addView(tile,tp);shown++;
             }
+            if(gridRow!=null&&shown%columns!=0)for(int i=shown%columns;i<columns;i++){LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(0,1,1f);p.setMargins(dp(3),dp(4),dp(3),dp(5));gridRow.addView(new View(this),p);}
             count.setText(matches == 0 ? "No matching cards"
                     : Math.min(limit[0], matches) + " of " + matches + " cards");
             more.setVisibility(matches > limit[0] ? View.VISIBLE : View.GONE);
@@ -2116,6 +2114,17 @@ public final class MainActivity extends Activity {
             @Override public void afterTextChanged(Editable s) {}
         });
         update.run();
+    }
+
+    private LinearLayout encyclopediaTile(JSONObject card){
+        String rarity=card.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT);int accent=cardRarityColor(rarity);boolean owned=card.optInt("owned_count")>0;
+        LinearLayout tile=new LinearLayout(this);tile.setOrientation(LinearLayout.VERTICAL);tile.setPadding(dp(4),dp(4),dp(4),dp(6));tile.setBackground(gradient(Color.rgb(27,35,53),Color.rgb(8,14,26),accent,dp(10)));
+        FrameLayout art=new FrameLayout(this){@Override protected void onMeasure(int w,int h){int width=View.MeasureSpec.getSize(w);if(width>0&&View.MeasureSpec.getMode(w)!=View.MeasureSpec.UNSPECIFIED)super.onMeasure(w,View.MeasureSpec.makeMeasureSpec(Math.round(width*1.5f),View.MeasureSpec.EXACTLY));else super.onMeasure(w,h);}};
+        art.addView(phase11Art(card,accent),new FrameLayout.LayoutParams(-1,-1));tile.addView(art,new LinearLayout.LayoutParams(-1,-2));
+        TextView name=text(card.optString("name","Card"),10,TEXT,true);name.setGravity(Gravity.CENTER);name.setMinLines(2);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(name);
+        TextView code=text(card.optString("card_code")+" · "+rarity,7,accent,true);code.setGravity(Gravity.CENTER);code.setMinLines(2);code.setMaxLines(2);tile.addView(code);
+        TextView status=text(owned?"✓ OWNED":"UNDISCOVERED",7,owned?GREEN:MUTED,true);status.setGravity(Gravity.CENTER);status.setSingleLine(true);status.setEllipsize(android.text.TextUtils.TruncateAt.END);tile.addView(status);
+        tile.setFocusable(true);tile.setContentDescription(card.optString("name")+" "+rarity+(owned?" owned":" undiscovered"));tile.setOnClickListener(v->showEncyclopediaCard(card));return tile;
     }
 
     private void showEncyclopediaCard(JSONObject card) {
@@ -2155,28 +2164,17 @@ public final class MainActivity extends Activity {
         phase11ShowSheet(dialog, shell, 660);
     }
 
-    private static final String[] HISTORY_MODES = {"ARENA", "ADVENTURE", "DUNGEON", "RAID", "PRACTICE"};
-
     private void openBattleHistory(String mode, int offset) {
-        historyMode = mode;
-        historyOffset = offset;
+        historyMode = "ARENA";
+        historyOffset = Math.max(0,offset);
         renderTab("battle_history");
     }
 
     private void renderBattleHistory(JSONObject data, String mode, int offset) {
-        JSONArray entries = data == null ? localPracticeHistory(me == null ? "" : me.optString("user_id"))
-                : data.optJSONArray("entries");
-        HorizontalScrollView strip = new HorizontalScrollView(this);
-        strip.setHorizontalScrollBarEnabled(false);
-        LinearLayout filters = new LinearLayout(this);
-        strip.addView(filters);
-        for (String option : HISTORY_MODES) {
-            TextView choose = button(humanize(option), mode.equals(option));
-            choose.setContentDescription(humanize(option) + " history");
-            choose.setOnClickListener(v -> openBattleHistory(option, 0));
-            filters.addView(choose, new LinearLayout.LayoutParams(dp(103), dp(42)));
-        }
-        content.addView(strip, rowParams());
+        JSONArray entries=data==null?null:data.optJSONArray("entries");
+        LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
+        heading.addView(text("ARENA MATCH RECORDS",12,GOLD_BRIGHT,true),new LinearLayout.LayoutParams(0,-2,1f));
+        TextView back=button("‹ ARENA",false);back.setOnClickListener(v->renderTab("arena"));heading.addView(back,new LinearLayout.LayoutParams(dp(105),dp(40)));content.addView(heading,rowParams());
         if (entries == null || entries.length() == 0) {
             showNotice("No " + humanize(mode).toLowerCase(java.util.Locale.ROOT) + " battles recorded yet.");
         } else {
@@ -2186,10 +2184,7 @@ public final class MainActivity extends Activity {
                 LinearLayout row = dataRow(historyTitle(mode, entry), entry.optString("played_at"),
                         historyOutcome(mode, entry) + " ›");
                 row.setFocusable(true);
-                row.setOnClickListener(v -> {
-                    if ("ARENA".equals(mode)) fetchArenaRecap(entry);
-                    else showMatchRecap(mode, entry, entry.optJSONArray("rounds"));
-                });
+                row.setOnClickListener(v -> fetchArenaRecap(entry));
                 content.addView(row, rowParams());
             }
         }
@@ -5955,17 +5950,21 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         int accent=cardRarityColor(c.optString("rarity","COMMON").toUpperCase(java.util.Locale.ROOT));
         LinearLayout shell=phase11Sheet("ASCENSION SANCTUM",c.optString("name","Card Evolution"),c.optString("rarity")+"  ·  "+c.optString("element")+"  ·  "+c.optString("card_code"),accent);
         ScrollView scroll=new ScrollView(this);LinearLayout body=new LinearLayout(this);body.setOrientation(LinearLayout.VERTICAL);scroll.addView(body);shell.addView(scroll,new LinearLayout.LayoutParams(-1,0,1f));
-        FrameLayout art=phase11Art(c,accent);LinearLayout.LayoutParams ap=new LinearLayout.LayoutParams(dp(128),dp(180));ap.gravity=Gravity.CENTER_HORIZONTAL;body.addView(art,ap);
-        TextView stars=text(starMarks(c.optInt("star_rank")),19,GOLD_BRIGHT,true);stars.setGravity(Gravity.CENTER);body.addView(stars);
-        LinearLayout stats=new LinearLayout(this);stats.addView(profileStat("LEVEL",""+c.optInt("level",1),CYAN),weightParams(1));stats.addView(profileStat("POWER",formatNumber(c.optLong("card_power")),GOLD),weightParams(1));stats.addView(profileStat("COPIES",""+c.optInt("copies_available"),VIOLET),weightParams(1));body.addView(stats);addGap(body,10);
-        LinearLayout skill=sectionPanel();skill.addView(text("SIGNATURE ABILITY",9,accent,true));skill.addView(text(c.optString("skill_name","Firstlight Gift"),13,TEXT,true));skill.addView(text(c.optString("skill_description","Unlocks at 2★"),11,MUTED,false));body.addView(skill,rowParams());
+        LinearLayout summary=new LinearLayout(this);summary.setGravity(Gravity.CENTER_VERTICAL);summary.setPadding(dp(5),dp(4),dp(5),dp(4));
+        summary.addView(phase11Art(c,accent),new LinearLayout.LayoutParams(dp(66),dp(99)));
+        LinearLayout stats=new LinearLayout(this);stats.setOrientation(LinearLayout.VERTICAL);stats.setPadding(dp(10),0,0,0);
+        stats.addView(text(starMarks(c.optInt("star_rank")),15,GOLD_BRIGHT,true));
+        stats.addView(text("LV "+c.optInt("level",1)+" / "+maxLevel+"  ·  "+c.optInt("copies_available")+" COPIES",10,CYAN,true));
+        stats.addView(text(formatNumber(c.optLong("card_power"))+" POWER",17,TEXT,true));
+        TextView skill=button("✦  SIGNATURE ABILITY  ›",false);skill.setTextSize(9);skill.setOnClickListener(v->showResultDialog(c.optString("skill_name","Signature ability"),c.optString("skill_description","No ability description recorded.")));stats.addView(skill,new LinearLayout.LayoutParams(-1,dp(36)));
+        summary.addView(stats,new LinearLayout.LayoutParams(0,-2,1f));body.addView(summary,rowParams());
         JSONObject cost=c.optJSONObject("next_star_cost");
         String levelCost=formatNumber(c.optLong("level_cost"))+" Gold  ·  "+formatNumber(c.optLong("level_shards"))+" Shards";
         String starCost=cost==null?"Next ascension cost unavailable":cost.optInt("duplicates")+" duplicates  ·  "+formatNumber(cost.optLong("coins"))+" Gold\n"+formatNumber(cost.optLong("gems"))+" Gems  ·  "+formatNumber(cost.optLong("shards"))+" Shards";
         for(int i=0;i<2;i++){final String action=i==0?"LEVEL_UP":"ASCEND";final String price=i==0?levelCost:starCost;
             LinearLayout option=sectionPanel();option.setBackground(gradient(Color.rgb(27,38,54),Color.rgb(12,20,33),i==0?CYAN:PINK,dp(12)));
             option.addView(text(i==0?"TRAIN  /  LEVEL UP":"AWAKEN  /  ASCEND",12,i==0?CYAN:PINK,true));
-            option.addView(text(i==0?"Increase the card’s level.":"Raise the star rank using duplicate copies.",11,MUTED,false));addGap(option,4);
+            option.setPadding(dp(10),dp(8),dp(10),dp(8));
             boolean ascend = action.equals("ASCEND");
             int level = c.optInt("level", 1);
             int rank = c.optInt("star_rank");
@@ -5989,9 +5988,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                         + (powerGain >= 0 ? "+" : "−") + formatNumber(Math.abs(powerGain)) + ")";
             }
             final String upgradePreview = preview;
-            option.addView(text("CARD POWER PREVIEW", 10, GOLD_BRIGHT, true));
             option.addView(text(upgradePreview, 12, TEXT, true));
-            addGap(option, 6);
             if (!atCap) {
                 option.addView(text(price, 11, GOLD_BRIGHT, true));
                 boolean enough = ascend
@@ -6001,10 +5998,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                             && wallet.optLong("shards") >= cost.optLong("shards")
                         : wallet.optLong("coins") >= c.optLong("level_cost")
                             && wallet.optLong("shards") >= c.optLong("level_shards");
-                if (!enough) option.addView(text("Missing upgrade materials or currency.", 11, RED, false));
+                if (!enough) option.addView(text("Insufficient materials", 9, RED, true));
             }
-            addGap(option, 7);
-            TextView act=button(i==0?"LEVEL UP":"ASCEND",i==1);option.addView(act,new LinearLayout.LayoutParams(-1,dp(43)));
+            addGap(option, 4);
+            TextView act=button(i==0?"LEVEL UP":"ASCEND",i==1);option.addView(act,new LinearLayout.LayoutParams(-1,dp(40)));
             act.setEnabled(!atCap);
             act.setOnClickListener(v->{dialog.dismiss();String warning=action.equals("ASCEND")?"Ascension permanently consumes duplicate copies of this card while preserving one primary copy.":"The server verifies your Gold and Shard balance before upgrading.";
                 confirmAction(action.equals("ASCEND")?"Ascend card?":"Level up card?",warning+"\n\n"+upgradePreview+"\n\n"+price,()->api.post("/api/evolution/action",payload("action",action,"cardId",c.optString("card_id"),"requestId",newActionId()),r->ui.post(()->{
@@ -8203,8 +8200,9 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
 
     private void showProfileEditor() {
         String originTab = activeTab;
+        final int generation=activePageRequest;
         api.get("/api/profile", result -> ui.post(() -> {
-            if (!originTab.equals(activeTab) || content == null) return;
+            if (!originTab.equals(activeTab) || generation!=activePageRequest || content == null) return;
             if (!result.ok()) { showResultDialog("Profile unavailable", result.error); return; }
             JSONObject profileUser = result.data.optJSONObject("user");
             JSONObject profileData = result.data.optJSONObject("profile");
@@ -8217,25 +8215,15 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 }
             } catch (Exception ignored) {}
 
-            if (content == null) return;
-            if (pageTitle != null) pageTitle.setText("EDIT PROFILE");
-            content.removeAllViews();
-            ScrollView editorScroll = (ScrollView) content.getParent();
-            editorScroll.scrollTo(0, 0);
-
-            LinearLayout heading = new LinearLayout(this);
-            heading.setOrientation(LinearLayout.VERTICAL);
-            heading.setPadding(dp(3), dp(2), dp(3), dp(8));
-            TextView eyebrow = text("COLLECTOR IDENTITY  /  FIRSTLIGHT REALM", 7, GOLD, true);
-            eyebrow.setLetterSpacing(0.13f);
-            heading.addView(eyebrow);
-            heading.addView(text("Your profile, your legend.", 18, TEXT, true));
-            heading.addView(text("Manage how other collectors see you across the realm.", 8, MUTED, false));
-            content.addView(heading, rowParams());
+            android.app.Dialog dialog=new android.app.Dialog(this);dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
+            LinearLayout shell=phase11Sheet("COLLECTOR IDENTITY","Edit profile","Customize your public collector identity.",GOLD_BRIGHT);
+            ScrollView editorScroll=new ScrollView(this);editorScroll.setFillViewport(false);
+            LinearLayout editorBody=new LinearLayout(this);editorBody.setOrientation(LinearLayout.VERTICAL);
+            editorScroll.addView(editorBody);shell.addView(editorScroll,new LinearLayout.LayoutParams(-1,0,1f));
 
             LinearLayout avatarPanel = sectionPanel();
             avatarPanel.setBackground(gradient(Color.rgb(38, 43, 73), Color.rgb(11, 17, 32), VIOLET, dp(14)));
-            avatarPanel.addView(text("LIVE PUBLIC PROFILE PREVIEW", 12, GOLD_BRIGHT, true));
+            avatarPanel.addView(text("PUBLIC PREVIEW", 9, GOLD_BRIGHT, true));
             LinearLayout avatarRow = new LinearLayout(this);
             avatarRow.setGravity(Gravity.CENTER_VERTICAL);
             avatarRow.setPadding(0, dp(8), 0, 0);
@@ -8253,29 +8241,29 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             LinearLayout avatarCopy = new LinearLayout(this);
             avatarCopy.setOrientation(LinearLayout.VERTICAL);
             avatarCopy.setPadding(dp(12), 0, 0, 0);
-            TextView previewName = text("", 17, TEXT, true);
-            TextView previewHandle = text("", 11, CYAN, true);
-            TextView previewTitle = text("", 11, GOLD_BRIGHT, true);
+            TextView previewName = text("", 16, TEXT, true);previewName.setMaxLines(2);previewName.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            TextView previewHandle = text("", 10, CYAN, true);previewHandle.setSingleLine(true);previewHandle.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            TextView previewTitle = text("", 10, GOLD_BRIGHT, true);previewTitle.setMaxLines(2);previewTitle.setEllipsize(android.text.TextUtils.TruncateAt.END);
             avatarCopy.addView(previewName);
             avatarCopy.addView(previewHandle);
             avatarCopy.addView(previewTitle);
-            avatarCopy.addView(text("JPG, PNG or WebP · up to 2 MB", 7, MUTED, false));
-            TextView upload = button("CHANGE PHOTO", false);
-            LinearLayout.LayoutParams uploadParams = new LinearLayout.LayoutParams(-2, dp(34));
-            uploadParams.topMargin = dp(6);
-            avatarCopy.addView(upload, uploadParams);
+            TextView upload = button("CHANGE PHOTO", false);upload.setTextSize(10);
             avatarRow.addView(avatarCopy, new LinearLayout.LayoutParams(0, -2, 1f));
             avatarPanel.addView(avatarRow);
             TextView previewBio = text("", 12, MUTED, false);
             addGap(avatarPanel, 8);
-            avatarPanel.addView(previewBio);
-            TextView removeAvatar = button("REMOVE PHOTO", false);
-            avatarPanel.addView(removeAvatar, rowParams());
+            previewBio.setMaxLines(3);previewBio.setEllipsize(android.text.TextUtils.TruncateAt.END);avatarPanel.addView(previewBio);
+            LinearLayout photoActions=new LinearLayout(this);photoActions.setOrientation(LinearLayout.HORIZONTAL);
+            photoActions.addView(upload,new LinearLayout.LayoutParams(0,dp(40),1f));
+            TextView removeAvatar = button("REMOVE PHOTO", false);removeAvatar.setTextSize(10);
+            LinearLayout.LayoutParams removeP=new LinearLayout.LayoutParams(0,dp(40),1f);removeP.leftMargin=dp(6);photoActions.addView(removeAvatar,removeP);
+            avatarPanel.addView(photoActions,rowParams());avatarPanel.addView(text("JPEG, PNG or WebP · 2 MB maximum · photo changes save immediately",9,MUTED,false));
             java.util.function.Consumer<String> updateAvatar = path -> {
                 avatarImage.setTag(null);
                 avatarImage.setVisibility(View.GONE);
                 removeAvatar.setEnabled(!path.isEmpty());
                 loadProfileAvatar(avatarImage, path);
+                try{if(me!=null){me.put("avatarUrl",path);me.put("avatar_url",path);}}catch(Exception ignored){}
             };
             updateAvatar.accept(profileData.optString("avatarUrl", ""));
             upload.setOnClickListener(v -> {
@@ -8283,7 +8271,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 profileAvatarUploaded = () -> api.get("/api/profile", fresh -> ui.post(() -> {
                     if (!upload.isAttachedToWindow() || !fresh.ok()) return;
                     JSONObject refreshed = fresh.data.optJSONObject("profile");
-                    if (refreshed != null) updateAvatar.accept(refreshed.optString("avatarUrl", ""));
+                    if (refreshed != null){updateAvatar.accept(refreshed.optString("avatarUrl", ""));refreshAccount(null);}
                 }));
                 chooseProfileAvatar();
             });
@@ -8297,34 +8285,19 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                         showResultDialog("Photo not removed", removed.error);
                     } else {
                         updateAvatar.accept("");
-                        Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
+                        refreshAccount(null);Toast.makeText(this, "Profile photo removed.", Toast.LENGTH_SHORT).show();
                     }
                 }));
             }));
-            content.addView(avatarPanel, rowParams());
-            addGap(content, 8);
+            editorBody.addView(avatarPanel, rowParams());
+            addGap(editorBody, 8);
 
-            JSONObject stats = result.data.optJSONObject("stats");
-            if (stats != null) {
-                LinearLayout overview = sectionPanel();
-                overview.addView(text("COLLECTOR STATS", 12, GOLD_BRIGHT, true));
-                LinearLayout collection = new LinearLayout(this);
-                collection.addView(profileStat("LEVEL", formatNumber(stats.optLong("level", 1)), CYAN), weightParams(1));
-                collection.addView(profileStat("UNIQUE CARDS", formatNumber(stats.optLong("uniqueCards")), GOLD), weightParams(1));
-                collection.addView(profileStat("CARD COPIES", formatNumber(stats.optLong("cardCopies")), VIOLET), weightParams(1));
-                overview.addView(collection);
-                overview.addView(dataRow("Ranked", formatNumber(stats.optLong("rankedWins")) + " wins",
-                        formatNumber(stats.optLong("rating")) + " rating"), rowParams());
-                overview.addView(dataRow("Raids", formatNumber(stats.optLong("raidAttempts")) + " strikes",
-                        formatNumber(stats.optLong("raidDamage")) + " damage"), rowParams());
-                content.addView(overview, rowParams());
-            }
             LinearLayout identity = sectionPanel();
-            identity.addView(text("PUBLIC IDENTITY", 8, GOLD_BRIGHT, true));
+            identity.addView(text("01  ·  PUBLIC IDENTITY", 11, GOLD_BRIGHT, true));
             EditText displayName = editField("Display name", false);
             displayName.setText(profileUser.optString("display_name", ""));
             displayName.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(48)});
-            identity.addView(text("DISPLAY NAME", 7, MUTED, true));
+            identity.addView(text("DISPLAY NAME", 9, MUTED, true));displayName.setSingleLine(true);displayName.setTextSize(14);
             identity.addView(displayName, fieldParams());
 
             EditText username = editField("your_username", false);
@@ -8335,22 +8308,23 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             boolean canEditUsername = isAdminAccount();
             username.setEnabled(canEditUsername);
             username.setAlpha(canEditUsername ? 1f : 0.68f);
-            identity.addView(text(canEditUsername ? "USERNAME  ·  MASTER ADMIN CAN CHANGE THIS"
-                    : "USERNAME  ·  LOCKED AFTER REGISTRATION", 7, MUTED, true));
+            username.setSingleLine(true);username.setTextSize(13);
+            identity.addView(text(canEditUsername ? "USERNAME  ·  MASTER ADMIN"
+                    : "USERNAME  ·  LOCKED", 9, MUTED, true));
             identity.addView(username, fieldParams());
             identity.addView(text(canEditUsername
                     ? "3–20 characters. Start with a letter; use letters, numbers or underscores."
                     : "Share this unique handle with other collectors to receive friend requests.",
                     7, MUTED, false));
-            content.addView(identity, rowParams());
-            addGap(content, 8);
+            editorBody.addView(identity, rowParams());
+            addGap(editorBody, 8);
 
             LinearLayout about = sectionPanel();
-            about.addView(text("ABOUT YOUR COLLECTOR", 8, GOLD_BRIGHT, true));
+            about.addView(text("02  ·  ABOUT YOUR COLLECTOR", 11, GOLD_BRIGHT, true));
             EditText bio = editField("Write a short bio about your collection…", false);
             bio.setSingleLine(false);
-            bio.setMinLines(4);
-            bio.setMaxLines(5);
+            bio.setMinLines(3);
+            bio.setMaxLines(4);bio.setTextSize(13);
             bio.setGravity(Gravity.TOP | Gravity.START);
             bio.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(180)});
             bio.setText(profileData.optString("bio", ""));
@@ -8366,11 +8340,11 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             about.addView(text("PUBLIC BIO", 7, MUTED, true));
             about.addView(bio, new LinearLayout.LayoutParams(-1, dp(100)));
             about.addView(bioCount);
-            content.addView(about, rowParams());
-            addGap(content, 8);
+            editorBody.addView(about, rowParams());
+            addGap(editorBody, 8);
 
             LinearLayout titlesPanel = sectionPanel();
-            titlesPanel.addView(text("TITLE COLLECTION", 8, GOLD_BRIGHT, true));
+            titlesPanel.addView(text("03  ·  TITLE COLLECTION", 11, GOLD_BRIGHT, true));
             titlesPanel.addView(text("Equip a title you have already earned. Locked titles cannot be selected.", 7, MUTED, false));
             JSONArray titles = result.data.optJSONArray("titles");
             ArrayList<String> titleIds = new ArrayList<>();
@@ -8386,7 +8360,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             String activeTitle = profileData.optString("activeTitleId", "");
             final int[] selectedTitle={Math.max(0,titleIds.indexOf(activeTitle))};
             TextView titleChoice=button("✦  "+titleLabels.get(selectedTitle[0])+"   ›",false);
-            titleChoice.setTextSize(12);titleChoice.setSingleLine(false);titleChoice.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
+            titleChoice.setTextSize(12);titleChoice.setSingleLine(false);titleChoice.setMaxLines(2);titleChoice.setEllipsize(android.text.TextUtils.TruncateAt.END);titleChoice.setGravity(Gravity.CENTER_VERTICAL|Gravity.START);
             addGap(titlesPanel,8);titlesPanel.addView(titleChoice,new LinearLayout.LayoutParams(-1,dp(54)));
             Runnable updatePreview = () -> {
                 String name = displayName.getText().toString().trim();
@@ -8395,7 +8369,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 avatarFallback.setText(initials(name.isEmpty() ? "Collector" : name));
                 previewHandle.setText(handle.isEmpty() ? "" : "@" + handle);
                 previewTitle.setText(titleLabels.get(selectedTitle[0]));
-                previewBio.setText(bio.getText().toString().trim());
+                String publicBio=bio.getText().toString().trim();previewBio.setText(publicBio);previewBio.setVisibility(publicBio.isEmpty()?View.GONE:View.VISIBLE);
             };
             TextWatcher previewWatcher = new TextWatcher() {
                 @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -8419,25 +8393,22 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                 catalogue.setOnClickListener(v -> showProfileTitleCatalogue(titles, titleIds.get(selectedTitle[0])));
                 titlesPanel.addView(catalogue, rowParams());
             }
-            content.addView(titlesPanel, rowParams());
-            addGap(content, 10);
+            editorBody.addView(titlesPanel, rowParams());
+            addGap(editorBody, 10);
 
-            LinearLayout actions = new LinearLayout(this);
-            actions.setOrientation(LinearLayout.HORIZONTAL);
-            TextView save = button("SAVE PROFILE", true);
-            TextView friends = button("FRIENDS", false);
-            actions.addView(save, new LinearLayout.LayoutParams(0, dp(44), 1.3f));
-            LinearLayout.LayoutParams friendsParams = new LinearLayout.LayoutParams(0, dp(44), 0.8f);
-            friendsParams.leftMargin = dp(7);
-            actions.addView(friends, friendsParams);
-            content.addView(actions, rowParams());
-            friends.setOnClickListener(v -> renderTab("friends"));
-            TextView back = text("←  BACK TO SETTINGS", 8, MUTED, true);
-            back.setGravity(Gravity.CENTER);
-            back.setPadding(0, dp(12), 0, dp(10));
-            back.setOnClickListener(v -> renderTab("settings"));
-            content.addView(back);
-
+            JSONObject stats=result.data.optJSONObject("stats");
+            if(stats!=null){
+                LinearLayout overview=sectionPanel();TextView toggle=button("COLLECTOR STATS  ▾",false);overview.addView(toggle,new LinearLayout.LayoutParams(-1,dp(42)));
+                LinearLayout details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);
+                details.addView(realmResourceStrip("COLLECTION RECORD",new String[]{"LEVEL","UNIQUE","COPIES"},new String[]{formatNumber(stats.optLong("level",1)),formatNumber(stats.optLong("uniqueCards")),formatNumber(stats.optLong("cardCopies"))},new String[]{"✦","▤","▧"},new int[]{CYAN,GOLD_BRIGHT,VIOLET}),rowParams());
+                details.addView(dataRow("Ranked",formatNumber(stats.optLong("rankedWins"))+" wins",formatNumber(stats.optLong("rating"))+" rating"),rowParams());
+                details.addView(dataRow("Raids",formatNumber(stats.optLong("raidAttempts"))+" strikes",formatNumber(stats.optLong("raidDamage"))+" damage"),rowParams());
+                details.setVisibility(View.GONE);overview.addView(details);toggle.setOnClickListener(v->{boolean open=details.getVisibility()!=View.VISIBLE;details.setVisibility(open?View.VISIBLE:View.GONE);toggle.setText(open?"COLLECTOR STATS  ▴":"COLLECTOR STATS  ▾");});editorBody.addView(overview,rowParams());
+            }
+            TextView friends=button("FRIENDS  ›",false);friends.setOnClickListener(v->{dialog.dismiss();renderTab("friends");});editorBody.addView(friends,rowParams());
+            LinearLayout actions=new LinearLayout(this);TextView close=button("CLOSE",false),save=button("SAVE PROFILE",true);actions.addView(close,new LinearLayout.LayoutParams(0,dp(46),.75f));
+            LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(0,dp(46),1.25f);sp.leftMargin=dp(7);actions.addView(save,sp);close.setOnClickListener(v->dialog.dismiss());
+            addGap(shell,8);shell.addView(actions);
             save.setOnClickListener(v -> {
                 String nameValue = displayName.getText().toString().trim();
                 String usernameValue = username.getText().toString().trim().replaceFirst("^@", "")
@@ -8476,10 +8447,11 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
                         }
                     } catch (Exception ignored) {}
                     Toast.makeText(this, "Collector profile saved.", Toast.LENGTH_SHORT).show();
-                    save.setEnabled(true);
-                    save.setText("SAVE PROFILE");
+                    dialog.dismiss();refreshAccount(()->showPlayerProfile());
                 }));
             });
+            shell.setFocusableInTouchMode(true);shell.requestFocus();phase11ShowSheet(dialog,shell,710);
+            dialog.setCanceledOnTouchOutside(false);
         }));
     }
 
@@ -9136,7 +9108,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "binder_completion": return "/api/binders/completion";
             case "guild_coop": return "/api/guilds/cooperative";
             case "journey": return "/api/journey";
-            case "battle_history": return "/api/battle-history?mode=" + historyMode + "&offset=" + historyOffset;
+            case "battle_history": return "/api/battle-history?mode=ARENA&offset=" + historyOffset;
             case "binders": return "/api/binders";
             case "formation": return "/api/formation";
             case "evolution": return "/api/evolution";
@@ -9213,7 +9185,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             case "binder_completion": return "Collect cards from each set and claim milestone rewards.";
             case "guild_coop": return "Strike the shared boss and complete Guild missions.";
             case "journey": return "Follow your first milestones from the tutorial to the Arena.";
-            case "battle_history": return "Review results, rewards and Arena turns.";
+            case "battle_history": return "Review Arena results and turn-by-turn recaps.";
             case "binders": return "Organize the cards in your personal archive binders.";
             case "formation": return "Assign up to five cards to strengthen every battle.";
             case "evolution": return "Train cards, awaken signature skills and ascend ranks.";
