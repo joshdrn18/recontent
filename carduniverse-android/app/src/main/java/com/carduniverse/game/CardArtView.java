@@ -24,6 +24,42 @@ public final class CardArtView extends ImageView {
     private static final LruCache<String, Picture> SVG_CACHE = new LruCache<>(48);
     private static final int MAX_DOWNLOAD_BYTES = 12 * 1024 * 1024;
     private static final int MAX_BITMAP_EDGE = 1536;
+    // Accessed only from the Android UI thread; weak references do not retain detached screens.
+    private static final java.util.Set<CardArtView> VIEWS =
+            java.util.Collections.newSetFromMap(new java.util.WeakHashMap<CardArtView, Boolean>());
+    private static final java.util.regex.Pattern STABLE_CARD = java.util.regex.Pattern.compile(
+            "^/media/cards/(?:artwork|full)/((?:FL|MY|EV)-\\d{3})\\.svg$",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
+
+    static void refreshPublishedCards(java.util.Map<String, String> previous,
+                                      java.util.Map<String, String> current) {
+        java.util.Map<String, String> reverse = new java.util.HashMap<>();
+        for (java.util.Map.Entry<String, String> item : previous.entrySet()) {
+            reverse.put(item.getValue(), item.getKey());
+        }
+        for (CardArtView view : new java.util.ArrayList<>(VIEWS)) {
+            if (view == null || !view.isAttachedToWindow() || !(view.getTag() instanceof String)) continue;
+            String old = (String) view.getTag();
+            String code = reverse.get(old);
+            if (code == null) {
+                java.util.regex.Matcher match = STABLE_CARD.matcher(old);
+                if (match.matches()) code = match.group(1).toUpperCase(java.util.Locale.ROOT);
+            }
+            String next = code == null ? null : current.get(code);
+            if (next != null && !next.equals(old)) view.loadArtwork(next);
+        }
+    }
+
+    private static boolean rasterImage(byte[] bytes) {
+        if (bytes.length >= 3 && (bytes[0] & 255) == 255 && (bytes[1] & 255) == 216
+                && (bytes[2] & 255) == 255) return true;
+        if (bytes.length >= 8 && (bytes[0] & 255) == 137 && bytes[1] == 80
+                && bytes[2] == 78 && bytes[3] == 71 && bytes[4] == 13
+                && bytes[5] == 10 && bytes[6] == 26 && bytes[7] == 10) return true;
+        return bytes.length >= 12 && bytes[0] == 'R' && bytes[1] == 'I'
+                && bytes[2] == 'F' && bytes[3] == 'F' && bytes[8] == 'W'
+                && bytes[9] == 'E' && bytes[10] == 'B' && bytes[11] == 'P';
+    }
     private static final LruCache<String, Bitmap> BITMAP_CACHE = new LruCache<String, Bitmap>(12 * 1024 * 1024) {
         @Override protected int sizeOf(String key, Bitmap bitmap) {
             return bitmap.getAllocationByteCount();
@@ -34,6 +70,7 @@ public final class CardArtView extends ImageView {
     public CardArtView(Context context, AttributeSet attrs) { super(context, attrs); init(); }
 
     private void init() {
+        VIEWS.add(this);
         setScaleType(ScaleType.FIT_CENTER);
         setLayerType(LAYER_TYPE_SOFTWARE, null);
         setContentDescription("Card character artwork");
@@ -53,12 +90,14 @@ public final class CardArtView extends ImageView {
         setTag(key);
         setImageDrawable(null);
 
-        Picture cachedPicture = SVG_CACHE.get(key);
+        // Mutable legacy aliases must revalidate; immutable revision URLs can use the LRU.
+        final boolean immutable = !key.startsWith("/media/cards/full/");
+        Picture cachedPicture = immutable ? SVG_CACHE.get(key) : null;
         if (cachedPicture != null) {
             setImageDrawable(new PictureDrawable(cachedPicture));
             return;
         }
-        Bitmap cachedBitmap = BITMAP_CACHE.get(key);
+        Bitmap cachedBitmap = immutable ? BITMAP_CACHE.get(key) : null;
         if (cachedBitmap != null) {
             setImageDrawable(new BitmapDrawable(getResources(), cachedBitmap));
             return;
@@ -73,7 +112,8 @@ public final class CardArtView extends ImageView {
                 connection.setRequestMethod("GET");
                 connection.setConnectTimeout(12000);
                 connection.setReadTimeout(15000);
-                connection.setUseCaches(true);
+                connection.setUseCaches(immutable);
+                if (!immutable) connection.setRequestProperty("Cache-Control", "no-cache");
                 connection.setRequestProperty("Accept", "image/svg+xml,image/webp,image/*;q=0.9");
                 int status = connection.getResponseCode();
                 if (status < 200 || status >= 300) throw new IllegalStateException("Artwork HTTP " + status);
@@ -91,10 +131,11 @@ public final class CardArtView extends ImageView {
                     bytes = output.toByteArray();
                 }
 
-                if (key.toLowerCase(java.util.Locale.ROOT).endsWith(".svg")) {
+                if (!rasterImage(bytes) && (key.toLowerCase(java.util.Locale.ROOT).endsWith(".svg")
+                        || String.valueOf(connection.getContentType()).startsWith("image/svg+xml"))) {
                     SVG svg = SVG.getFromInputStream(new java.io.ByteArrayInputStream(bytes));
                     Picture picture = svg.renderToPicture();
-                    SVG_CACHE.put(key, picture);
+                    if (immutable) SVG_CACHE.put(key, picture);
                     asset = picture;
                 } else {
                     BitmapFactory.Options bounds = new BitmapFactory.Options();
@@ -108,7 +149,7 @@ public final class CardArtView extends ImageView {
                         options.inSampleSize *= 2;
                     Bitmap bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.length, options);
                     if (bitmap == null) throw new IllegalStateException("Unsupported artwork image");
-                    BITMAP_CACHE.put(key, bitmap);
+                    if (immutable) BITMAP_CACHE.put(key, bitmap);
                     asset = bitmap;
                 }
             } catch (Exception ignored) {
