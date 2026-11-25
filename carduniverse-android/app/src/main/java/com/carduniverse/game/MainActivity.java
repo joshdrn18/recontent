@@ -4481,10 +4481,10 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         plaque.setPadding(dp(3),dp(5),dp(3),dp(4));
         plaque.setBackground(gradient(Color.rgb(22,29,46),Color.rgb(8,13,25),accent,dp(6)));
         TextView name=text(card.optString("name","Unknown Card"),11,TEXT,true);
-        name.setGravity(Gravity.CENTER);name.setMaxLines(2);
+        name.setGravity(Gravity.CENTER);name.setMaxLines(2);name.setMinLines(2);
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);plaque.addView(name);
         TextView meta=text(rarity+"  ·  "+element,8,accent,true);
-        meta.setGravity(Gravity.CENTER);meta.setMaxLines(2);plaque.addView(meta);
+        meta.setGravity(Gravity.CENTER);meta.setMaxLines(2);meta.setMinLines(2);plaque.addView(meta);
         TextView stats=text((power>0?"✦ "+formatNumber(power)+"  ·  ":"")+(copies>0?"×"+copies:"LOCKED"),8,GOLD_BRIGHT,true);
         stats.setGravity(Gravity.CENTER);plaque.addView(stats);
         LinearLayout.LayoutParams plaqueParams=new LinearLayout.LayoutParams(-1,-2);
