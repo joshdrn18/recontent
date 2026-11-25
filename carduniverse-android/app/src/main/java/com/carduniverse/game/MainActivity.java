@@ -688,9 +688,25 @@ public final class MainActivity extends Activity {
     }
 
     private void addScreenHero(String tab) {
-        // Every module now shares the Astral Gate / Summon header language.
-        addRealmScene("summon", screenHeading(tab).toUpperCase(java.util.Locale.ROOT),
+        addRealmScene(phase17SceneMode(tab), screenHeading(tab).toUpperCase(java.util.Locale.ROOT),
                 screenDescription(tab), 0, 0);
+    }
+
+    private String phase17SceneMode(String tab) {
+        switch (tab) {
+            case "summon": case "summon_history": case "evolution": return "summon";
+            case "adventure": case "missions": case "journey": return "adventure";
+            case "dungeons": case "tower": return "dungeon";
+            case "raids": case "world_events": case "events": return "raid";
+            case "arena": case "ranked": case "training": case "battle_history": return "arena";
+            case "collection": case "encyclopedia": case "mastery": case "formation": return "archive";
+            case "binders": case "binder_completion": return "binder";
+            case "achievements": case "showcase": case "progression": case "leaderboards": return "records";
+            case "shop": case "wallet_history": return "market";
+            case "chat": case "trades": return "trade";
+            case "guild": case "guild_coop": return "guild";
+            default: return "home";
+        }
     }
 
     private void addModeSpotlight(String eyebrow, String title, String description, String emblem, int accent) {
@@ -778,13 +794,14 @@ public final class MainActivity extends Activity {
     private boolean usesRealmScene(String tab) {
         return "collection".equals(tab) || "binders".equals(tab) || "achievements".equals(tab)
                 || "summon".equals(tab) || "adventure".equals(tab) || "dungeons".equals(tab)
-                || "raids".equals(tab) || "arena".equals(tab) || "trades".equals(tab)
-                || "chat".equals(tab) || "shop".equals(tab) || "guild".equals(tab) || "missions".equals(tab)
+                || "raids".equals(tab) || "trades".equals(tab)
+                || "chat".equals(tab) || "shop".equals(tab) || "missions".equals(tab)
                 || "progression".equals(tab);
     }
 
     private void addRealmScene(String mode, String title, String subtitle, int progress, int total) {
-        RealmSceneView scene = new RealmSceneView(this, "summon", title, subtitle, progress, total);
+        RealmSceneView scene = new RealmSceneView(this, mode, title, subtitle, progress, total);
+        scene.setMotionEnabled(!reduceMotionEnabled);
         int availableWidth = content == null ? 0 : content.getWidth();
         if (availableWidth <= dp(160)) {
             availableWidth = getResources().getDisplayMetrics().widthPixels
@@ -4365,89 +4382,65 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private LinearLayout createCardTile(JSONObject card) {
-        String name = card.optString("name", "Unknown Card");
         String rarity = card.optString("rarity", "COMMON").toUpperCase(java.util.Locale.ROOT);
         String element = card.optString("element", "AETHER").toUpperCase(java.util.Locale.ROOT);
-        String code = card.optString("card_code", "CARD");
-        int copies = card.optInt("owned_count");
         int accent = cardRarityColor(rarity);
+        int copies = card.optInt("owned_count");
         long power = card.optLong("card_power", card.optLong("formation_power"));
-
         LinearLayout tile = new LinearLayout(this);
         tile.setOrientation(LinearLayout.VERTICAL);
-        tile.setPadding(dp(4), dp(4), dp(4), dp(7));
-        GradientDrawable frame = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.rgb(31, 39, 62), Color.rgb(7, 12, 24)});
-        frame.setCornerRadius(dp(12));
-        frame.setStroke(dp(1), Color.argb(220, Color.red(accent), Color.green(accent), Color.blue(accent)));
+        tile.setPadding(dp(4), dp(4), dp(4), dp(6));
+        GradientDrawable frame = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{accent, Color.rgb(23, 29, 45), accent, Color.rgb(8, 12, 23)});
+        frame.setCornerRadius(dp(10));
+        frame.setStroke(dp(1), accent);
         tile.setBackground(new android.graphics.drawable.RippleDrawable(
-                android.content.res.ColorStateList.valueOf(Color.argb(70, 255, 255, 255)), frame, null));
-        tile.setElevation(dp(3));
+                android.content.res.ColorStateList.valueOf(Color.argb(48,255,255,255)), frame, null));
+        tile.setElevation(dp(2));
 
-        FrameLayout artFrame = new FrameLayout(this);
-        GradientDrawable artBack = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                new int[]{Color.rgb(24, 35, 58), Color.rgb(4, 8, 17)});
-        artBack.setCornerRadius(dp(9));
-        artBack.setStroke(dp(1), Color.argb(150, Color.red(accent), Color.green(accent), Color.blue(accent)));
-        artFrame.setBackground(artBack);
+        // Use the measured grid width, not the display width, to keep 2:3 artwork on every device.
+        FrameLayout artFrame = new FrameLayout(this) {
+            @Override protected void onMeasure(int widthSpec, int heightSpec) {
+                int width = View.MeasureSpec.getSize(widthSpec);
+                if (width > 0 && View.MeasureSpec.getMode(widthSpec) != View.MeasureSpec.UNSPECIFIED) {
+                    super.onMeasure(widthSpec, View.MeasureSpec.makeMeasureSpec(
+                            Math.round(width * 1.5f), View.MeasureSpec.EXACTLY));
+                } else super.onMeasure(widthSpec, heightSpec);
+            }
+        };
+        artFrame.setBackground(gradient(Color.rgb(28,37,57),Color.rgb(7,12,23),accent,dp(7)));
         artFrame.setClipToOutline(true);
+        LinearLayout placeholder = new LinearLayout(this);
+        placeholder.setOrientation(LinearLayout.VERTICAL);
+        placeholder.setGravity(Gravity.CENTER);
+        TextView sigil = text(elementSigil(element), 29, accent, true);
+        placeholder.addView(sigil);
+        TextView code = text(card.optString("card_code","CARD"), 9, accent, true);
+        code.setGravity(Gravity.CENTER);
+        placeholder.addView(code);
+        artFrame.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
         CardArtView illustration = new CardArtView(this);
-        illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
+        illustration.setScaleType(ImageView.ScaleType.FIT_CENTER);
         illustration.loadArtwork(cardArtworkPath(card));
-        artFrame.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
-
-        View shade = new View(this);
-        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{Color.argb(24, 2, 6, 15), Color.TRANSPARENT, Color.argb(220, 2, 6, 15)}));
-        artFrame.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+        artFrame.addView(illustration,new FrameLayout.LayoutParams(-1,-1));
         phase16SkinOverlay(artFrame,card,false);
+        tile.addView(artFrame,new LinearLayout.LayoutParams(-1,-2));
 
-        TextView rarityTag = text(rarity, 7, Color.WHITE, true);
-        rarityTag.setGravity(Gravity.CENTER);
-        rarityTag.setPadding(dp(7), dp(4), dp(7), dp(4));
-        rarityTag.setBackground(gradient(Color.argb(230, 10, 15, 29),
-                Color.argb(230, 10, 15, 29), accent, dp(6)));
-        FrameLayout.LayoutParams rarityParams = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.LEFT);
-        rarityParams.setMargins(dp(6), dp(6), 0, 0);
-        artFrame.addView(rarityTag, rarityParams);
-
-        TextView copyTag = text(copies > 0 ? "×" + copies : "LOCKED", 7, Color.WHITE, true);
-        copyTag.setGravity(Gravity.CENTER);
-        copyTag.setPadding(dp(6), dp(4), dp(6), dp(4));
-        copyTag.setBackground(gradient(Color.argb(225, 10, 15, 29), Color.argb(225, 10, 15, 29),
-                copies > 0 ? GREEN : Color.rgb(99, 119, 156), dp(6)));
-        FrameLayout.LayoutParams copyParams = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.RIGHT);
-        copyParams.setMargins(0, dp(6), dp(6), 0);
-        artFrame.addView(copyTag, copyParams);
-
-        TextView artworkName = text(name, 10, Color.WHITE, true);
-        artworkName.setMaxLines(2);
-        artworkName.setShadowLayer(dp(5), 0, dp(1), Color.BLACK);
-        artworkName.setPadding(dp(7), 0, dp(7), dp(8));
-        artFrame.addView(artworkName, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
-
-        int widthDp = Math.round(getResources().getDisplayMetrics().widthPixels
-                / getResources().getDisplayMetrics().density);
-        int columns = widthDp >= 1400 ? 6 : widthDp >= 1050 ? 5 : widthDp >= 680 ? 4 : 3;
-        int artHeight = Math.max(158, Math.min(220,
-                Math.round((widthDp / (float) columns) * 1.38f)));
-        tile.addView(artFrame, new LinearLayout.LayoutParams(-1, dp(artHeight)));
-
-        TextView meta = text(elementSigil(element) + "  " + element, 7, MUTED, true);
-        meta.setPadding(dp(2), dp(7), dp(2), dp(1));
-        meta.setGravity(Gravity.CENTER);
-        tile.addView(meta);
-        if (power > 0) {
-            TextView powerView = text("✦ " + formatNumber(power) + " POWER", 7, GOLD_BRIGHT, true);
-            powerView.setGravity(Gravity.CENTER);
-            powerView.setPadding(0, dp(2), 0, 0);
-            tile.addView(powerView);
-        }
-        TextView codeView = text(code, 6, Color.rgb(135, 151, 180), true);
-        codeView.setGravity(Gravity.CENTER);
-        codeView.setPadding(0, dp(3), 0, 0);
-        tile.addView(codeView);
-        tile.setOnClickListener(v -> showCardDetails(card));
+        LinearLayout plaque=new LinearLayout(this);
+        plaque.setOrientation(LinearLayout.VERTICAL);
+        plaque.setGravity(Gravity.CENTER_HORIZONTAL);
+        plaque.setPadding(dp(3),dp(5),dp(3),dp(4));
+        plaque.setBackground(gradient(Color.rgb(22,29,46),Color.rgb(8,13,25),accent,dp(6)));
+        TextView name=text(card.optString("name","Unknown Card"),11,TEXT,true);
+        name.setGravity(Gravity.CENTER);name.setMaxLines(2);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);plaque.addView(name);
+        TextView meta=text(rarity+"  ·  "+element,8,accent,true);
+        meta.setGravity(Gravity.CENTER);meta.setMaxLines(2);plaque.addView(meta);
+        TextView stats=text((power>0?"✦ "+formatNumber(power)+"  ·  ":"")+(copies>0?"×"+copies:"LOCKED"),8,GOLD_BRIGHT,true);
+        stats.setGravity(Gravity.CENTER);plaque.addView(stats);
+        LinearLayout.LayoutParams plaqueParams=new LinearLayout.LayoutParams(-1,-2);
+        plaqueParams.topMargin=dp(3);tile.addView(plaque,plaqueParams);
+        tile.setOnClickListener(v->showCardDetails(card));
         return tile;
     }
 
