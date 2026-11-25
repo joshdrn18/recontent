@@ -3440,7 +3440,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
                     tile.addView(ownedHint);
                 }
 
-                LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(tileWidth, tileHeight);
+                LinearLayout.LayoutParams tileParams = new LinearLayout.LayoutParams(0, tileHeight, 1f);
                 if (column < columns-1) tileParams.rightMargin = dp(5);
                 gridRow.addView(tile, tileParams);
             }
