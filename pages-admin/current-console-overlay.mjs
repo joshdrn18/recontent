@@ -1,5 +1,5 @@
 const previous = "https://3781239c.carduniverse-admin.pages.dev";
-const consolePage = /* PUBLIC_CONSOLE_HTML */ null;
+const assets = /* PUBLIC_CONSOLE_ASSETS */ {};
 const pageHeaders = {
     "content-type": "text/html; charset=utf-8",
     "content-security-policy": "default-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
@@ -25,7 +25,7 @@ const consoleStyles = `
 function replaceOnce(source, original, replacement) {
     const offset = source.indexOf(original);
     if (offset < 0 || source.indexOf(original, offset + original.length) >= 0) {
-        throw new Error("The deployed Guild editor has changed.");
+        throw new Error("The pinned admin module has changed.");
     }
     return source.slice(0, offset) + replacement + source.slice(offset + original.length);
 }
@@ -45,20 +45,30 @@ function updateOperations(source) {
 function updateRecordEditor(source) {
     source = replaceOnce(source, 'N("member_limit","Member capacity",5,1000),', "");
     const marker = "if(meta.children.length)right.append(meta);";
-    return replaceOnce(source, marker,
+    source = replaceOnce(source, marker,
         'if(type==="guild"){const cap=e("div",undefined,"cue-metric");' +
         'cap.append(e("small","Fixed capacity"),e("b",50));meta.append(cap);}' + marker);
+    source = replaceOnce(source, "export async function mount(id,host){", "export async function mount(id,host,preferred){");
+    source = replaceOnce(source, "const v=++generation,c=cfg[type];",
+        'if(id==="live")history.replaceState(null,"","/#live/"+type);const v=++generation,c=cfg[type];');
+    return replaceOnce(source, "await choose(types[0]);}", "await choose(types.includes(preferred)?preferred:types[0]);}");
 }
 
 export default {
     async fetch(request) {
         const url = new URL(request.url);
         const read = request.method === "GET" || request.method === "HEAD";
-        if (read && (url.pathname === "/" || url.pathname === "/login") && consolePage) {
-            if (request.method === "HEAD") return new Response(null, {headers: pageHeaders});
-            const bytes = Uint8Array.from(atob(consolePage), value => value.charCodeAt(0));
-            const html = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
-            return new Response(html, {headers: pageHeaders});
+        const key = url.pathname === "/login" ? "/" : url.pathname;
+        if (read && Object.hasOwn(assets, key)) {
+            const contentType = key === "/" ? "text/html" : key.endsWith(".css") ? "text/css" : "text/javascript";
+            const responseHeaders = {
+                ...pageHeaders,
+                "content-type": contentType + "; charset=utf-8"
+            };
+            if (request.method === "HEAD") return new Response(null, {headers: responseHeaders});
+            const bytes = Uint8Array.from(atob(assets[key]), value => value.charCodeAt(0));
+            const body = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));
+            return new Response(body, {headers: responseHeaders});
         }
         if (read && url.pathname === "/firstlight-console.css") {
             return new Response(request.method === "HEAD" ? null : consoleStyles, {
@@ -91,14 +101,14 @@ export default {
         if (request.method === "GET" && editor && result.ok) {
             // This route serves one bounded JavaScript module from the pinned deployment.
             const source = await result.text();
-            if (source.length > 150000) return new Response("Guild tools unavailable", {status: 502});
+            if (source.length > 150000) return new Response("Admin tools unavailable", {status: 502});
             outgoing.delete("content-length");
             outgoing.delete("content-encoding");
             outgoing.delete("etag");
             try {
                 return new Response(editor(source), {status: result.status, headers: outgoing});
             } catch (error) {
-                console.error("Cannot update Guild editor", error.message);
+                console.error("Cannot prepare admin editor", error.message);
                 return new Response(source, {status: result.status, headers: outgoing});
             }
         }
