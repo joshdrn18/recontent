@@ -117,6 +117,7 @@ public final class MainActivity extends Activity {
     private final Runnable autoSyncTick = new Runnable() {
         @Override public void run() {
             if (!isFinishing() && api != null && me != null && appRoot != null && autoSyncEnabled) {
+                syncCardImages(null);
                 syncWithSharedBackend(false);
                 ui.postDelayed(this, AUTO_SYNC_INTERVAL_MS);
             }
@@ -2570,6 +2571,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
 
         void bind(JSONObject card, String emptyTitle, String emptyMeta) {
             if (card == null) {
+                boundArtwork.remove(artwork);
                 artwork.clearArtwork();
                 sigil.setText("?");
                 sigil.setTextColor(MUTED);
@@ -2583,7 +2585,7 @@ if (isAdminAccount() || data.optBoolean("rankedHidden")) {
             String rarity = card.optString("rarity", "COMMON")
                     .toUpperCase(java.util.Locale.ROOT);
             String path = cardArtworkPath(card);
-            artwork.loadArtwork(path);
+            bindCardArtwork(artwork, card);
             sigil.setText(elementSigil(element));
             sigil.setTextColor(accent);
             sigil.setAlpha(path.isEmpty() ? 0.72f : 0.16f);
@@ -4165,7 +4167,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (featured != null) {
             CardArtView featuredArt = new CardArtView(this);
             featuredArt.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            featuredArt.loadArtwork(cardArtworkPath(featured));
+            bindCardArtwork(featuredArt, featured);
             featuredFrame.addView(featuredArt, new FrameLayout.LayoutParams(-1, -1));
             View featuredShade = new View(this);
             featuredShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
@@ -4426,17 +4428,33 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
     }
 
     private final java.util.Map<String,String> liveCardImages=new java.util.HashMap<>();
+    private final java.util.WeakHashMap<CardArtView, JSONObject> boundArtwork = new java.util.WeakHashMap<>();
+    private void bindCardArtwork(CardArtView view, JSONObject card) {
+        boundArtwork.put(view, card);
+        view.loadArtwork(cardArtworkPath(card));
+    }
+
     private void syncCardImages(Runnable after){
         api.get("/api/card-image-revisions",result->ui.post(()->{
             if(result.ok()){
                 JSONArray cards=result.data.optJSONArray("cards");
                 if(cards!=null){
-                    liveCardImages.clear();
+                    java.util.Map<String,String> revisions = new java.util.HashMap<>();
                     for(int i=0;i<cards.length();i++){
                         JSONObject c=cards.optJSONObject(i);if(c==null)continue;
                         String path=c.optString("art_path","");
                         if(path.startsWith("/media/cards/full-uploads/"))
-                            liveCardImages.put(c.optString("card_code","").toUpperCase(java.util.Locale.ROOT),path);
+                            revisions.put(c.optString("card_code","").toUpperCase(java.util.Locale.ROOT),path);
+                    }
+                    if (!revisions.equals(liveCardImages)) {
+                        liveCardImages.clear();
+                        liveCardImages.putAll(revisions);
+                        for (java.util.Map.Entry<CardArtView, JSONObject> entry : boundArtwork.entrySet()) {
+                            CardArtView view = entry.getKey();
+                            if (view == null || !view.isAttachedToWindow()) continue;
+                            String path = cardArtworkPath(entry.getValue());
+                            if (!path.equals(view.getTag())) view.loadArtwork(path);
+                        }
                     }
                 }
             }
@@ -4498,7 +4516,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         artFrame.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
         CardArtView illustration = new CardArtView(this);
         illustration.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        illustration.loadArtwork(cardArtworkPath(card));
+        bindCardArtwork(illustration, card);
         artFrame.addView(illustration,new FrameLayout.LayoutParams(-1,-1));
         phase16SkinOverlay(artFrame,card,false);
         tile.addView(artFrame,new LinearLayout.LayoutParams(-1,-2));
@@ -4589,7 +4607,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         artFrame.setBackground(gradient(Color.rgb(22, 35, 52), Color.rgb(5, 10, 18), accent, dp(11)));
         CardArtView art = new CardArtView(this);
         art.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-        art.loadArtwork(cardArtworkPath(card));
+        bindCardArtwork(art, card);
         FrameLayout.LayoutParams ap = new FrameLayout.LayoutParams(-1, -1);
         ap.setMargins(dp(3), dp(3), dp(3), dp(3));
         artFrame.addView(art, ap);
@@ -5588,7 +5606,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             art.setClipToOutline(true);
             CardArtView illustration = new CardArtView(this);
             illustration.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-            illustration.loadArtwork(cardArtworkPath(listing));
+            bindCardArtwork(illustration, listing);
             art.addView(illustration, new FrameLayout.LayoutParams(-1, -1));
             View shade = new View(this);
             shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
@@ -5694,7 +5712,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         row.setBackground(gradient(Color.rgb(20,34,51),Color.rgb(11,19,34),Color.rgb(67,87,111),dp(11)));
         FrameLayout art=new FrameLayout(this);art.setBackground(gradient(Color.rgb(30,45,65),Color.rgb(7,13,25),accent,dp(7)));art.setClipToOutline(true);
         TextView fallback=text(elementSigil(element),20,accent,true);fallback.setGravity(Gravity.CENTER);art.addView(fallback,new FrameLayout.LayoutParams(-1,-1));
-        CardArtView image=new CardArtView(this);image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);image.loadArtwork(cardArtworkPath(card));art.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        CardArtView image=new CardArtView(this);image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);bindCardArtwork(image, card);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
         row.addView(art,new LinearLayout.LayoutParams(dp(62),dp(82)));
         LinearLayout details=new LinearLayout(this);details.setOrientation(LinearLayout.VERTICAL);details.setPadding(dp(10),0,dp(7),0);
         TextView name=text(card.optString("name","Unknown Card"),10,TEXT,true);name.setMaxLines(2);details.addView(name);details.addView(text(rarity+"  ·  "+element,7,accent,true));
@@ -5764,7 +5782,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(9),dp(9),dp(9),dp(9));
         row.setBackground(gradient(Color.rgb(26,48,59),Color.rgb(12,27,38),CYAN,dp(11)));
         FrameLayout art=new FrameLayout(this);art.setBackground(gradient(Color.rgb(30,45,65),Color.rgb(7,13,25),cardRarityColor(selected.optString("rarity","COMMON")),dp(8)));
-        CardArtView image=new CardArtView(this);image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);image.loadArtwork(cardArtworkPath(selected));art.addView(image,new FrameLayout.LayoutParams(-1,-1));
+        CardArtView image=new CardArtView(this);image.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);bindCardArtwork(image, selected);art.addView(image,new FrameLayout.LayoutParams(-1,-1));
         row.addView(art,new LinearLayout.LayoutParams(dp(72),dp(96)));LinearLayout info=new LinearLayout(this);info.setOrientation(LinearLayout.VERTICAL);info.setPadding(dp(10),0,0,0);
         TextView name=text(selected.optString("name","Card"),13,TEXT,true);name.setMaxLines(2);info.addView(name);
         info.addView(text(selected.optString("rarity","CARD").toUpperCase(java.util.Locale.ROOT)+" · "+selected.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT),8,GOLD_BRIGHT,true));
@@ -5875,7 +5893,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         frame.setBackground(gradient(Color.rgb(35,43,62),Color.rgb(8,14,25),accent,dp(10)));frame.setClipToOutline(true);
         TextView sigil=text(elementSigil(card.optString("element","AETHER").toUpperCase(java.util.Locale.ROOT)),30,accent,true);sigil.setGravity(Gravity.CENTER);
         frame.addView(sigil,new FrameLayout.LayoutParams(-1,-1));
-        CardArtView art=new CardArtView(this);art.setScaleType(ImageView.ScaleType.FIT_CENTER);art.loadArtwork(cardArtworkPath(card));frame.addView(art,new FrameLayout.LayoutParams(-1,-1));phase16SkinOverlay(frame,card,false);return frame;
+        CardArtView art=new CardArtView(this);art.setScaleType(ImageView.ScaleType.FIT_CENTER);bindCardArtwork(art, card);frame.addView(art,new FrameLayout.LayoutParams(-1,-1));phase16SkinOverlay(frame,card,false);return frame;
     }
 
     private FrameLayout phase11Avatar(String name,String path,int accent){
@@ -6430,6 +6448,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         if (card == null) {
             art.setBackground(gradient(Color.rgb(26, 45, 37), Color.rgb(10, 19, 16),
                     Color.rgb(82, 104, 77), dp(8)));
+            boundArtwork.remove(illustration);
             illustration.clearArtwork();
             sigil.setAlpha(1f);
             sigil.setText("＋");
@@ -6447,7 +6466,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         sigil.setText(elementSigil(element));
         sigil.setTextColor(accent);
         sigil.setAlpha(0.16f);
-        illustration.loadArtwork(cardArtworkPath(card));
+        bindCardArtwork(illustration, card);
         name.setText(card.optString("name", "Unknown Card"));
         name.setTextColor(TEXT);
         meta.setText(rarity + " · " + element + " · POWER "
@@ -6619,7 +6638,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
             CardArtView art = new CardArtView(this);
             art.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
             art.setAlpha(0.88f);
-            art.loadArtwork(cardArtworkPath(cards.optJSONObject(0)));
+            bindCardArtwork(art, cards.optJSONObject(0));
             FrameLayout.LayoutParams artParams = new FrameLayout.LayoutParams(-1, -1);
             artParams.setMargins(dp(6), dp(6), dp(6), dp(6));
             cover.addView(art, artParams);
@@ -7679,7 +7698,7 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         art.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
         CardArtView image = new CardArtView(this);
         image.setScaleType(android.widget.ImageView.ScaleType.FIT_CENTER);
-        image.loadArtwork(cardArtworkPath(card));
+        bindCardArtwork(image, card);
         art.addView(image, new FrameLayout.LayoutParams(-1, -1));
         TextView badge = text(rarity, 7, Color.WHITE, true);
         badge.setPadding(dp(6), dp(4), dp(6), dp(4));
@@ -7946,14 +7965,14 @@ addModeSpotlight("GAME EXPERIENCE", "Make the realm feel yours",
         stage.setBackground(gradient(Color.rgb(31, 47, 50), Color.rgb(10, 19, 26), accent, dp(15)));
 
         CardArtView attacker = new CardArtView(this);
-        if (arenaLeaderCard != null) attacker.loadArtwork(cardArtworkPath(arenaLeaderCard));
+        if (arenaLeaderCard != null) bindCardArtwork(attacker, arenaLeaderCard);
         FrameLayout.LayoutParams attackerParams = new FrameLayout.LayoutParams(
                 dp(112), dp(118), Gravity.CENTER_VERTICAL | Gravity.LEFT);
         attackerParams.leftMargin = dp(7);
         stage.addView(attacker, attackerParams);
 
         CardArtView defender = new CardArtView(this);
-        if (arenaOpponentCard != null) defender.loadArtwork(cardArtworkPath(arenaOpponentCard));
+        if (arenaOpponentCard != null) bindCardArtwork(defender, arenaOpponentCard);
         FrameLayout.LayoutParams defenderParams = new FrameLayout.LayoutParams(
                 dp(112), dp(118), Gravity.CENTER_VERTICAL | Gravity.RIGHT);
         defenderParams.rightMargin = dp(7);

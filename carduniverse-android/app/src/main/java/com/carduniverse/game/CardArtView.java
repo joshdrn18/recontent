@@ -42,7 +42,7 @@ public final class CardArtView extends ImageView {
     private final android.graphics.Paint fullCardPaint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG | android.graphics.Paint.FILTER_BITMAP_FLAG);
     private final android.graphics.RectF fullCardBounds=new android.graphics.RectF();
 
-    // Uploaded complete cards share a 2:3 display canvas, without cropping borders or text.
+    // Uploaded complete cards fit their display canvas, without cropping borders or text.
     // The original bitmap, immutable upload URL and memory cache remain unchanged.
     @Override protected void onDraw(android.graphics.Canvas canvas) {
         Object key=getTag();
@@ -53,7 +53,9 @@ public final class CardArtView extends ImageView {
             int width=getWidth()-getPaddingLeft()-getPaddingRight();
             int height=getHeight()-getPaddingTop()-getPaddingBottom();
             if(image!=null&&!image.isRecycled()&&width>0&&height>0){
-                float w=Math.min(width,height*2f/3f),h=w*1.5f;
+                float ratio = (float) image.getWidth() / image.getHeight();
+                float w = Math.min(width, height * ratio);
+                float h = w / ratio;
                 float left=getPaddingLeft()+(width-w)*.5f,top=getPaddingTop()+(height-h)*.5f;
                 fullCardBounds.set(left,top,left+w,top+h);
                 canvas.drawBitmap(image,null,fullCardBounds,fullCardPaint);
