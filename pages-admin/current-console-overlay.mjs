@@ -76,7 +76,12 @@ export default {
             });
         }
 
-        const target = new URL(previous);
+        // Session routes are shared with the game clients. Keep their cookies on
+        // the console host while avoiding the legacy Pages proxy chain.
+        const sessionRoute = ["/api/auth/login", "/api/auth/logout", "/api/me",
+            "/api/admin/profile"].includes(url.pathname);
+        const upstream = sessionRoute ? "https://carduniverse.inipastiuy-41f.workers.dev" : previous;
+        const target = new URL(upstream);
         target.pathname = url.pathname;
         target.search = url.search;
         const headers = new Headers(request.headers);
@@ -85,15 +90,21 @@ export default {
         if (!read && origin && origin !== url.origin) {
             return Response.json({ok:false,error:"Request origin did not match this console."}, {status:403});
         }
-        if (origin === url.origin) headers.set("origin", previous);
+        if (origin === url.origin) headers.set("origin", upstream);
+        if (sessionRoute) {
+            const session = (headers.get("cookie") || "").split(";")
+                .map(part => part.trim()).find(part => part.startsWith("cu_session="));
+            headers.delete("cookie");
+            if (session) headers.set("cookie", session);
+        }
         const result = await fetch(target, {
             method: request.method, headers, body: read ? null : request.body, redirect: "manual"
         });
         const outgoing = new Headers(result.headers);
         const location = outgoing.get("location");
         if (location) {
-            const redirect = new URL(location, previous);
-            if (redirect.origin === previous) outgoing.set("location", redirect.pathname + redirect.search + redirect.hash);
+            const redirect = new URL(location, upstream);
+            if (redirect.origin === upstream) outgoing.set("location", redirect.pathname + redirect.search + redirect.hash);
         }
 
         const editor = url.pathname === "/unified-ops.js" ? updateOperations
